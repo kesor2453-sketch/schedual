@@ -174,6 +174,8 @@
       </div>
     </div>
     <div class="month-nav">
+      <input id="editorName" type="text" placeholder="Your name"
+        style="border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12.5px; width:120px; font-family:inherit;">
       <button onclick="shiftMonth(-1)">‹</button>
       <span class="month-label" id="monthLabel">—</span>
       <button onclick="shiftMonth(1)">›</button>
@@ -383,10 +385,17 @@
     }
 
     async function onEdit(date, field, newValue){
+      const editorName = document.getElementById('editorName').value.trim();
+      if(!editorName){
+        showToast('Enter your name first (top right)');
+        document.getElementById('editorName').focus();
+        load(); // re-render so the select snaps back to its saved value
+        return;
+      }
       try{
         const res = await fetch(API_URL, {
           method: 'POST',
-          body: JSON.stringify({ action: 'updateAssignment', date, field, newName: newValue })
+          body: JSON.stringify({ action: 'updateAssignment', date, field, newName: newValue, editorName })
         }).then(r => r.json());
         if(res.error) throw new Error(res.error);
         showToast('Updated ' + field + ' for ' + date);
@@ -398,6 +407,11 @@
 
     function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escAttr(s){ return esc(s); }
+
+    // Remember the editor's name locally between visits
+    const nameInput = document.getElementById('editorName');
+    nameInput.value = localStorage.getItem('editorName') || '';
+    nameInput.addEventListener('change', () => localStorage.setItem('editorName', nameInput.value.trim()));
 
     load();
   </script>
