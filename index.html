@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Duty Roster Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --ink:#0f2a2e;
+      --ink-soft:#4a6367;
+      --paper:#f6f8f7;
+      --card:#ffffff;
+      --line:#e1e8e6;
+      --spv:#1f6f78;
+      --spv-bg:#e6f2f2;
+      --hmv:#3f8f5f;
+      --hmv-bg:#e9f6ec;
+      --off:#c65a3a;
+      --off-bg:#fbeae4;
+      --accent:#c65a3a;
+      --shadow: 0 1px 2px rgba(15,42,46,.06), 0 6px 20px rgba(15,42,46,.05);
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0;
+      font-family:'Inter',sans-serif;
+      background:var(--paper);
+      color:var(--ink);
+      -webkit-font-smoothing:antialiased;
+    }
+    .khmer{font-family:'Noto Sans Khmer','Inter',sans-serif;}
+    header{
+      padding:28px 32px 20px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      gap:12px;
+    }
+    .brand{display:flex; align-items:baseline; gap:10px;}
+    .brand .mark{
+      width:10px;height:10px;border-radius:50%;
+      background:var(--accent);
+      display:inline-block;
+      transform:translateY(-1px);
+    }
+    h1{font-size:19px; font-weight:700; margin:0; letter-spacing:-0.01em;}
+    .sub{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+    .month-nav{display:flex; align-items:center; gap:14px;}
+    .month-nav button{
+      border:1px solid var(--line); background:var(--card); color:var(--ink);
+      width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:15px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .month-nav button:hover{border-color:var(--spv); color:var(--spv);}
+    .month-label{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:13px; min-width:110px; text-align:center;}
+
+    main{padding:24px 32px 60px; max-width:1180px; margin:0 auto;}
+
+    .config-banner{
+      background:#fff7ed; border:1px solid #fcd9b0; color:#92400e;
+      padding:10px 14px; border-radius:10px; font-size:12.5px; margin-bottom:16px;
+      display:none;
+    }
+    .config-banner.show{display:block;}
+    .config-banner code{background:#fff2e0; padding:1px 5px; border-radius:4px;}
+
+    .legend{display:flex; gap:18px; margin-bottom:18px; flex-wrap:wrap;}
+    .legend .item{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft);}
+    .legend .dot{width:8px;height:8px;border-radius:50%;}
+    .dot.spv{background:var(--spv);}
+    .dot.hmv{background:var(--hmv);}
+    .dot.off{background:var(--off);}
+
+    .board{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:14px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      overflow-x:auto;
+    }
+    table{width:100%; border-collapse:collapse; font-size:13px;}
+    thead th{
+      text-align:left;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      color:var(--ink-soft);
+      font-weight:600;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background:#fbfcfc;
+      white-space:nowrap;
+    }
+    tbody tr{border-bottom:1px solid var(--line);}
+    tbody tr:last-child{border-bottom:none;}
+    tbody tr:hover{background:#fbfdfc;}
+    tbody td{padding:9px 14px; vertical-align:middle;}
+    .date-cell{white-space:nowrap;}
+    .date-num{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:12.5px;}
+    .day-name{display:block; font-size:10.5px; color:var(--ink-soft); margin-top:1px;}
+    .weekend .date-num{color:var(--accent);}
+
+    .pill{
+      display:inline-flex; align-items:center; gap:5px;
+      padding:4px 9px; border-radius:7px; font-size:12px;
+      border:1px solid transparent;
+      cursor:pointer;
+      max-width:150px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .pill.spv{background:var(--spv-bg); color:var(--spv); border-color:#cfe6e6;}
+    .pill.hmv{background:var(--hmv-bg); color:var(--hmv); border-color:#d3ecd9;}
+    .pill.off{background:var(--off-bg); color:var(--off); border-color:#f2d4c6;}
+    .pill.empty{background:#f1f3f2; color:#9fb0ae; border-style:dashed; border-color:#d7e0de;}
+    .pill:hover{filter:brightness(0.96);}
+    .pill select{
+      border:none; background:transparent; font:inherit; color:inherit;
+      cursor:pointer; outline:none; max-width:130px;
+    }
+
+    .side{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:20px;
+      margin-top:28px;
+    }
+    .panel{
+      background:var(--card); border:1px solid var(--line); border-radius:14px;
+      box-shadow:var(--shadow); padding:18px 20px;
+    }
+    .panel h2{font-size:13px; margin:0 0 12px; letter-spacing:.02em;}
+    .panel h2 .count{color:var(--ink-soft); font-weight:500; font-family:'IBM Plex Mono',monospace; font-size:11px;}
+    .history-row{
+      display:grid;
+      grid-template-columns: 92px 78px 1fr auto;
+      gap:10px; align-items:center;
+      padding:8px 0; border-bottom:1px dashed var(--line); font-size:12.5px;
+    }
+    .history-row:last-child{border-bottom:none;}
+    .history-time{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft);}
+    .history-field{font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--spv); font-weight:600;}
+    .history-change{display:flex; align-items:center; gap:6px; overflow:hidden;}
+    .history-change .old{color:#b3453a; text-decoration:line-through; opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .history-change .new{color:var(--hmv); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .history-user{font-size:10.5px; color:var(--ink-soft); text-align:right;}
+
+    .empty-state{color:var(--ink-soft); font-size:12.5px; padding:14px 0; text-align:center;}
+    .toast{
+      position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px);
+      background:var(--ink); color:#fff; padding:10px 18px; border-radius:9px;
+      font-size:12.5px; opacity:0; transition:.25s ease; pointer-events:none;
+      box-shadow:0 8px 24px rgba(0,0,0,.2);
+    }
+    .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+    .loading{padding:40px; text-align:center; color:var(--ink-soft); font-size:13px;}
+
+    @media(min-width:820px){
+      .side{grid-template-columns: 1.4fr 1fr;}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="mark"></span>
+      <div>
+        <h1>Duty Roster</h1>
+        <div class="sub">SPV &amp; HMV clinic assignments — live from Sheets</div>
+      </div>
+    </div>
+    <div class="month-nav">
+      <button onclick="shiftMonth(-1)">‹</button>
+      <span class="month-label" id="monthLabel">—</span>
+      <button onclick="shiftMonth(1)">›</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="config-banner" id="configBanner">
+      Set your Apps Script Web App URL in <code>API_URL</code> at the top of the script block in this file, then redeploy to GitHub Pages.
+    </div>
+
+    <div class="legend">
+      <span class="item"><span class="dot spv"></span>SPV clinic</span>
+      <span class="item"><span class="dot hmv"></span>HMV clinic</span>
+      <span class="item"><span class="dot off"></span>Day off</span>
+    </div>
+
+    <div class="board">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>SPV Day 1</th>
+            <th>SPV Day 2</th>
+            <th>SPV Day 3</th>
+            <th>SPV Night</th>
+            <th>SPV Off</th>
+            <th>HMV Day</th>
+            <th>HMV Night</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleBody">
+          <tr><td colspan="8" class="loading">Loading roster…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>Recent changes <span class="count" id="historyCount"></span></h2>
+        <div id="historyList"><div class="empty-state">Loading…</div></div>
+      </div>
+      <div class="panel">
+        <h2>This month</h2>
+        <div id="monthStats"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── CONFIG ──────────────────────────────────────────────────────────
+    // Paste your Apps Script Web App URL here (ends in /exec).
+    // Deploy Code.gs as: Deploy → New deployment → Web app →
+    //   Execute as: Me · Who has access: Anyone
+    const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+    // ────────────────────────────────────────────────────────────────────
+
+    let ALL = { doctors: [], schedule: [] };
+    let doctorOptions = { spv: [], hmv: [] };
+    let currentMonth = null;
+
+    const FIELD_CONFIG = [
+      { key:'SPV_Day1', kind:'spv' },
+      { key:'SPV_Day2', kind:'spv' },
+      { key:'SPV_Day3', kind:'spv' },
+      { key:'SPV_Night', kind:'spv' },
+      { key:'SPV_Off', kind:'off' },
+      { key:'HMV_Day', kind:'hmv' },
+      { key:'HMV_Night', kind:'hmv' },
+    ];
+
+    function showToast(msg){
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(()=>t.classList.remove('show'), 2200);
+    }
+
+    async function load(){
+      if(!API_URL || API_URL.indexOf('PASTE_YOUR') === 0){
+        document.getElementById('configBanner').classList.add('show');
+        document.getElementById('scheduleBody').innerHTML =
+          '<tr><td colspan="8" class="loading">Waiting for API_URL to be configured…</td></tr>';
+        return;
+      }
+      try{
+        const [data, history] = await Promise.all([
+          fetch(API_URL + '?action=data').then(r => r.json()),
+          fetch(API_URL + '?action=history&limit=12').then(r => r.json())
+        ]);
+        onData(data);
+        onHistory(history);
+      }catch(err){
+        onError(err);
+      }
+    }
+
+    function onError(err){
+      document.getElementById('scheduleBody').innerHTML =
+        '<tr><td colspan="8" class="loading">Could not load data: '+ (err.message||err) +'</td></tr>';
+    }
+
+    function onData(data){
+      ALL = data;
+      doctorOptions.spv = data.doctors.filter(d => d.ClinicPool === 'SPV' || d.ClinicPool === 'Both').map(d => d.NameSPV || d.NameHMV);
+      doctorOptions.hmv = data.doctors.filter(d => d.ClinicPool === 'HMV' || d.ClinicPool === 'Both').map(d => d.NameHMV || d.NameSPV);
+
+      if (!currentMonth && data.schedule.length){
+        currentMonth = data.schedule[0].Date.slice(0,7);
+      }
+      renderMonthLabel();
+      renderSchedule();
+      renderStats();
+    }
+
+    function renderMonthLabel(){
+      if(!currentMonth) return;
+      const [y,m] = currentMonth.split('-');
+      const d = new Date(Number(y), Number(m)-1, 1);
+      document.getElementById('monthLabel').textContent =
+        d.toLocaleString('en-US', {month:'long', year:'numeric'});
+    }
+
+    function shiftMonth(dir){
+      if(!currentMonth) return;
+      const [y,m] = currentMonth.split('-').map(Number);
+      const d = new Date(y, m-1+dir, 1);
+      currentMonth = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      renderMonthLabel();
+      renderSchedule();
+      renderStats();
+    }
+
+    function pillClass(kind, value){
+      if(!value || String(value).trim()==='' || value === '—') return kind + ' empty';
+      if(kind === 'off' && String(value).toUpperCase().includes('DAY OFF')) return 'off';
+      return kind;
+    }
+
+    function renderSchedule(){
+      const rows = ALL.schedule.filter(r => r.Date && r.Date.slice(0,7) === currentMonth);
+      const body = document.getElementById('scheduleBody');
+      if(!rows.length){
+        body.innerHTML = '<tr><td colspan="8" class="loading">No entries for this month.</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(r => {
+        const d = new Date(r.Date + 'T00:00:00');
+        const dayNum = d.getDate();
+        const dow = d.getDay();
+        const weekend = (dow === 0 || dow === 6) ? 'weekend' : '';
+        const cells = FIELD_CONFIG.map(f => {
+          const val = r[f.key] || '';
+          const cls = pillClass(f.kind, val);
+          const options = f.kind === 'off' ? ['DAY OFF','—'] : doctorOptions[f.kind];
+          const optHtml = ['<option value="">—</option>']
+            .concat(options.map(o => `<option value="${escAttr(o)}" ${o===val?'selected':''}>${esc(o)}</option>`))
+            .join('');
+          return `<td><span class="pill ${cls}"><select onchange="onEdit('${r.Date}','${f.key}',this.value)">${optHtml}</select></span></td>`;
+        }).join('');
+        return `<tr>
+          <td class="date-cell ${weekend}">
+            <span class="date-num">${String(dayNum).padStart(2,'0')}</span>
+            <span class="day-name">${r.Day || ''}</span>
+          </td>
+          ${cells}
+        </tr>`;
+      }).join('');
+    }
+
+    function renderStats(){
+      const rows = ALL.schedule.filter(r => r.Date && r.Date.slice(0,7) === currentMonth);
+      const tally = {};
+      rows.forEach(r => {
+        FIELD_CONFIG.forEach(f => {
+          const v = (r[f.key]||'').trim();
+          if(!v || v === '—' || v === 'DAY OFF') return;
+          tally[v] = (tally[v]||0) + 1;
+        });
+      });
+      const entries = Object.entries(tally).sort((a,b)=>b[1]-a[1]);
+      const el = document.getElementById('monthStats');
+      if(!entries.length){ el.innerHTML = '<div class="empty-state">No data yet.</div>'; return; }
+      el.innerHTML = entries.map(([name,count]) => `
+        <div class="history-row" style="grid-template-columns:1fr 40px;">
+          <span class="khmer">${esc(name)}</span>
+          <span class="history-time" style="text-align:right;">${count}</span>
+        </div>`).join('');
+    }
+
+    function onHistory(entries){
+      const list = document.getElementById('historyList');
+      document.getElementById('historyCount').textContent = entries.length ? ('· ' + entries.length) : '';
+      if(!entries.length){ list.innerHTML = '<div class="empty-state">No changes logged yet.</div>'; return; }
+      list.innerHTML = entries.map(h => {
+        const vals = Object.values(h);
+        const [time, date, field, oldName, newName, user] = vals;
+        return `<div class="history-row">
+          <span class="history-time">${esc(time||'')}</span>
+          <span class="history-field">${esc(field||'')}</span>
+          <span class="history-change"><span class="old khmer">${esc(oldName||'—')}</span>→<span class="new khmer">${esc(newName||'—')}</span></span>
+          <span class="history-user">${esc((user||'').split('@')[0])}</span>
+        </div>`;
+      }).join('');
+    }
+
+    async function onEdit(date, field, newValue){
+      try{
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'updateAssignment', date, field, newName: newValue })
+        }).then(r => r.json());
+        if(res.error) throw new Error(res.error);
+        showToast('Updated ' + field + ' for ' + date);
+        load();
+      }catch(err){
+        showToast('Failed: ' + (err.message||err));
+      }
+    }
+
+    function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function escAttr(s){ return esc(s); }
+
+    load();
+  </script>
+</body>
+</html>
