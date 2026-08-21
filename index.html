@@ -1,419 +1,867 @@
 <!DOCTYPE html>
-<html>
+<html lang="km">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Duty Roster Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --ink:#0f2a2e;
-      --ink-soft:#4a6367;
-      --paper:#f6f8f7;
-      --card:#ffffff;
-      --line:#e1e8e6;
-      --spv:#1f6f78;
-      --spv-bg:#e6f2f2;
-      --hmv:#3f8f5f;
-      --hmv-bg:#e9f6ec;
-      --off:#c65a3a;
-      --off-bg:#fbeae4;
-      --accent:#c65a3a;
-      --shadow: 0 1px 2px rgba(15,42,46,.06), 0 6px 20px rgba(15,42,46,.05);
-    }
-    *{box-sizing:border-box;}
-    body{
-      margin:0;
-      font-family:'Inter',sans-serif;
-      background:var(--paper);
-      color:var(--ink);
-      -webkit-font-smoothing:antialiased;
-    }
-    .khmer{font-family:'Noto Sans Khmer','Inter',sans-serif;}
-    header{
-      padding:28px 32px 20px;
-      border-bottom:1px solid var(--line);
-      display:flex;
-      align-items:baseline;
-      justify-content:space-between;
-      flex-wrap:wrap;
-      gap:12px;
-    }
-    .brand{display:flex; align-items:baseline; gap:10px;}
-    .brand .mark{
-      width:10px;height:10px;border-radius:50%;
-      background:var(--accent);
-      display:inline-block;
-      transform:translateY(-1px);
-    }
-    h1{font-size:19px; font-weight:700; margin:0; letter-spacing:-0.01em;}
-    .sub{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
-    .month-nav{display:flex; align-items:center; gap:14px;}
-    .month-nav button{
-      border:1px solid var(--line); background:var(--card); color:var(--ink);
-      width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:15px;
-      display:flex; align-items:center; justify-content:center;
-    }
-    .month-nav button:hover{border-color:var(--spv); color:var(--spv);}
-    .month-label{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:13px; min-width:110px; text-align:center;}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>តារាងវេន SPV + HMV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4f6f9;
+    --card:#ffffff;
+    --ink:#1c2430;
+    --sub:#6b7686;
+    --line:#e6e9ef;
+    --brand:#2f6fed;
+    --brand-ink:#ffffff;
+    --spv:#2f6fed;
+    --spv-bg:#eaf1ff;
+    --hmv:#0e9f6e;
+    --hmv-bg:#e7f9f1;
+    --off:#e05252;
+    --off-bg:#fdeaea;
+    --warn:#d97706;
+    --warn-bg:#fef3e0;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(20,25,40,.04), 0 8px 24px rgba(20,25,40,.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Noto Sans Khmer','Inter',sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    font-size:14px;
+  }
+  #app{max-width:1180px;margin:0 auto;padding:18px 16px 60px;}
 
-    main{padding:24px 32px 60px; max-width:1180px; margin:0 auto;}
+  header.top{
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+    margin-bottom:16px;
+  }
+  header.top h1{font-size:19px;font-weight:700;margin:0;}
+  header.top .muted{color:var(--sub);font-size:12.5px;margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .refresh-link{color:var(--brand);cursor:pointer;font-weight:600;text-decoration:underline;}
 
-    .config-banner{
-      background:#fff7ed; border:1px solid #fcd9b0; color:#92400e;
-      padding:10px 14px; border-radius:10px; font-size:12.5px; margin-bottom:16px;
-      display:none;
-    }
-    .config-banner.show{display:block;}
-    .config-banner code{background:#fff2e0; padding:1px 5px; border-radius:4px;}
+  .tabs{display:flex;gap:6px;background:var(--card);padding:5px;border-radius:12px;box-shadow:var(--shadow);}
+  .tab{
+    padding:8px 16px;border-radius:9px;cursor:pointer;font-weight:600;color:var(--sub);
+    font-size:13.5px; user-select:none; white-space:nowrap;
+  }
+  .tab.active{background:var(--brand);color:var(--brand-ink);}
 
-    .legend{display:flex; gap:18px; margin-bottom:18px; flex-wrap:wrap;}
-    .legend .item{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft);}
-    .legend .dot{width:8px;height:8px;border-radius:50%;}
-    .dot.spv{background:var(--spv);}
-    .dot.hmv{background:var(--hmv);}
-    .dot.off{background:var(--off);}
+  .panel{display:none;}
+  .panel.active{display:block;}
 
-    .board{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:14px;
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      overflow-x:auto;
-    }
-    table{width:100%; border-collapse:collapse; font-size:13px;}
-    thead th{
-      text-align:left;
-      font-size:11px;
-      text-transform:uppercase;
-      letter-spacing:.06em;
-      color:var(--ink-soft);
-      font-weight:600;
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
-      background:#fbfcfc;
-      white-space:nowrap;
-    }
-    tbody tr{border-bottom:1px solid var(--line);}
-    tbody tr:last-child{border-bottom:none;}
-    tbody tr:hover{background:#fbfdfc;}
-    tbody td{padding:9px 14px; vertical-align:middle;}
-    .date-cell{white-space:nowrap;}
-    .date-num{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:12.5px;}
-    .day-name{display:block; font-size:10.5px; color:var(--ink-soft); margin-top:1px;}
-    .weekend .date-num{color:var(--accent);}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px;}
 
-    .pill{
-      display:inline-flex; align-items:center; gap:5px;
-      padding:4px 9px; border-radius:7px; font-size:12px;
-      border:1px solid transparent;
-      cursor:pointer;
-      max-width:150px;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    }
-    .pill.spv{background:var(--spv-bg); color:var(--spv); border-color:#cfe6e6;}
-    .pill.hmv{background:var(--hmv-bg); color:var(--hmv); border-color:#d3ecd9;}
-    .pill.off{background:var(--off-bg); color:var(--off); border-color:#f2d4c6;}
-    .pill.empty{background:#f1f3f2; color:#9fb0ae; border-style:dashed; border-color:#d7e0de;}
-    .pill:hover{filter:brightness(0.96);}
-    .pill select{
-      border:none; background:transparent; font:inherit; color:inherit;
-      cursor:pointer; outline:none; max-width:130px;
-    }
+  .month-nav{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;justify-content:space-between;}
+  .month-nav .left{display:flex;align-items:center;gap:8px;}
+  .month-nav button.nav-btn{
+    border:1px solid var(--line);background:#fff;border-radius:9px;width:34px;height:34px;
+    cursor:pointer;font-size:16px;color:var(--ink);
+  }
+  .month-nav button.nav-btn:hover{background:#f0f2f6;}
+  .month-nav .month-label{font-weight:700;font-size:16px;min-width:150px;text-align:center;}
+  .month-nav .today-btn{
+    border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--sub);
+  }
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--sub);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
 
-    .side{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:20px;
-      margin-top:28px;
-    }
-    .panel{
-      background:var(--card); border:1px solid var(--line); border-radius:14px;
-      box-shadow:var(--shadow); padding:18px 20px;
-    }
-    .panel h2{font-size:13px; margin:0 0 12px; letter-spacing:.02em;}
-    .panel h2 .count{color:var(--ink-soft); font-weight:500; font-family:'IBM Plex Mono',monospace; font-size:11px;}
-    .history-row{
-      display:grid;
-      grid-template-columns: 92px 78px 1fr auto;
-      gap:10px; align-items:center;
-      padding:8px 0; border-bottom:1px dashed var(--line); font-size:12.5px;
-    }
-    .history-row:last-child{border-bottom:none;}
-    .history-time{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft);}
-    .history-field{font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--spv); font-weight:600;}
-    .history-change{display:flex; align-items:center; gap:6px; overflow:hidden;}
-    .history-change .old{color:#b3453a; text-decoration:line-through; opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .history-change .new{color:var(--hmv); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .history-user{font-size:10.5px; color:var(--ink-soft); text-align:right;}
+  table.sched{width:100%;border-collapse:collapse;font-size:12.8px;}
+  table.sched thead th{
+    background:#f7f8fb;color:var(--sub);font-weight:600;text-align:center;
+    padding:9px 4px;border-bottom:1px solid var(--line);position:sticky;top:0;
+    white-space:nowrap;
+  }
+  table.sched thead th.group-spv{color:var(--spv);}
+  table.sched thead th.group-hmv{color:var(--hmv);}
+  table.sched tbody td{
+    padding:6px 4px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle;
+  }
+  table.sched tbody tr:hover{background:#fafbfd;}
+  table.sched tbody tr.weekend td.date-cell{color:var(--off);}
+  table.sched tbody tr.today{background:#fff8e9;}
+  table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
+  table.sched tbody tr.auto-off{background:#fdf4f4;}
+  td.date-cell{font-weight:700;white-space:nowrap;text-align:left;padding-left:10px !important;}
+  td.date-cell .dow{display:block;font-weight:500;color:var(--sub);font-size:10.8px;}
+  td.date-cell .duty-star{color:var(--brand);font-size:11px;margin-left:4px;}
+  .auto-off-badge{
+    display:inline-block;background:var(--off-bg);color:#a52323;font-weight:600;
+    font-size:10.5px;padding:2px 8px;border-radius:20px;margin-left:6px;
+  }
 
-    .empty-state{color:var(--ink-soft); font-size:12.5px; padding:14px 0; text-align:center;}
-    .toast{
-      position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px);
-      background:var(--ink); color:#fff; padding:10px 18px; border-radius:9px;
-      font-size:12.5px; opacity:0; transition:.25s ease; pointer-events:none;
-      box-shadow:0 8px 24px rgba(0,0,0,.2);
-    }
-    .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
-    .loading{padding:40px; text-align:center; color:var(--ink-soft); font-size:13px;}
+  .cell-slot{
+    min-height:30px;border-radius:8px;padding:5px 6px;cursor:pointer;
+    border:1px solid transparent;font-size:12px;line-height:1.25;
+    transition:background .1s;
+  }
+  .cell-slot:hover{border-color:var(--line);background:#f7f9fc;}
+  .cell-slot.empty{color:#c3c9d3;}
+  .cell-slot.spv{background:var(--spv-bg);color:#1747a6;}
+  .cell-slot.hmv{background:var(--hmv-bg);color:#0a6b4b;}
+  .cell-slot.off{background:var(--off-bg);color:#a52323;font-weight:600;}
+  .cell-slot.clash{outline:2px solid var(--warn);background:var(--warn-bg) !important;color:#8a5300 !important;}
 
-    @media(min-width:820px){
-      .side{grid-template-columns: 1.4fr 1fr;}
-    }
-  </style>
+  select.edit-select, input.edit-select{
+    width:100%;font-size:12px;padding:5px;border-radius:7px;border:1px solid var(--brand);
+    font-family:inherit;
+  }
+
+  .clash-banner{
+    display:none;background:var(--warn-bg);border:1px solid #f2d19b;color:#8a5300;
+    padding:8px 12px;border-radius:10px;font-size:12.5px;margin-bottom:10px;font-weight:600;
+  }
+  .clash-banner.show{display:block;}
+
+  /* Doctors panel */
+  .doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
+  .doc-item{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fbfcfe;}
+  .doc-item .name{font-weight:700;font-size:13.5px;color:darkblue;}
+  .doc-item .pool{display:inline-block;margin-top:5px;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;}
+  .doc-item .pool.spv{background:var(--spv-bg);color:var(--spv);}
+  .doc-item .pool.hmv{background:var(--hmv-bg);color:var(--hmv);}
+  .doc-item .pool.both{background:#f1e9ff;color:#6b3fd1;}
+
+  form.add-doc{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);}
+  form.add-doc input, form.add-doc select{
+    padding:8px 10px;border-radius:9px;border:1px solid var(--line);font-family:inherit;font-size:13px;
+  }
+  form.add-doc input{flex:1;min-width:150px;}
+  form.add-doc button{
+    background:var(--brand);color:#fff;border:none;padding:9px 16px;border-radius:9px;font-weight:600;cursor:pointer;font-size:13px;
+  }
+  form.add-doc button:disabled{opacity:.6;cursor:default;}
+
+  /* Payroll */
+  .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:720px){.pay-grid{grid-template-columns:1fr;}}
+  .pay-col h3{font-size:14px;margin:0 0 10px;}
+  .pay-col h3.spv{color:var(--spv);}
+  .pay-col h3.hmv{color:var(--hmv);}
+  table.pay{width:100%;border-collapse:collapse;font-size:12.8px;}
+  table.pay th{text-align:left;color:var(--sub);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--line);}
+  table.pay td{padding:7px 4px;border-bottom:1px solid var(--line);}
+  table.pay td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .linda-box{
+    margin-top:14px;background:#f1e9ff;border-radius:11px;padding:12px 14px;font-size:12.8px;
+  }
+  .linda-box b{color:#6b3fd1;}
+
+  /* History */
+  table.hist{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.hist th{text-align:left;color:var(--sub);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  table.hist td{padding:7px 4px;border-bottom:1px solid var(--line);}
+  .arrow{color:var(--sub);margin:0 4px;}
+  .old-val{color:var(--off);text-decoration:line-through;}
+  .new-val{color:var(--hmv);font-weight:600;}
+
+  .toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:#1c2430;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;
+    opacity:0;pointer-events:none;transition:all .25s;z-index:50;box-shadow:var(--shadow);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .loading{
+    display:flex;align-items:center;justify-content:center;padding:40px;color:var(--sub);font-size:13px;gap:8px;
+  }
+  .spinner{
+    width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brand);
+    border-radius:50%;animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .empty-state{text-align:center;padding:30px;color:var(--sub);font-size:13px;}
+
+  .setup-banner{
+    background:#fff3cd;border:1px solid #ffe08a;color:#7a5c00;padding:12px 16px;
+    border-radius:12px;margin-bottom:16px;font-size:13px;line-height:1.6;
+  }
+  .setup-banner code{background:#fff;padding:1px 6px;border-radius:5px;font-size:12px;}
+</style>
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <span class="mark"></span>
-      <div>
-        <h1>Duty Roster</h1>
-        <div class="sub">SPV &amp; HMV clinic assignments — live from Sheets</div>
+<div id="app">
+
+  <div class="setup-banner" id="setupBanner" style="display:none;">
+    ⚠ សូមដាក់ Apps Script URL របស់អ្នកនៅក្នុងបន្ទាត់ដំបូងនៃ script (<code>APPS_SCRIPT_URL</code>) មុននឹងប្រើគេហទំព័រនេះ។
+  </div>
+
+  <header class="top">
+    <div>
+      <h1>តារាងវេន SPV + HMV</h1>
+      <div class="muted">
+        <span>ទិន្នន័យទាំងអស់ត្រូវបានផ្ទុកមួយដងពេលបើកទំព័រ — កែប្រែនីមួយៗរក្សាទុកទៅ Sheet ភ្លាមៗ</span>
       </div>
     </div>
-    <div class="month-nav">
-      <input id="editorName" type="text" placeholder="Your name"
-        style="border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12.5px; width:120px; font-family:inherit;">
-      <button onclick="shiftMonth(-1)">‹</button>
-      <span class="month-label" id="monthLabel">—</span>
-      <button onclick="shiftMonth(1)">›</button>
+    <div class="tabs">
+      <div class="tab active" data-panel="panel-schedule">កាលវិភាគ</div>
+      <div class="tab" data-panel="panel-doctors">គ្រូពេទ្យ</div>
+      <div class="tab" data-panel="panel-payroll">ប្រាក់ខែ</div>
+      <div class="tab" data-panel="panel-history">ប្រវត្តិកែប្រែ</div>
     </div>
   </header>
 
-  <main>
-    <div class="config-banner" id="configBanner">
-      Set your Apps Script Web App URL in <code>API_URL</code> at the top of the script block in this file, then redeploy to GitHub Pages.
-    </div>
-
-    <div class="legend">
-      <span class="item"><span class="dot spv"></span>SPV clinic</span>
-      <span class="item"><span class="dot hmv"></span>HMV clinic</span>
-      <span class="item"><span class="dot off"></span>Day off</span>
-    </div>
-
-    <div class="board">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>SPV Day 1</th>
-            <th>SPV Day 2</th>
-            <th>SPV Day 3</th>
-            <th>SPV Night</th>
-            <th>SPV Off</th>
-            <th>HMV Day</th>
-            <th>HMV Night</th>
-          </tr>
-        </thead>
-        <tbody id="scheduleBody">
-          <tr><td colspan="8" class="loading">Loading roster…</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="side">
-      <div class="panel">
-        <h2>Recent changes <span class="count" id="historyCount"></span></h2>
-        <div id="historyList"><div class="empty-state">Loading…</div></div>
+  <!-- SCHEDULE -->
+  <div class="panel active" id="panel-schedule">
+    <div class="card">
+      <div class="month-nav">
+        <div class="left">
+          <button class="nav-btn" id="prevMonth">‹</button>
+          <div class="month-label" id="monthLabel">—</div>
+          <button class="nav-btn" id="nextMonth">›</button>
+          <button class="today-btn" id="todayBtn">ខែនេះ</button>
+          <select class="today-btn" id="monthPicker" style="cursor:pointer;"></select>
+        </div>
+        <div class="legend">
+          <span><span class="dot" style="background:var(--spv)"></span> SPV</span>
+          <span><span class="dot" style="background:var(--hmv)"></span> HMV</span>
+          <span><span class="dot" style="background:var(--off)"></span> DAY OFF</span>
+          <span><span class="dot" style="background:var(--warn)"></span> ប៉ះទង្គិចវេន</span>
+          <span><span class="dot" style="background:var(--brand)"></span> ★ ថ្ងៃយាមអ្នក</span>
+        </div>
       </div>
-      <div class="panel">
-        <h2>This month</h2>
-        <div id="monthStats"><div class="empty-state">Loading…</div></div>
-      </div>
+      <div class="clash-banner" id="clashBanner"></div>
+      <div id="scheduleWrap"></div>
     </div>
-  </main>
+  </div>
 
-  <div class="toast" id="toast"></div>
+  <!-- DOCTORS -->
+  <div class="panel" id="panel-doctors">
+    <div class="card">
+      <div style="font-weight:700;font-size:15px;margin-bottom:10px;">បញ្ជីគ្រូពេទ្យ</div>
+      <div class="doc-grid" id="docGrid"></div>
+      <form class="add-doc" id="addDocForm">
+        <input type="text" id="newNameSPV" placeholder="ឈ្មោះ (SPV) — ឧ. Dr.Sok Dara">
+        <input type="text" id="newNameHMV" placeholder="ឈ្មោះ (HMV) — ឧ. វេជ្ជ.សុខ ដារា">
+        <select id="newPool">
+          <option value="SPV">SPV</option>
+          <option value="HMV">HMV</option>
+          <option value="Both">ទាំងពីរ (Both)</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--sub);">
+          <input type="checkbox" id="newIsLinda" style="width:16px;height:16px;"> Linda?
+        </label>
+        <button type="submit" id="addDocBtn">+ បន្ថែមគ្រូពេទ្យ</button>
+      </form>
+    </div>
+  </div>
 
-  <script>
-    // ── CONFIG ──────────────────────────────────────────────────────────
-    // Paste your Apps Script Web App URL here (ends in /exec).
-    // Deploy Code.gs as: Deploy → New deployment → Web app →
-    //   Execute as: Me · Who has access: Anyone
-    const API_URL = 'https://script.google.com/macros/s/AKfycby7mLI0ETAKlLlW6qpemgpQsk0BrVhnYXwtxgTWkXtI61NFKtWOc8GDQnhZToiTXi4pOw/exec';
-    // ────────────────────────────────────────────────────────────────────
+  <!-- PAYROLL -->
+  <div class="panel" id="panel-payroll">
+    <div class="card">
+      <div class="month-nav">
+        <div class="left">
+          <button class="nav-btn" id="prevMonthPay">‹</button>
+          <div class="month-label" id="monthLabelPay">—</div>
+          <button class="nav-btn" id="nextMonthPay">›</button>
+          <select class="today-btn" id="monthPickerPay" style="cursor:pointer;"></select>
+        </div>
+      </div>
+      <div id="payWrap"></div>
+    </div>
+  </div>
 
-    let ALL = { doctors: [], schedule: [] };
-    let doctorOptions = { spv: [], hmv: [] };
-    let currentMonth = null;
+  <!-- HISTORY -->
+  <div class="panel" id="panel-history">
+    <div class="card">
+      <div style="font-weight:700;font-size:15px;margin-bottom:10px;">ប្រវត្តិកែប្រែ (ចុងក្រោយ 300)</div>
+      <div id="histWrap"></div>
+    </div>
+  </div>
 
-    const FIELD_CONFIG = [
-      { key:'SPV_Day1', kind:'spv' },
-      { key:'SPV_Day2', kind:'spv' },
-      { key:'SPV_Day3', kind:'spv' },
-      { key:'SPV_Night', kind:'spv' },
-      { key:'SPV_Off', kind:'off' },
-      { key:'HMV_Day', kind:'hmv' },
-      { key:'HMV_Night', kind:'hmv' },
-    ];
+</div>
 
-    function showToast(msg){
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.classList.add('show');
-      setTimeout(()=>t.classList.remove('show'), 2200);
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIG — paste your deployed Apps Script /exec URL here
+   ============================================================ */
+var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfwtCf5YYNwFDrYao-s5uX39dm3YDjWAgHmLyBop_ONBNE-QjyhhzvyLYltIH3f4dhKw/exec';
+
+var STATE = {
+  doctors: [],
+  scheduleAll: [],
+  historyAll: [],
+  rates: {},
+  khrPerUsd: 4000,
+  year: new Date().getFullYear(),
+  month: new Date().getMonth() + 1,
+  payYear: null,
+  payMonth: null,
+  editing: null
+};
+
+var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
+var DOW_KM = {'Sunday':'អាទិត្យ','Monday':'ចន្ទ','Tuesday':'អង្គារ','Wednesday':'ពុធ','Thursday':'ព្រហ','Friday':'សុក្រ','Saturday':'សៅរ៍'};
+var SLOT_LABELS = {SPV_Day1:'SPV ១',SPV_Day2:'SPV ២',SPV_Day3:'SPV ៣',SPV_Night:'SPV យប់',HMV_Day:'HMV ថ្ងៃ',HMV_Night:'HMV យប់'};
+
+/* ---------------- API (JSONP — avoids CORS, since Apps Script blocks fetch() from other domains) ---------------- */
+function apiCall(params) {
+  return new Promise(function (resolve, reject) {
+    var cbName = '_gsCb_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
+    var qs = Object.keys(params).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+
+    var script = document.createElement('script');
+    var timer = setTimeout(function () {
+      cleanup();
+      reject(new Error('សំណើ Timeout — ពិនិត្យ APPS_SCRIPT_URL និង Deploy access'));
+    }, 20000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
     }
 
-    async function load(){
-      if(!API_URL || API_URL.indexOf('PASTE_YOUR') === 0){
-        document.getElementById('configBanner').classList.add('show');
-        document.getElementById('scheduleBody').innerHTML =
-          '<tr><td colspan="8" class="loading">Waiting for API_URL to be configured…</td></tr>';
-        return;
-      }
-      try{
-        const [data, history] = await Promise.all([
-          fetch(API_URL + '?action=data').then(r => r.json()),
-          fetch(API_URL + '?action=history&limit=12').then(r => r.json())
-        ]);
-        onData(data);
-        onHistory(history);
-      }catch(err){
-        onError(err);
-      }
-    }
+    window[cbName] = function (data) {
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = function () {
+      cleanup();
+      reject(new Error('មិនអាចទាញយកបានទេ — ពិនិត្យ APPS_SCRIPT_URL ត្រូវឬអត់'));
+    };
 
-    function onError(err){
-      document.getElementById('scheduleBody').innerHTML =
-        '<tr><td colspan="8" class="loading">Could not load data: '+ (err.message||err) +'</td></tr>';
-    }
+    script.src = APPS_SCRIPT_URL + '?' + qs + '&callback=' + cbName;
+    document.body.appendChild(script);
+  });
+}
 
-    function onData(data){
-      ALL = data;
-      doctorOptions.spv = data.doctors.filter(d => d.ClinicPool === 'SPV' || d.ClinicPool === 'Both').map(d => d.NameSPV || d.NameHMV);
-      doctorOptions.hmv = data.doctors.filter(d => d.ClinicPool === 'HMV' || d.ClinicPool === 'Both').map(d => d.NameHMV || d.NameSPV);
+/* ---------------- INIT ---------------- */
+document.addEventListener('DOMContentLoaded', function () {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
+    document.getElementById('setupBanner').style.display = 'block';
+    document.getElementById('scheduleWrap').innerHTML = '<div class="empty-state">សូមកំណត់ APPS_SCRIPT_URL សិន</div>';
+    return;
+  }
 
-      if (!currentMonth && data.schedule.length){
-        currentMonth = data.schedule[0].Date.slice(0,7);
+  bindTabs();
+  bindMonthNav();
+  bindDoctorForm();
+
+  document.getElementById('scheduleWrap').innerHTML = '<div class="loading"><span class="spinner"></span> កំពុងទាញទិន្នន័យ...</div>';
+
+  apiCall({ action: 'getAllData' }).then(function (data) {
+    applyData(data);
+    STATE.payYear = STATE.year;
+    STATE.payMonth = STATE.month;
+    loadSchedule();
+    renderDoctors();
+  }).catch(function (err) {
+    document.getElementById('scheduleWrap').innerHTML =
+      '<div class="empty-state">⚠ មិនអាចទាញទិន្នន័យបានទេ៖ ' + escapeHtml(err.message) + '<br><span style="font-size:11px;">ពិនិត្យ APPS_SCRIPT_URL និង Deploy access (Anyone with the link)</span></div>';
+  });
+});
+
+function applyData(data) {
+  STATE.doctors = data.doctors || [];
+  STATE.scheduleAll = data.schedule || [];
+  STATE.historyAll = data.history || [];
+  STATE.rates = data.rates || {};
+  STATE.khrPerUsd = data.khrPerUsd || 4000;
+}
+
+function bindTabs() {
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+      t.classList.add('active');
+      document.getElementById(t.dataset.panel).classList.add('active');
+      if (t.dataset.panel === 'panel-payroll') loadPayroll();
+      if (t.dataset.panel === 'panel-history') renderHistory();
+      if (t.dataset.panel === 'panel-doctors') renderDoctors();
+    });
+  });
+}
+
+function bindMonthNav() {
+  document.getElementById('prevMonth').addEventListener('click', function () { shiftMonth(-1); });
+  document.getElementById('nextMonth').addEventListener('click', function () { shiftMonth(1); });
+  document.getElementById('todayBtn').addEventListener('click', function () {
+    var now = new Date();
+    STATE.year = now.getFullYear(); STATE.month = now.getMonth() + 1;
+    loadSchedule();
+  });
+  document.getElementById('prevMonthPay').addEventListener('click', function () { shiftPayMonth(-1); });
+  document.getElementById('nextMonthPay').addEventListener('click', function () { shiftPayMonth(1); });
+
+  document.getElementById('monthPicker').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.year = Number(parts[0]); STATE.month = Number(parts[1]);
+    loadSchedule();
+  });
+  document.getElementById('monthPickerPay').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.payYear = Number(parts[0]); STATE.payMonth = Number(parts[1]);
+    loadPayroll();
+  });
+}
+
+// Every distinct year-month found in the full schedule history, newest first,
+// plus the current real-world month even if it has no data yet.
+function getAvailableMonths() {
+  var set = {};
+  STATE.scheduleAll.forEach(function (r) {
+    var d = String(r.Date || '');
+    if (d.length >= 7) set[d.slice(0, 7)] = true;
+  });
+  var now = new Date();
+  set[now.getFullYear() + '-' + pad2(now.getMonth() + 1)] = true;
+  return Object.keys(set).sort().reverse();
+}
+
+function monthOptionLabel(ym) {
+  var parts = ym.split('-');
+  return MONTH_NAMES_KM[Number(parts[1]) - 1] + ' ' + parts[0];
+}
+
+function refreshMonthPickers() {
+  var months = getAvailableMonths();
+  var cur = STATE.year + '-' + pad2(STATE.month);
+  var curPay = STATE.payYear + '-' + pad2(STATE.payMonth);
+  var picker = document.getElementById('monthPicker');
+  var pickerPay = document.getElementById('monthPickerPay');
+  picker.innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
+  pickerPay.innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === curPay ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
+}
+
+function shiftMonth(delta) {
+  var m = STATE.month + delta, y = STATE.year;
+  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+  STATE.year = y; STATE.month = m;
+  loadSchedule();
+}
+function shiftPayMonth(delta) {
+  var m = STATE.payMonth + delta, y = STATE.payYear;
+  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+  STATE.payYear = y; STATE.payMonth = m;
+  loadPayroll();
+}
+
+/* ---------------- SCHEDULE RENDER (fully from memory) ---------------- */
+function loadSchedule() {
+  document.getElementById('monthLabel').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  document.getElementById('clashBanner').classList.remove('show');
+  renderSchedule();
+  refreshMonthPickers();
+}
+
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function rowForDate(dateStr) {
+  for (var i = 0; i < STATE.scheduleAll.length; i++) {
+    if (STATE.scheduleAll[i].Date === dateStr) return STATE.scheduleAll[i];
+  }
+  return null;
+}
+
+function findDoctorByNameClient(name) {
+  if (!name) return null;
+  return STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0] || null;
+}
+
+function lindaDoctor() {
+  return STATE.doctors.filter(function (d) { return d.isLinda; })[0] || null;
+}
+
+function rowIsMyDuty(rowObj) {
+  var linda = lindaDoctor();
+  if (!linda || !rowObj) return false;
+  var names = ['SPV_Day1','SPV_Day2','SPV_Day3','SPV_Night','HMV_Day','HMV_Night'].map(function (f) { return rowObj[f]; }).filter(Boolean);
+  return names.some(function (n) { return n === linda.NameSPV || n === linda.NameHMV; });
+}
+
+function rowIsAutoOff(rowObj) {
+  if (!rowObj) return true;
+  return !rowObj.SPV_Day1 && !rowObj.SPV_Day2 && !rowObj.SPV_Day3 && !rowObj.SPV_Night && !rowObj.HMV_Day && !rowObj.HMV_Night;
+}
+
+function detectClashesLocal(rowObj) {
+  if (!rowObj) return [];
+  function names(fields) { return fields.map(function (f) { return rowObj[f]; }).filter(Boolean); }
+  function overlap(a, b) {
+    var out = [];
+    a.forEach(function (n) { if (b.indexOf(n) !== -1) out.push(n); });
+    return out;
+  }
+  var dayClash = overlap(names(['SPV_Day1', 'SPV_Day2', 'SPV_Day3']), names(['HMV_Day']));
+  var nightClash = overlap(names(['SPV_Night']), names(['HMV_Night']));
+  return dayClash.concat(nightClash);
+}
+
+function renderSchedule() {
+  var y = STATE.year, m = STATE.month;
+  var nDays = daysInMonth(y, m);
+  var today = new Date();
+  var todayStr = today.getFullYear() + '-' + pad2(today.getMonth() + 1) + '-' + pad2(today.getDate());
+
+  document.getElementById('monthLabel').textContent = MONTH_NAMES_KM[m - 1] + ' ' + y;
+
+  var allClashDays = [];
+
+  var html = '<div style="overflow-x:auto;"><table class="sched"><thead><tr>' +
+    '<th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
+    '<th class="group-spv">SPV ១</th><th class="group-spv">SPV ២</th><th class="group-spv">SPV ៣</th>' +
+    '<th class="group-spv">SPV យប់</th><th class="group-spv">ឈប់សម្រាក</th>' +
+    '<th class="group-hmv">HMV ថ្ងៃ</th><th class="group-hmv">HMV យប់</th>' +
+    '</tr></thead><tbody>';
+
+  for (var d = 1; d <= nDays; d++) {
+    var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
+    var dow = new Date(y, m - 1, d).getDay();
+    var dowName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow];
+    var isWeekend = (dow === 0 || dow === 6);
+    var row = rowForDate(dateStr) || { Date: dateStr };
+    var clashes = detectClashesLocal(row);
+    if (clashes.length) allClashDays.push(dateStr);
+    var isMyDuty = rowIsMyDuty(row);
+    var isAutoOff = rowIsAutoOff(row);
+
+    var trClasses = [];
+    if (isWeekend) trClasses.push('weekend');
+    if (dateStr === todayStr) trClasses.push('today');
+    if (isMyDuty) trClasses.push('my-duty');
+    if (isAutoOff) trClasses.push('auto-off');
+
+    html += '<tr class="' + trClasses.join(' ') + '">';
+    html += '<td class="date-cell">' + d + '/' + pad2(m) +
+      (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
+      '<span class="dow">' + DOW_KM[dowName] + (isAutoOff ? '<span class="auto-off-badge">🚫 ថ្ងៃឈប់</span>' : '') + '</span></td>';
+
+    ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].forEach(function (f) {
+      html += renderSlotCell(dateStr, f, row[f], clashes);
+    });
+    html += renderOffCell(dateStr, row['SPV_Off']);
+    ['HMV_Day', 'HMV_Night'].forEach(function (f) {
+      html += renderSlotCell(dateStr, f, row[f], clashes);
+    });
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('scheduleWrap').innerHTML = html;
+
+  var banner = document.getElementById('clashBanner');
+  if (allClashDays.length) {
+    banner.textContent = '⚠ ប៉ះទង្គិចវេនត្រូវបានរកឃើញនៅថ្ងៃ: ' + allClashDays.map(function (s) { return s.slice(8); }).join(', ');
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+
+  bindCellClicks();
+}
+
+function renderSlotCell(dateStr, field, value, clashes) {
+  var isSpv = field.indexOf('SPV') === 0;
+  var cls = isSpv ? 'spv' : 'hmv';
+  var isClash = value && clashes.indexOf(value) !== -1;
+  var display = value ? escapeHtml(value) : '—';
+  return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') +
+    '" data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
+    display + '</div></td>';
+}
+
+function renderOffCell(dateStr, value) {
+  var display = value ? escapeHtml(value) : '—';
+  return '<td><div class="cell-slot ' + (value ? 'off' : 'empty') +
+    '" data-date="' + dateStr + '" data-field="SPV_Off" data-value="' + escapeAttr(value || '') + '">' +
+    display + '</div></td>';
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+
+function bindCellClicks() {
+  document.querySelectorAll('.cell-slot').forEach(function (cell) {
+    cell.addEventListener('click', function () { openEditor(cell); });
+  });
+}
+
+function openEditor(cell) {
+  if (STATE.editing) return; // one editor at a time
+  var date = cell.dataset.date;
+  var field = cell.dataset.field;
+  var currentVal = cell.dataset.value;
+  STATE.editing = { date: date, field: field };
+
+  var suggestions = [];
+  if (field === 'SPV_Off') {
+    suggestions = ['DAY OFF'].concat(
+      STATE.doctors.filter(function (d) { return d.ClinicPool === 'SPV' || d.ClinicPool === 'Both'; })
+        .map(function (d) { return d.NameSPV; }).filter(Boolean)
+    );
+  } else {
+    var isSpv = field.indexOf('SPV') === 0;
+    var pool = STATE.doctors.filter(function (d) { return d.ClinicPool === (isSpv ? 'SPV' : 'HMV') || d.ClinicPool === 'Both'; });
+    suggestions = pool.map(function (d) { return isSpv ? d.NameSPV : d.NameHMV; }).filter(Boolean);
+  }
+
+  var listId = 'dlist_' + date.replace(/-/g, '') + '_' + field;
+  var datalist = document.createElement('datalist');
+  datalist.id = listId;
+  suggestions.forEach(function (s) {
+    var o = document.createElement('option');
+    o.value = s;
+    datalist.appendChild(o);
+  });
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'edit-select';
+  input.setAttribute('list', listId);
+  input.value = currentVal || '';
+  input.placeholder = 'វាយបញ្ចូលឈ្មោះ...';
+
+  cell.innerHTML = '';
+  cell.appendChild(input);
+  cell.appendChild(datalist);
+  input.focus();
+  input.select();
+
+  function commit() {
+    var newVal = input.value.trim();
+    STATE.editing = null;
+    if (newVal === currentVal) { renderSchedule(); return; }
+    saveCellValue(date, field, newVal);
+  }
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { STATE.editing = null; renderSchedule(); }
+  });
+  input.addEventListener('blur', function () {
+    setTimeout(commit, 80);
+  });
+}
+
+// The only "write" path: updates in-memory state immediately (optimistic),
+// then persists to the Sheet in the background. Reverts on failure.
+function saveCellValue(date, field, value) {
+  var row = rowForDate(date);
+  var isNewRow = false;
+  if (!row) { row = { Date: date }; STATE.scheduleAll.push(row); isNewRow = true; }
+  var prevValue = row[field];
+  row[field] = value;
+  renderSchedule();
+  showToast('កំពុងរក្សាទុក...');
+
+  apiCall({ action: 'saveCell', date: date, field: field, value: value }).then(function (res) {
+    if (res && res.ok) {
+      showToast('រក្សាទុករួចរាល់ ✓');
+      if (res.clashes && res.clashes.length) {
+        showToast('⚠ ប៉ះទង្គិចវេន: ' + res.clashes.join(', '));
       }
-      renderMonthLabel();
+      if (field !== 'SPV_Off' && typeof res.offValue !== 'undefined' && row.SPV_Off !== res.offValue) {
+        row.SPV_Off = res.offValue;
+      }
       renderSchedule();
-      renderStats();
-    }
-
-    function renderMonthLabel(){
-      if(!currentMonth) return;
-      const [y,m] = currentMonth.split('-');
-      const d = new Date(Number(y), Number(m)-1, 1);
-      document.getElementById('monthLabel').textContent =
-        d.toLocaleString('en-US', {month:'long', year:'numeric'});
-    }
-
-    function shiftMonth(dir){
-      if(!currentMonth) return;
-      const [y,m] = currentMonth.split('-').map(Number);
-      const d = new Date(y, m-1+dir, 1);
-      currentMonth = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-      renderMonthLabel();
+      if (res.historyEntry) {
+        STATE.historyAll.unshift(res.historyEntry);
+        if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
+        if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+      }
+    } else {
+      row[field] = prevValue;
+      if (isNewRow) STATE.scheduleAll = STATE.scheduleAll.filter(function (r) { return r !== row; });
       renderSchedule();
-      renderStats();
+      showToast('មានបញ្ហា៖ ' + (res && res.error ? res.error : 'unknown'));
     }
+  }).catch(function (err) {
+    row[field] = prevValue;
+    if (isNewRow) STATE.scheduleAll = STATE.scheduleAll.filter(function (r) { return r !== row; });
+    renderSchedule();
+    showToast('មិនអាចរក្សាទុកបានទេ');
+    showError(err);
+  });
+}
 
-    function pillClass(kind, value){
-      if(!value || String(value).trim()==='' || value === '—') return kind + ' empty';
-      if(kind === 'off' && String(value).toUpperCase().includes('DAY OFF')) return 'off';
-      return kind;
-    }
+/* ---------------- DOCTORS ---------------- */
+function renderDoctors() {
+  var grid = document.getElementById('docGrid');
+  if (!STATE.doctors.length) {
+    grid.innerHTML = '<div class="empty-state">មិនទាន់មានទិន្នន័យគ្រូពេទ្យទេ</div>';
+    return;
+  }
+  grid.innerHTML = STATE.doctors.map(function (d) {
+    var poolClass = d.ClinicPool === 'SPV' ? 'spv' : d.ClinicPool === 'HMV' ? 'hmv' : 'both';
+    var name = d.NameSPV || d.NameHMV;
+    var altName = (d.NameSPV && d.NameHMV && d.NameSPV !== d.NameHMV) ? d.NameHMV : null;
+    return '<div class="doc-item">' +
+      '<div class="name">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
+      (altName ? '<div style="color:var(--sub);font-size:11.5px;margin-top:2px;">' + escapeHtml(altName) + '</div>' : '') +
+      '<span class="pool ' + poolClass + '">' + escapeHtml(d.ClinicPool) + '</span>' +
+      '</div>';
+  }).join('');
+}
 
-    function renderSchedule(){
-      const rows = ALL.schedule.filter(r => r.Date && r.Date.slice(0,7) === currentMonth);
-      const body = document.getElementById('scheduleBody');
-      if(!rows.length){
-        body.innerHTML = '<tr><td colspan="8" class="loading">No entries for this month.</td></tr>';
-        return;
+function bindDoctorForm() {
+  document.getElementById('addDocForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var nameSPV = document.getElementById('newNameSPV').value.trim();
+    var nameHMV = document.getElementById('newNameHMV').value.trim();
+    var clinicPool = document.getElementById('newPool').value;
+    var isLinda = document.getElementById('newIsLinda').checked;
+    if (!nameSPV && !nameHMV) { showToast('សូមបញ្ចូលឈ្មោះយ៉ាងហោចណាស់មួយ'); return; }
+
+    var btn = document.getElementById('addDocBtn');
+    btn.disabled = true;
+
+    apiCall({
+      action: 'addDoctor', nameSPV: nameSPV, nameHMV: nameHMV, clinicPool: clinicPool, isLinda: isLinda
+    }).then(function (res) {
+      btn.disabled = false;
+      if (res && res.ok && res.doctor) {
+        STATE.doctors.push(res.doctor);
+        renderDoctors();
+        showToast('បន្ថែមគ្រូពេទ្យរួចរាល់ ✓');
+        document.getElementById('addDocForm').reset();
+      } else {
+        showToast('មិនអាចបន្ថែមបានទេ');
       }
-      body.innerHTML = rows.map(r => {
-        const d = new Date(r.Date + 'T00:00:00');
-        const dayNum = d.getDate();
-        const dow = d.getDay();
-        const weekend = (dow === 0 || dow === 6) ? 'weekend' : '';
-        const cells = FIELD_CONFIG.map(f => {
-          const val = r[f.key] || '';
-          const cls = pillClass(f.kind, val);
-          const options = f.kind === 'off' ? ['DAY OFF','—'] : doctorOptions[f.kind];
-          const optHtml = ['<option value="">—</option>']
-            .concat(options.map(o => `<option value="${escAttr(o)}" ${o===val?'selected':''}>${esc(o)}</option>`))
-            .join('');
-          return `<td><span class="pill ${cls}"><select onchange="onEdit('${r.Date}','${f.key}',this.value)">${optHtml}</select></span></td>`;
-        }).join('');
-        return `<tr>
-          <td class="date-cell ${weekend}">
-            <span class="date-num">${String(dayNum).padStart(2,'0')}</span>
-            <span class="day-name">${r.Day || ''}</span>
-          </td>
-          ${cells}
-        </tr>`;
-      }).join('');
-    }
+    }).catch(function (err) {
+      btn.disabled = false;
+      showError(err);
+    });
+  });
+}
 
-    function renderStats(){
-      const rows = ALL.schedule.filter(r => r.Date && r.Date.slice(0,7) === currentMonth);
-      const tally = {};
-      rows.forEach(r => {
-        FIELD_CONFIG.forEach(f => {
-          const v = (r[f.key]||'').trim();
-          if(!v || v === '—' || v === 'DAY OFF') return;
-          tally[v] = (tally[v]||0) + 1;
-        });
-      });
-      const entries = Object.entries(tally).sort((a,b)=>b[1]-a[1]);
-      const el = document.getElementById('monthStats');
-      if(!entries.length){ el.innerHTML = '<div class="empty-state">No data yet.</div>'; return; }
-      el.innerHTML = entries.map(([name,count]) => `
-        <div class="history-row" style="grid-template-columns:1fr 40px;">
-          <span class="khmer">${esc(name)}</span>
-          <span class="history-time" style="text-align:right;">${count}</span>
-        </div>`).join('');
-    }
+/* ---------------- PAYROLL (computed entirely client-side from embedded schedule) ---------------- */
+function computePayrollClient(year, month) {
+  var prefix = year + '-' + pad2(month);
+  var rows = STATE.scheduleAll.filter(function (r) { return String(r.Date).indexOf(prefix) === 0; });
+  var spvCounts = {}, hmvCounts = {};
 
-    function onHistory(entries){
-      const list = document.getElementById('historyList');
-      document.getElementById('historyCount').textContent = entries.length ? ('· ' + entries.length) : '';
-      if(!entries.length){ list.innerHTML = '<div class="empty-state">No changes logged yet.</div>'; return; }
-      list.innerHTML = entries.map(h => {
-        const vals = Object.values(h);
-        const [time, date, field, oldName, newName, user] = vals;
-        return `<div class="history-row">
-          <span class="history-time">${esc(time||'')}</span>
-          <span class="history-field">${esc(field||'')}</span>
-          <span class="history-change"><span class="old khmer">${esc(oldName||'—')}</span>→<span class="new khmer">${esc(newName||'—')}</span></span>
-          <span class="history-user">${esc((user||'').split('@')[0])}</span>
-        </div>`;
-      }).join('');
-    }
+  rows.forEach(function (r) {
+    ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'].forEach(function (f) {
+      var name = r[f];
+      if (!name) return;
+      var doc = findDoctorByNameClient(name);
+      var key = doc ? doc.ID : name;
+      var isSpv = f.indexOf('SPV') === 0;
+      var displayName = doc ? (isSpv ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
+      var bucket = isSpv ? spvCounts : hmvCounts;
+      if (!bucket[key]) bucket[key] = { name: displayName, shifts: 0, usd: 0 };
+      bucket[key].shifts++;
+      bucket[key].usd += STATE.rates[f] || 0;
+    });
+  });
 
-    async function onEdit(date, field, newValue){
-      const editorName = document.getElementById('editorName').value.trim();
-      if(!editorName){
-        showToast('Enter your name first (top right)');
-        document.getElementById('editorName').focus();
-        load(); // re-render so the select snaps back to its saved value
-        return;
-      }
-      try{
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'updateAssignment', date, field, newName: newValue, editorName })
-        }).then(r => r.json());
-        if(res.error) throw new Error(res.error);
-        showToast('Updated ' + field + ' for ' + date);
-        load();
-      }catch(err){
-        showToast('Failed: ' + (err.message||err));
-      }
-    }
+  function toList(bucket) {
+    return Object.keys(bucket).map(function (k) {
+      var c = bucket[k];
+      c.khr = c.usd * STATE.khrPerUsd;
+      return c;
+    }).sort(function (a, b) { return b.usd - a.usd; });
+  }
 
-    function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function escAttr(s){ return esc(s); }
+  var lindaDoc = lindaDoctor();
+  var linda = { usd: 0, khr: 0, spvShifts: 0, hmvShifts: 0, shifts: 0 };
+  if (lindaDoc) {
+    var spvEntry = spvCounts[lindaDoc.ID];
+    var hmvEntry = hmvCounts[lindaDoc.ID];
+    if (spvEntry) { linda.usd += spvEntry.usd; linda.spvShifts = spvEntry.shifts; }
+    if (hmvEntry) { linda.usd += hmvEntry.usd; linda.hmvShifts = hmvEntry.shifts; }
+    linda.shifts = linda.spvShifts + linda.hmvShifts;
+    linda.khr = linda.usd * STATE.khrPerUsd;
+  }
 
-    // Remember the editor's name locally between visits
-    const nameInput = document.getElementById('editorName');
-    nameInput.value = localStorage.getItem('editorName') || '';
-    nameInput.addEventListener('change', () => localStorage.setItem('editorName', nameInput.value.trim()));
+  return { spv: toList(spvCounts), hmv: toList(hmvCounts), linda: linda };
+}
 
-    load();
-  </script>
+function loadPayroll() {
+  if (!STATE.payYear) { STATE.payYear = STATE.year; STATE.payMonth = STATE.month; }
+  document.getElementById('monthLabelPay').textContent = MONTH_NAMES_KM[STATE.payMonth - 1] + ' ' + STATE.payYear;
+  var summary = computePayrollClient(STATE.payYear, STATE.payMonth);
+  renderPayroll(summary);
+  refreshMonthPickers();
+}
+
+function fmtUsd(n) { return '$' + (n || 0).toLocaleString(); }
+function fmtKhr(n) { return (n || 0).toLocaleString() + '៛'; }
+
+function renderPayroll(summary) {
+  if (!summary) { document.getElementById('payWrap').innerHTML = '<div class="empty-state">មិនមានទិន្នន័យទេ</div>'; return; }
+
+  function table(list) {
+    if (!list.length) return '<div class="empty-state" style="padding:14px 0;">មិនមានវេនទេ</div>';
+    var rows = list.map(function (c) {
+      return '<tr><td>' + escapeHtml(c.name) + '</td><td class="num">' + c.shifts + '</td>' +
+        '<td class="num">' + fmtUsd(c.usd) + '</td><td class="num">' + fmtKhr(c.khr) + '</td></tr>';
+    }).join('');
+    return '<table class="pay"><thead><tr><th>ឈ្មោះ</th><th style="text-align:right;">ចំនួនវេន</th>' +
+      '<th style="text-align:right;">USD</th><th style="text-align:right;">KHR</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  var html = '<div class="pay-grid">' +
+    '<div class="pay-col"><h3 class="spv">SPV</h3>' + table(summary.spv) + '</div>' +
+    '<div class="pay-col"><h3 class="hmv">HMV</h3>' + table(summary.hmv) + '</div>' +
+    '</div>';
+
+  if (summary.linda && summary.linda.shifts) {
+    html += '<div class="linda-box">' +
+      '<b>ប្រាក់ខែសរុបរបស់អ្នក ⭐</b> — ធ្វើវេនទាំង SPV និង HMV<br>' +
+      'SPV: ' + summary.linda.spvShifts + ' វេន &nbsp;|&nbsp; HMV: ' + summary.linda.hmvShifts + ' វេន &nbsp;|&nbsp; ' +
+      '<b>សរុប: ' + fmtUsd(summary.linda.usd) + ' (' + fmtKhr(summary.linda.khr) + ')</b>' +
+      '</div>';
+  }
+
+  document.getElementById('payWrap').innerHTML = html;
+}
+
+/* ---------------- HISTORY (rendered entirely from memory) ---------------- */
+function renderHistory() {
+  var rows = STATE.historyAll;
+  if (!rows || !rows.length) {
+    document.getElementById('histWrap').innerHTML = '<div class="empty-state">មិនទាន់មានប្រវត្តិកែប្រែទេ</div>';
+    return;
+  }
+  var body = rows.map(function (r) {
+    return '<tr>' +
+      '<td>' + escapeHtml(r['ពេលវេលា']) + '</td>' +
+      '<td>' + escapeHtml(r['កាលបរិច្ឆេទ']) + '</td>' +
+      '<td>' + escapeHtml(SLOT_LABELS[r['វេន (Field)']] || r['វេន (Field)']) + '</td>' +
+      '<td><span class="old-val">' + escapeHtml(r['ឈ្មោះចាស់'] || '(ទទេ)') + '</span>' +
+      '<span class="arrow">→</span>' +
+      '<span class="new-val">' + escapeHtml(r['ឈ្មោះថ្មី'] || '(ទទេ)') + '</span></td>' +
+      '<td>' + escapeHtml(r['អ្នកប្រើ']) + '</td>' +
+      '</tr>';
+  }).join('');
+  document.getElementById('histWrap').innerHTML =
+    '<div style="overflow-x:auto;"><table class="hist"><thead><tr>' +
+    '<th>ពេលវេលា</th><th>កាលបរិច្ឆេទ</th><th>វេន</th><th>ការផ្លាស់ប្ដូរ</th><th>អ្នកប្រើ</th>' +
+    '</tr></thead><tbody>' + body + '</tbody></table></div>';
+}
+
+/* ---------------- UTIL ---------------- */
+var toastTimer = null;
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+}
+
+function showError(err) {
+  console.error(err);
+  showToast('កំហុស៖ ' + (err && err.message ? err.message : String(err)));
+}
+</script>
 </body>
 </html>
