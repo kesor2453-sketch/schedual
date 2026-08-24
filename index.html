@@ -189,15 +189,12 @@
 <body>
 <div id="app">
 
-  <div class="setup-banner" id="setupBanner" style="display:none;">
-    ⚠ សូមដាក់ Apps Script URL របស់អ្នកនៅក្នុងបន្ទាត់ដំបូងនៃ script (<code>APPS_SCRIPT_URL</code>) មុននឹងប្រើគេហទំព័រនេះ។
-  </div>
-
   <header class="top">
     <div>
       <h1>តារាងវេន SPV + HMV</h1>
       <div class="muted">
-        <span>ទិន្នន័យទាំងអស់ត្រូវបានផ្ទុកមួយដងពេលបើកទំព័រ — កែប្រែនីមួយៗរក្សាទុកទៅ Sheet ភ្លាមៗ</span>
+        <span>ទិន្នន័យទាំងអស់រក្សាទុកនៅក្នុង browser នេះផ្ទាល់ (localStorage) — ដំណើរការភ្លាមៗ គ្មាន loading, គ្មានចាំបាច់ភ្ជាប់ Sheet។ Sheet ទទួល backup ស្វ័យប្រវត្តិផ្ទាល់ខាងក្រោយសម្រាប់ជាកន្លែងទុកប្រវត្តិ។</span>
+        <span class="refresh-link" id="manualBackupBtn">🔗 Backup ទៅ Sheet ឥឡូវនេះ</span>
       </div>
     </div>
     <div class="tabs">
@@ -282,16 +279,21 @@
 
 <script>
 /* ============================================================
-   CONFIG — paste your deployed Apps Script /exec URL here
+   CONFIG — paste your deployed Apps Script /exec URL here.
+   The website works fully WITHOUT this — it only enables the
+   background "stock to Sheet" history backup, nothing else.
    ============================================================ */
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfwtCf5YYNwFDrYao-s5uX39dm3YDjWAgHmLyBop_ONBNE-QjyhhzvyLYltIH3f4dhKw/exec';
+var STORAGE_KEY = 'spv_hmv_schedule_v1';
+var RATES = { SPV_Day1: 25, SPV_Day2: 25, SPV_Day3: 25, SPV_Night: 25, HMV_Day: 24, HMV_Night: 20 };
+var KHR_PER_USD = 4000;
 
 var STATE = {
   doctors: [],
   scheduleAll: [],
   historyAll: [],
-  rates: {},
-  khrPerUsd: 4000,
+  rates: RATES,
+  khrPerUsd: KHR_PER_USD,
   year: new Date().getFullYear(),
   month: new Date().getMonth() + 1,
   payYear: null,
@@ -303,72 +305,113 @@ var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេ
 var DOW_KM = {'Sunday':'អាទិត្យ','Monday':'ចន្ទ','Tuesday':'អង្គារ','Wednesday':'ពុធ','Thursday':'ព្រហ','Friday':'សុក្រ','Saturday':'សៅរ៍'};
 var SLOT_LABELS = {SPV_Day1:'SPV ១',SPV_Day2:'SPV ២',SPV_Day3:'SPV ៣',SPV_Night:'SPV យប់',HMV_Day:'HMV ថ្ងៃ',HMV_Night:'HMV យប់'};
 
-/* ---------------- API (JSONP — avoids CORS, since Apps Script blocks fetch() from other domains) ---------------- */
-function apiCall(params) {
-  return new Promise(function (resolve, reject) {
-    var cbName = '_gsCb_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
-    var qs = Object.keys(params).map(function (k) {
-      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-    }).join('&');
-
-    var script = document.createElement('script');
-    var timer = setTimeout(function () {
-      cleanup();
-      reject(new Error('សំណើ Timeout — ពិនិត្យ APPS_SCRIPT_URL និង Deploy access'));
-    }, 20000);
-
-    function cleanup() {
-      clearTimeout(timer);
-      delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    }
-
-    window[cbName] = function (data) {
-      cleanup();
-      resolve(data);
-    };
-    script.onerror = function () {
-      cleanup();
-      reject(new Error('មិនអាចទាញយកបានទេ — ពិនិត្យ APPS_SCRIPT_URL ត្រូវឬអត់'));
-    };
-
-    script.src = APPS_SCRIPT_URL + '?' + qs + '&callback=' + cbName;
-    document.body.appendChild(script);
-  });
+/* ---------------- LOCAL STORAGE (source of truth — the website never needs
+   to reach the Sheet just to view or edit) ---------------- */
+function seedDefaultDoctors() {
+  return [
+    { ID: 'S1', NameSPV: 'Dr.Monyrachana', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S2', NameSPV: 'Dr.Khean Daline', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S3', NameSPV: 'Dr.Ka Seyla', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S4', NameSPV: 'Dr.Phalla Daline', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S5', NameSPV: 'Dr.Nann Vanna', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S6', NameSPV: 'Dr.Khim Piseth', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'H1', NameSPV: '', NameHMV: 'វេជ្ជ.ឈន ចំរឿន', ClinicPool: 'HMV', isLinda: false, Active: true },
+    { ID: 'H2', NameSPV: '', NameHMV: 'វេជ្ជ.អ៊ុងគីមឡេង', ClinicPool: 'HMV', isLinda: false, Active: true },
+    { ID: 'H3', NameSPV: '', NameHMV: 'ហុក ប៊ុនណារ៉ា', ClinicPool: 'HMV', isLinda: false, Active: true },
+    { ID: 'LINDA', NameSPV: 'Dr.Ben Linda', NameHMV: 'វេជ្ជ.ប៊ិន លីនដា', ClinicPool: 'Both', isLinda: true, Active: true }
+  ];
 }
 
-/* ---------------- INIT ---------------- */
+function loadLocalState() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+function persistLocalState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      doctors: STATE.doctors, scheduleAll: STATE.scheduleAll, historyAll: STATE.historyAll
+    }));
+  } catch (e) { /* storage full or unavailable — data still lives in-memory for this session */ }
+}
+
+/* ---------------- INIT (instant — no network needed) ---------------- */
 document.addEventListener('DOMContentLoaded', function () {
-  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
-    document.getElementById('setupBanner').style.display = 'block';
-    document.getElementById('scheduleWrap').innerHTML = '<div class="empty-state">សូមកំណត់ APPS_SCRIPT_URL សិន</div>';
-    return;
+  var saved = loadLocalState();
+  if (saved) {
+    STATE.doctors = saved.doctors || [];
+    STATE.scheduleAll = saved.scheduleAll || [];
+    STATE.historyAll = saved.historyAll || [];
+  } else {
+    STATE.doctors = seedDefaultDoctors();
+    persistLocalState();
   }
+  STATE.payYear = STATE.year;
+  STATE.payMonth = STATE.month;
 
   bindTabs();
   bindMonthNav();
   bindDoctorForm();
+  bindManualBackup();
 
-  document.getElementById('scheduleWrap').innerHTML = '<div class="loading"><span class="spinner"></span> កំពុងទាញទិន្នន័យ...</div>';
-
-  apiCall({ action: 'getAllData' }).then(function (data) {
-    applyData(data);
-    STATE.payYear = STATE.year;
-    STATE.payMonth = STATE.month;
-    loadSchedule();
-    renderDoctors();
-  }).catch(function (err) {
-    document.getElementById('scheduleWrap').innerHTML =
-      '<div class="empty-state">⚠ មិនអាចទាញទិន្នន័យបានទេ៖ ' + escapeHtml(err.message) + '<br><span style="font-size:11px;">ពិនិត្យ APPS_SCRIPT_URL និង Deploy access (Anyone with the link)</span></div>';
-  });
+  loadSchedule();
+  renderDoctors();
 });
 
-function applyData(data) {
-  STATE.doctors = data.doctors || [];
-  STATE.scheduleAll = data.schedule || [];
-  STATE.historyAll = data.history || [];
-  STATE.rates = data.rates || {};
-  STATE.khrPerUsd = data.khrPerUsd || 4000;
+function bindManualBackup() {
+  var btn = document.getElementById('manualBackupBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
+      showToast('មិនទាន់កំណត់ APPS_SCRIPT_URL ទេ — មិនអាច backup បានទេ');
+      return;
+    }
+    clearTimeout(backupTimer);
+    doBackup();
+    showToast('កំពុងផ្ញើទិន្នន័យទៅ Sheet... ✓ (ពិនិត្យ Sheet ក្នុងប៉ុន្មានវិនាទី)');
+  });
+}
+
+/* ---------------- BACKGROUND BACKUP TO SHEET (fire-and-forget "history stock",
+   never blocks the UI and never shows an error if it fails) ----------------
+   Uses a hidden form POST to a hidden iframe: this avoids CORS entirely
+   because the browser never needs to read the response. */
+var backupTimer = null;
+function scheduleBackup() {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) return;
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(doBackup, 1500); // debounce rapid edits into one backup
+}
+
+function doBackup() {
+  try {
+    var iframeName = 'backupFrame';
+    var iframe = document.getElementById(iframeName);
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.name = iframeName;
+      iframe.id = iframeName;
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = APPS_SCRIPT_URL;
+    form.target = iframeName;
+    form.style.display = 'none';
+
+    var input = document.createElement('input');
+    input.name = 'payload';
+    input.value = JSON.stringify({ doctors: STATE.doctors, schedule: STATE.scheduleAll });
+    form.appendChild(input);
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  } catch (e) { /* backup is best-effort only */ }
 }
 
 function bindTabs() {
@@ -669,45 +712,54 @@ function openEditor(cell) {
   });
 }
 
-// The only "write" path: updates in-memory state immediately (optimistic),
-// then persists to the Sheet in the background. Reverts on failure.
+var SLOT_FIELDS_ALL = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'];
+var AUTO_OFF_TEXT = 'DAY OFF';
+
+// Mirrors the auto DAY OFF behavior: if every shift slot on this date is now
+// empty, write "DAY OFF" into SPV_Off (unless it already holds a manual note).
+// If a slot gets filled back in and SPV_Off still holds the auto text, clear it.
+function applyAutoOff(row) {
+  var allEmpty = SLOT_FIELDS_ALL.every(function (f) { return !row[f]; });
+  if (allEmpty && !row.SPV_Off) {
+    row.SPV_Off = AUTO_OFF_TEXT;
+  } else if (!allEmpty && row.SPV_Off === AUTO_OFF_TEXT) {
+    row.SPV_Off = '';
+  }
+}
+
+// The only "write" path: updates state + localStorage immediately (no network
+// wait at all), then fires a debounced background backup to the Sheet.
 function saveCellValue(date, field, value) {
   var row = rowForDate(date);
-  var isNewRow = false;
-  if (!row) { row = { Date: date }; STATE.scheduleAll.push(row); isNewRow = true; }
-  var prevValue = row[field];
+  if (!row) { row = { Date: date }; STATE.scheduleAll.push(row); }
   row[field] = value;
-  renderSchedule();
-  showToast('កំពុងរក្សាទុក...');
 
-  apiCall({ action: 'saveCell', date: date, field: field, value: value }).then(function (res) {
-    if (res && res.ok) {
-      showToast('រក្សាទុករួចរាល់ ✓');
-      if (res.clashes && res.clashes.length) {
-        showToast('⚠ ប៉ះទង្គិចវេន: ' + res.clashes.join(', '));
-      }
-      if (field !== 'SPV_Off' && typeof res.offValue !== 'undefined' && row.SPV_Off !== res.offValue) {
-        row.SPV_Off = res.offValue;
-      }
-      renderSchedule();
-      if (res.historyEntry) {
-        STATE.historyAll.unshift(res.historyEntry);
-        if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
-        if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
-      }
-    } else {
-      row[field] = prevValue;
-      if (isNewRow) STATE.scheduleAll = STATE.scheduleAll.filter(function (r) { return r !== row; });
-      renderSchedule();
-      showToast('មានបញ្ហា៖ ' + (res && res.error ? res.error : 'unknown'));
-    }
-  }).catch(function (err) {
-    row[field] = prevValue;
-    if (isNewRow) STATE.scheduleAll = STATE.scheduleAll.filter(function (r) { return r !== row; });
-    renderSchedule();
-    showToast('មិនអាចរក្សាទុកបានទេ');
-    showError(err);
+  if (field !== 'SPV_Off') applyAutoOff(row);
+
+  persistLocalState();
+  renderSchedule();
+
+  var clashes = detectClashesLocal(row);
+  if (clashes.length) {
+    showToast('⚠ ប៉ះទង្គិចវេន: ' + clashes.join(', '));
+  } else {
+    showToast('រក្សាទុករួចរាល់ ✓');
+  }
+
+  var user = 'you';
+  STATE.historyAll.unshift({
+    'ពេលវេលា': new Date().toISOString().slice(0, 16).replace('T', ' '),
+    'កាលបរិច្ឆេទ': date,
+    'វេន (Field)': field,
+    'ឈ្មោះចាស់': '',
+    'ឈ្មោះថ្មី': value || '',
+    'អ្នកប្រើ': user
   });
+  if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
+  persistLocalState();
+  if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+
+  scheduleBackup();
 }
 
 /* ---------------- DOCTORS ---------------- */
@@ -738,25 +790,14 @@ function bindDoctorForm() {
     var isLinda = document.getElementById('newIsLinda').checked;
     if (!nameSPV && !nameHMV) { showToast('សូមបញ្ចូលឈ្មោះយ៉ាងហោចណាស់មួយ'); return; }
 
-    var btn = document.getElementById('addDocBtn');
-    btn.disabled = true;
-
-    apiCall({
-      action: 'addDoctor', nameSPV: nameSPV, nameHMV: nameHMV, clinicPool: clinicPool, isLinda: isLinda
-    }).then(function (res) {
-      btn.disabled = false;
-      if (res && res.ok && res.doctor) {
-        STATE.doctors.push(res.doctor);
-        renderDoctors();
-        showToast('បន្ថែមគ្រូពេទ្យរួចរាល់ ✓');
-        document.getElementById('addDocForm').reset();
-      } else {
-        showToast('មិនអាចបន្ថែមបានទេ');
-      }
-    }).catch(function (err) {
-      btn.disabled = false;
-      showError(err);
-    });
+    var id = (clinicPool === 'HMV' ? 'H' : clinicPool === 'SPV' ? 'S' : 'B') + Date.now();
+    var doctor = { ID: id, NameSPV: nameSPV, NameHMV: nameHMV, ClinicPool: clinicPool, isLinda: isLinda, Active: true };
+    STATE.doctors.push(doctor);
+    persistLocalState();
+    renderDoctors();
+    showToast('បន្ថែមគ្រូពេទ្យរួចរាល់ ✓');
+    document.getElementById('addDocForm').reset();
+    scheduleBackup();
   });
 }
 
