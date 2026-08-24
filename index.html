@@ -198,6 +198,26 @@
     border-radius:6px;
     display:inline-block;
   }
+
+  /* Automatic day-off indicators */
+  .auto-dayoff {
+    background:#fdeaea !important;
+    color:#a52323 !important;
+    font-weight:700 !important;
+    border:1px solid #f3b5b5 !important;
+  }
+  .partial-dayoff {
+    background:#fff3cd !important;
+    color:#8a5300 !important;
+    font-weight:700 !important;
+    border:1px solid #f0d58a !important;
+  }
+  .auto-dayoff-note {
+    display:block;
+    font-size:9.5px;
+    margin-top:2px;
+    font-weight:600;
+  }
 </style>
 </head>
 <body>
@@ -324,7 +344,7 @@ var DOCTOR_COLORS = {
   "Dr.Phalla Daline": "#F4B183",
   "Dr.Nann Vanna": "#FFD966",
   "Dr.Ben Linda": "#93C47D",
-  "Dr.Khim Piseth": "#70AD47",
+  "Dr.Khim Piseth": "#C27BA0",
   "Dr.Khean Daline": "#D9D9D9",
   "Dr.Monyrachana": "#5B9BD5",
   "Dr.Da Keyla": "#F4B183",
@@ -578,7 +598,8 @@ function rowIsMyDuty(rowObj) {
 
 function rowIsAutoOff(rowObj) {
   if (!rowObj) return true;
-  return !rowObj.SPV_Day1 && !rowObj.SPV_Day2 && !rowObj.SPV_Day3 && !rowObj.SPV_Night && !rowObj.HMV_Day && !rowObj.HMV_Night;
+  return !rowObj.SPV_Day1 && !rowObj.SPV_Day2 && !rowObj.SPV_Day3 &&
+         !rowObj.SPV_Night && !rowObj.HMV_Day && !rowObj.HMV_Night;
 }
 
 function detectClashesLocal(rowObj) {
@@ -636,7 +657,7 @@ function renderSchedule() {
     ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
-    html += renderOffCell(dateStr, row['SPV_Off']);
+    html += renderOffCell(dateStr, row['SPV_Off'], row);
     ['HMV_Day', 'HMV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
@@ -688,11 +709,37 @@ function renderSlotCell(dateStr, field, value, clashes) {
   '</td>';
 }
 
-function renderOffCell(dateStr, value) {
+function renderOffCell(dateStr, value, row) {
+  var spvMorning = !!(row && (row.SPV_Day1 || row.SPV_Day2 || row.SPV_Day3));
+  var hmvMorning = !!(row && row.HMV_Day);
+  var morningWork = spvMorning || hmvMorning;
+
+  var spvNight = !!(row && row.SPV_Night);
+  var hmvNight = !!(row && row.HMV_Night);
+  var nightWork = spvNight || hmvNight;
+
   var display = value ? escapeHtml(value) : '—';
-  return '<td><div class="cell-slot ' + (value ? 'off' : 'empty') +
-    '" data-date="' + dateStr + '" data-field="SPV_Off" data-value="' + escapeAttr(value || '') + '">' +
-    display + '</div></td>';
+  var cls = value ? 'off' : 'empty';
+  var note = '';
+
+  if (!morningWork && !nightWork) {
+    display = 'DAY OFF';
+    cls = 'auto-dayoff';
+    note = '<span class="auto-dayoff-note">ព្រឹក + យប់</span>';
+  } else if (morningWork && !nightWork) {
+    display = 'DAY OFF';
+    cls = 'partial-dayoff';
+    note = '<span class="auto-dayoff-note">យប់</span>';
+  } else if (!morningWork && nightWork) {
+    display = 'DAY OFF';
+    cls = 'partial-dayoff';
+    note = '<span class="auto-dayoff-note">ព្រឹក</span>';
+  }
+
+  return '<td><div class="cell-slot ' + cls +
+    '" data-date="' + dateStr + '" data-field="SPV_Off" data-value="' +
+    escapeAttr(value || '') + '">' +
+    display + note + '</div></td>';
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -786,10 +833,21 @@ var AUTO_OFF_TEXT = 'DAY OFF';
 // empty, write "DAY OFF" into SPV_Off (unless it already holds a manual note).
 // If a slot gets filled back in and SPV_Off still holds the auto text, clear it.
 function applyAutoOff(row) {
-  var allEmpty = SLOT_FIELDS_ALL.every(function (f) { return !row[f]; });
-  if (allEmpty && !row.SPV_Off) {
+  if (!row) return;
+
+  var spvMorning = !!(row.SPV_Day1 || row.SPV_Day2 || row.SPV_Day3);
+  var hmvMorning = !!row.HMV_Day;
+  var morningWork = spvMorning || hmvMorning;
+
+  var spvNight = !!row.SPV_Night;
+  var hmvNight = !!row.HMV_Night;
+  var nightWork = spvNight || hmvNight;
+
+  // No work in either clinic / either period -> full DAY OFF.
+  if (!morningWork && !nightWork) {
     row.SPV_Off = AUTO_OFF_TEXT;
-  } else if (!allEmpty && row.SPV_Off === AUTO_OFF_TEXT) {
+  } else if (row.SPV_Off === AUTO_OFF_TEXT) {
+    // Do not keep the full-day auto OFF once a shift is entered.
     row.SPV_Off = '';
   }
 }
