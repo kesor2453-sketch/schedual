@@ -184,6 +184,20 @@
     border-radius:12px;margin-bottom:16px;font-size:13px;line-height:1.6;
   }
   .setup-banner code{background:#fff;padding:1px 6px;border-radius:5px;font-size:12px;}
+
+  /* Doctor name colors */
+  .cell-slot.doctor-colored {
+    font-weight:700;
+    border:1px solid rgba(0,0,0,.08);
+    color:#1c2430 !important;
+  }
+
+  .doc-name-colored {
+    font-weight:700;
+    padding:3px 7px;
+    border-radius:6px;
+    display:inline-block;
+  }
 </style>
 </head>
 <body>
@@ -304,6 +318,37 @@ var STATE = {
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
 var DOW_KM = {'Sunday':'អាទិត្យ','Monday':'ចន្ទ','Tuesday':'អង្គារ','Wednesday':'ពុធ','Thursday':'ព្រហ','Friday':'សុក្រ','Saturday':'សៅរ៍'};
 var SLOT_LABELS = {SPV_Day1:'SPV ១',SPV_Day2:'SPV ២',SPV_Day3:'SPV ៣',SPV_Night:'SPV យប់',HMV_Day:'HMV ថ្ងៃ',HMV_Night:'HMV យប់'};
+
+/* ================= DOCTOR COLORS ================= */
+var DOCTOR_COLORS = {
+  "Dr.Phalla Daline": "#F4B183",
+  "Dr.Nann Vanna": "#FFD966",
+  "Dr.Ben Linda": "#93C47D",
+  "Dr.Khim Piseth": "#70AD47",
+  "Dr.Khean Daline": "#D9D9D9",
+  "Dr.Monyrachana": "#5B9BD5",
+  "Dr.Da Keyla": "#F4B183",
+  "Dr.Keyla": "#F4B183"
+};
+
+function getDoctorColor(name) {
+  if (!name) return null;
+  name = String(name).trim();
+
+  if (DOCTOR_COLORS[name]) return DOCTOR_COLORS[name];
+
+  var keys = Object.keys(DOCTOR_COLORS);
+  for (var i = 0; i < keys.length; i++) {
+    if (
+      name.toLowerCase().indexOf(keys[i].toLowerCase()) !== -1 ||
+      keys[i].toLowerCase().indexOf(name.toLowerCase()) !== -1
+    ) {
+      return DOCTOR_COLORS[keys[i]];
+    }
+  }
+  return null;
+}
+
 
 /* ---------------- LOCAL STORAGE (source of truth — the website never needs
    to reach the Sheet just to view or edit) ---------------- */
@@ -616,9 +661,31 @@ function renderSlotCell(dateStr, field, value, clashes) {
   var cls = isSpv ? 'spv' : 'hmv';
   var isClash = value && clashes.indexOf(value) !== -1;
   var display = value ? escapeHtml(value) : '—';
-  return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') +
-    '" data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
-    display + '</div></td>';
+
+  // Highlight according to doctor name
+  var doctorColor = getDoctorColor(value);
+  var style = '';
+
+  if (doctorColor && value) {
+    style =
+      'background:' + doctorColor + ';' +
+      'color:#1c2430;' +
+      'font-weight:700;';
+  }
+
+  return '<td>' +
+    '<div class="cell-slot ' +
+      (value ? cls : 'empty') +
+      (doctorColor ? ' doctor-colored' : '') +
+      (isClash ? ' clash' : '') +
+    '"' +
+      ' style="' + style + '"' +
+      ' data-date="' + dateStr + '"' +
+      ' data-field="' + field + '"' +
+      ' data-value="' + escapeAttr(value || '') + '">' +
+      display +
+    '</div>' +
+  '</td>';
 }
 
 function renderOffCell(dateStr, value) {
