@@ -594,6 +594,19 @@ function bindCellClicks() {
   });
 }
 
+// Every name ever typed into a given set of slot fields, across all months —
+// so autocomplete works purely from what's already in Schedule history,
+// no need to pre-register anyone in the Doctors list first.
+function harvestNames(fields) {
+  var set = {};
+  STATE.scheduleAll.forEach(function (r) {
+    fields.forEach(function (f) {
+      if (r[f]) set[r[f]] = true;
+    });
+  });
+  return Object.keys(set).sort();
+}
+
 function openEditor(cell) {
   if (STATE.editing) return; // one editor at a time
   var date = cell.dataset.date;
@@ -603,15 +616,21 @@ function openEditor(cell) {
 
   var suggestions = [];
   if (field === 'SPV_Off') {
-    suggestions = ['DAY OFF'].concat(
-      STATE.doctors.filter(function (d) { return d.ClinicPool === 'SPV' || d.ClinicPool === 'Both'; })
-        .map(function (d) { return d.NameSPV; }).filter(Boolean)
-    );
+    var offFromDoctors = STATE.doctors.filter(function (d) { return d.ClinicPool === 'SPV' || d.ClinicPool === 'Both'; })
+      .map(function (d) { return d.NameSPV; }).filter(Boolean);
+    var offFromHistory = harvestNames(['SPV_Off']).filter(function (n) { return n !== 'DAY OFF'; });
+    suggestions = ['DAY OFF'].concat(offFromDoctors, offFromHistory);
   } else {
     var isSpv = field.indexOf('SPV') === 0;
-    var pool = STATE.doctors.filter(function (d) { return d.ClinicPool === (isSpv ? 'SPV' : 'HMV') || d.ClinicPool === 'Both'; });
-    suggestions = pool.map(function (d) { return isSpv ? d.NameSPV : d.NameHMV; }).filter(Boolean);
+    var poolFields = isSpv ? ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'] : ['HMV_Day', 'HMV_Night'];
+    var fromDoctors = STATE.doctors.filter(function (d) { return d.ClinicPool === (isSpv ? 'SPV' : 'HMV') || d.ClinicPool === 'Both'; })
+      .map(function (d) { return isSpv ? d.NameSPV : d.NameHMV; }).filter(Boolean);
+    var fromHistory = harvestNames(poolFields);
+    suggestions = fromDoctors.concat(fromHistory);
   }
+  // de-dupe while keeping order
+  var seen = {};
+  suggestions = suggestions.filter(function (s) { return s && !seen[s] && (seen[s] = true); });
 
   var listId = 'dlist_' + date.replace(/-/g, '') + '_' + field;
   var datalist = document.createElement('datalist');
