@@ -95,6 +95,10 @@
     display:inline-block;background:var(--off-bg);color:#a52323;font-weight:600;
     font-size:10.5px;padding:2px 8px;border-radius:20px;margin-left:6px;
   }
+  .my-off-badge{
+    display:inline-block;background:#eceff1;color:#546e7a;font-weight:600;
+    font-size:10.5px;padding:2px 8px;border-radius:20px;margin-left:6px;
+  }
 
   .cell-slot{
     min-height:30px;border-radius:8px;padding:5px 6px;cursor:pointer;
@@ -103,8 +107,8 @@
   }
   .cell-slot:hover{border-color:var(--line);background:#f7f9fc;}
   .cell-slot.empty{color:#c3c9d3;}
-  .cell-slot.spv{background:var(--spv-bg);color:#1747a6;}
-  .cell-slot.hmv{background:var(--hmv-bg);color:#0a6b4b;}
+  .cell-slot.spv{background:var(--spv-bg);}
+  .cell-slot.hmv{background:var(--hmv-bg);}
   .cell-slot.off{background:var(--off-bg);color:#a52323;font-weight:600;}
   .cell-slot.clash{outline:2px solid var(--warn);background:var(--warn-bg) !important;color:#8a5300 !important;}
 
@@ -122,7 +126,7 @@
   /* Doctors panel */
   .doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
   .doc-item{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fbfcfe;}
-  .doc-item .name{font-weight:700;font-size:13.5px;color:darkblue;}
+  .doc-item .name{font-weight:700;font-size:13.5px;}
   .doc-item .pool{display:inline-block;margin-top:5px;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;}
   .doc-item .pool.spv{background:var(--spv-bg);color:var(--spv);}
   .doc-item .pool.hmv{background:var(--hmv-bg);color:var(--hmv);}
@@ -604,6 +608,7 @@ function renderSchedule() {
     if (clashes.length) allClashDays.push(dateStr);
     var isMyDuty = rowIsMyDuty(row);
     var isAutoOff = rowIsAutoOff(row);
+    var isMyPersonalOff = !isMyDuty && !isAutoOff; // clinic still running, just not you
 
     var trClasses = [];
     if (isWeekend) trClasses.push('weekend');
@@ -614,7 +619,10 @@ function renderSchedule() {
     html += '<tr class="' + trClasses.join(' ') + '">';
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
       (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
-      '<span class="dow">' + DOW_KM[dowName] + (isAutoOff ? '<span class="auto-off-badge">🚫 ថ្ងៃឈប់</span>' : '') + '</span></td>';
+      '<span class="dow">' + DOW_KM[dowName] +
+      (isAutoOff ? '<span class="auto-off-badge">🚫 ថ្ងៃឈប់</span>' : '') +
+      (isMyPersonalOff ? '<span class="my-off-badge">🏠 អ្នកឈប់</span>' : '') +
+      '</span></td>';
 
     ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
@@ -639,20 +647,42 @@ function renderSchedule() {
   bindCellClicks();
 }
 
+// Deterministic per-name color, so the same doctor always gets the same
+// color everywhere (schedule cells, Doctors tab) — not tied to clinic.
+var NAME_COLOR_PALETTE = [
+  '#1747a6', '#0a6b4b', '#a52323', '#8a5300', '#6b3fd1',
+  '#0f6b72', '#b23a6b', '#c9852e', '#1c7a3e', '#8a2be2',
+  '#c2185b', '#00695c', '#5d4037', '#37474f', '#ad1457'
+];
+function hashString(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+  return Math.abs(hash);
+}
+function colorForName(name) {
+  if (!name) return '#1c2430';
+  var doc = STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0];
+  var key = doc ? doc.ID : name; // resolves aliases (e.g. Linda's SPV vs HMV spelling) to one color
+  return NAME_COLOR_PALETTE[hashString(key) % NAME_COLOR_PALETTE.length];
+}
+
 function renderSlotCell(dateStr, field, value, clashes) {
   var isSpv = field.indexOf('SPV') === 0;
   var cls = isSpv ? 'spv' : 'hmv';
   var isClash = value && clashes.indexOf(value) !== -1;
   var display = value ? escapeHtml(value) : '—';
+  var style = value && !isClash ? ' style="color:' + colorForName(value) + ';"' : '';
   return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') +
-    '" data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
+    '"' + style + ' data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
     display + '</div></td>';
 }
 
 function renderOffCell(dateStr, value) {
   var display = value ? escapeHtml(value) : '—';
+  var isCustomName = value && value !== 'DAY OFF';
+  var style = isCustomName ? ' style="color:' + colorForName(value) + ';"' : '';
   return '<td><div class="cell-slot ' + (value ? 'off' : 'empty') +
-    '" data-date="' + dateStr + '" data-field="SPV_Off" data-value="' + escapeAttr(value || '') + '">' +
+    '"' + style + ' data-date="' + dateStr + '" data-field="SPV_Off" data-value="' + escapeAttr(value || '') + '">' +
     display + '</div></td>';
 }
 
@@ -743,14 +773,15 @@ function openEditor(cell) {
 var SLOT_FIELDS_ALL = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'];
 var AUTO_OFF_TEXT = 'DAY OFF';
 
-// Mirrors the auto DAY OFF behavior: if every shift slot on this date is now
-// empty, write "DAY OFF" into SPV_Off (unless it already holds a manual note).
-// If a slot gets filled back in and SPV_Off still holds the auto text, clear it.
+// Auto DAY OFF, scoped to Linda specifically: if she is not on any shift in
+// either clinic that day, write "DAY OFF" into SPV_Off (unless it already
+// holds some other manual note — never overwrite that). If she gets assigned
+// a shift again and SPV_Off still holds the auto-written text, clear it back.
 function applyAutoOff(row) {
-  var allEmpty = SLOT_FIELDS_ALL.every(function (f) { return !row[f]; });
-  if (allEmpty && !row.SPV_Off) {
+  var imOff = !rowIsMyDuty(row);
+  if (imOff && !row.SPV_Off) {
     row.SPV_Off = AUTO_OFF_TEXT;
-  } else if (!allEmpty && row.SPV_Off === AUTO_OFF_TEXT) {
+  } else if (!imOff && row.SPV_Off === AUTO_OFF_TEXT) {
     row.SPV_Off = '';
   }
 }
@@ -801,7 +832,7 @@ function renderDoctors() {
     var name = d.NameSPV || d.NameHMV;
     var altName = (d.NameSPV && d.NameHMV && d.NameSPV !== d.NameHMV) ? d.NameHMV : null;
     return '<div class="doc-item">' +
-      '<div class="name">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
+      '<div class="name" style="color:' + colorForName(name) + ';">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
       (altName ? '<div style="color:var(--sub);font-size:11.5px;margin-top:2px;">' + escapeHtml(altName) + '</div>' : '') +
       '<span class="pool ' + poolClass + '">' + escapeHtml(d.ClinicPool) + '</span>' +
       '</div>';
