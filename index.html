@@ -621,13 +621,12 @@ function renderSchedule() {
       (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
       '<span class="dow">' + DOW_KM[dowName] +
       (isAutoOff ? '<span class="auto-off-badge">🚫 ថ្ងៃឈប់</span>' : '') +
-      (isMyPersonalOff ? '<span class="my-off-badge">🏠 អ្នកឈប់</span>' : '') +
       '</span></td>';
 
     ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
-    html += renderOffCell(dateStr, row['SPV_Off']);
+    html += renderOffCell(dateStr, row['SPV_Off'], isMyPersonalOff);
     ['HMV_Day', 'HMV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
@@ -677,8 +676,9 @@ function renderSlotCell(dateStr, field, value, clashes) {
     display + '</div></td>';
 }
 
-function renderOffCell(dateStr, value) {
+function renderOffCell(dateStr, value, isMyPersonalOff) {
   var display = value ? escapeHtml(value) : '—';
+  if (value === 'DAY OFF' && isMyPersonalOff) display = '🏠 ' + display;
   var isCustomName = value && value !== 'DAY OFF';
   var style = isCustomName ? ' style="color:' + colorForName(value) + ';"' : '';
   return '<td><div class="cell-slot ' + (value ? 'off' : 'empty') +
