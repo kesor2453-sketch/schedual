@@ -184,40 +184,6 @@
     border-radius:12px;margin-bottom:16px;font-size:13px;line-height:1.6;
   }
   .setup-banner code{background:#fff;padding:1px 6px;border-radius:5px;font-size:12px;}
-
-  /* Doctor name colors */
-  .cell-slot.doctor-colored {
-    font-weight:700;
-    border:1px solid rgba(0,0,0,.08);
-    color:#1c2430 !important;
-  }
-
-  .doc-name-colored {
-    font-weight:700;
-    padding:3px 7px;
-    border-radius:6px;
-    display:inline-block;
-  }
-
-  /* Automatic day-off indicators */
-  .auto-dayoff {
-    background:#fdeaea !important;
-    color:#a52323 !important;
-    font-weight:700 !important;
-    border:1px solid #f3b5b5 !important;
-  }
-  .partial-dayoff {
-    background:#fff3cd !important;
-    color:#8a5300 !important;
-    font-weight:700 !important;
-    border:1px solid #f0d58a !important;
-  }
-  .auto-dayoff-note {
-    display:block;
-    font-size:9.5px;
-    margin-top:2px;
-    font-weight:600;
-  }
 </style>
 </head>
 <body>
@@ -227,7 +193,7 @@
     <div>
       <h1>តារាងវេន SPV + HMV</h1>
       <div class="muted">
-        <span>ទិន្នន័យទាំងអស់រក្សាទុកនៅក្នុង browser នេះផ្ទាល់ (localStorage) — ដំណើរការភ្លាមៗ គ្មាន loading, គ្មានចាំបាច់ភ្ជាប់ Sheet។ Sheet ទទួល backup ស្វ័យប្រវត្តិផ្ទាល់ខាងក្រោយសម្រាប់ជាកន្លែងទុកប្រវត្តិ។</span>
+        <span>ទិន្នន័យ Sync ភ្លាមៗគ្រប់ឧបករណ៍តាមរយៈ Firestore — កែប្រែនៅទូរស័ព្ទ/កុំព្យូទ័រណាមួយ ឃើញគ្រប់ទីតាំង។ Sheet ទទួល backup ស្វ័យប្រវត្តិផ្ទាល់ខាងក្រោយសម្រាប់ជាកន្លែងទុកប្រវត្តិ។</span>
         <span class="refresh-link" id="manualBackupBtn">🔗 Backup ទៅ Sheet ឥឡូវនេះ</span>
       </div>
     </div>
@@ -311,14 +277,34 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  initializeFirestore, persistentLocalCache, doc, setDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
 /* ============================================================
-   CONFIG — paste your deployed Apps Script /exec URL here.
-   The website works fully WITHOUT this — it only enables the
-   background "stock to Sheet" history backup, nothing else.
+   CONFIG
    ============================================================ */
+var firebaseConfig = {
+  apiKey: "AIzaSyDzNtFQ4Z5gYh56t1Btwy4Dltni16C-RfI",
+  authDomain: "schedual-57c23.firebaseapp.com",
+  projectId: "schedual-57c23",
+  storageBucket: "schedual-57c23.firebasestorage.app",
+  messagingSenderId: "1021432251619",
+  appId: "1:1021432251619:web:d46f2b866e897fdc07b1d6"
+};
+// Apps Script /exec URL — only used for the optional background "stock to
+// Sheet" history backup. Firestore (above) is the real, live, cross-device
+// data source now.
 var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfwtCf5YYNwFDrYao-s5uX39dm3YDjWAgHmLyBop_ONBNE-QjyhhzvyLYltIH3f4dhKw/exec';
-var STORAGE_KEY = 'spv_hmv_schedule_v1';
+
+var fbApp = initializeApp(firebaseConfig);
+// persistentLocalCache = IndexedDB-backed offline cache, so repeat visits
+// render instantly from cache while Firestore syncs live in the background.
+var db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
+var scheduleDocRef = doc(db, 'scheduleApp', 'main');
+
 var RATES = { SPV_Day1: 25, SPV_Day2: 25, SPV_Day3: 25, SPV_Night: 25, HMV_Day: 24, HMV_Night: 20 };
 var KHR_PER_USD = 4000;
 
@@ -339,39 +325,7 @@ var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេ
 var DOW_KM = {'Sunday':'អាទិត្យ','Monday':'ចន្ទ','Tuesday':'អង្គារ','Wednesday':'ពុធ','Thursday':'ព្រហ','Friday':'សុក្រ','Saturday':'សៅរ៍'};
 var SLOT_LABELS = {SPV_Day1:'SPV ១',SPV_Day2:'SPV ២',SPV_Day3:'SPV ៣',SPV_Night:'SPV យប់',HMV_Day:'HMV ថ្ងៃ',HMV_Night:'HMV យប់'};
 
-/* ================= DOCTOR COLORS ================= */
-var DOCTOR_COLORS = {
-  "Dr.Phalla Daline": "#F4B183",
-  "Dr.Nann Vanna": "#FFD966",
-  "Dr.Ben Linda": "#93C47D",
-  "Dr.Khim Piseth": "#C27BA0",
-  "Dr.Khean Daline": "#D9D9D9",
-  "Dr.Monyrachana": "#5B9BD5",
-  "Dr.Da Keyla": "#F4B183",
-  "Dr.Keyla": "#F4B183"
-};
-
-function getDoctorColor(name) {
-  if (!name) return null;
-  name = String(name).trim();
-
-  if (DOCTOR_COLORS[name]) return DOCTOR_COLORS[name];
-
-  var keys = Object.keys(DOCTOR_COLORS);
-  for (var i = 0; i < keys.length; i++) {
-    if (
-      name.toLowerCase().indexOf(keys[i].toLowerCase()) !== -1 ||
-      keys[i].toLowerCase().indexOf(name.toLowerCase()) !== -1
-    ) {
-      return DOCTOR_COLORS[keys[i]];
-    }
-  }
-  return null;
-}
-
-
-/* ---------------- LOCAL STORAGE (source of truth — the website never needs
-   to reach the Sheet just to view or edit) ---------------- */
+/* ---------------- FIRESTORE (source of truth — real-time, cross-device) ---------------- */
 function seedDefaultDoctors() {
   return [
     { ID: 'S1', NameSPV: 'Dr.Monyrachana', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
@@ -387,43 +341,52 @@ function seedDefaultDoctors() {
   ];
 }
 
-function loadLocalState() {
-  try {
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (e) { return null; }
+// Writes the full state to Firestore. Every open tab/device gets this update
+// within moments via the onSnapshot listener below (including this one).
+function persistRemoteState() {
+  setDoc(scheduleDocRef, {
+    doctors: STATE.doctors, scheduleAll: STATE.scheduleAll, historyAll: STATE.historyAll
+  }).catch(function (err) {
+    showToast('⚠ មិនអាចផ្ញើទៅ Firestore បានទេ៖ ' + err.message);
+  });
 }
 
-function persistLocalState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      doctors: STATE.doctors, scheduleAll: STATE.scheduleAll, historyAll: STATE.historyAll
-    }));
-  } catch (e) { /* storage full or unavailable — data still lives in-memory for this session */ }
-}
+var firstSnapshotHandled = false;
 
-/* ---------------- INIT (instant — no network needed) ---------------- */
+/* ---------------- INIT ---------------- */
 document.addEventListener('DOMContentLoaded', function () {
-  var saved = loadLocalState();
-  if (saved) {
-    STATE.doctors = saved.doctors || [];
-    STATE.scheduleAll = saved.scheduleAll || [];
-    STATE.historyAll = saved.historyAll || [];
-  } else {
-    STATE.doctors = seedDefaultDoctors();
-    persistLocalState();
-  }
-  STATE.payYear = STATE.year;
-  STATE.payMonth = STATE.month;
-
   bindTabs();
   bindMonthNav();
   bindDoctorForm();
   bindManualBackup();
 
-  loadSchedule();
-  renderDoctors();
+  document.getElementById('scheduleWrap').innerHTML =
+    '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
+
+  // Real-time listener: fires immediately from local cache (near-instant),
+  // then again whenever data changes — on THIS device or any other one.
+  onSnapshot(scheduleDocRef, function (snap) {
+    if (snap.exists()) {
+      var data = snap.data();
+      STATE.doctors = data.doctors || [];
+      STATE.scheduleAll = data.scheduleAll || [];
+      STATE.historyAll = data.historyAll || [];
+    } else if (!firstSnapshotHandled) {
+      // Brand new Firestore doc — seed default doctors once.
+      STATE.doctors = seedDefaultDoctors();
+      persistRemoteState();
+    }
+    firstSnapshotHandled = true;
+    if (!STATE.payYear) { STATE.payYear = STATE.year; STATE.payMonth = STATE.month; }
+    loadSchedule();
+    renderDoctors();
+    if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+    if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+  }, function (err) {
+    document.getElementById('scheduleWrap').innerHTML =
+      '<div class="empty-state">⚠ មិនអាចភ្ជាប់ Firestore បានទេ៖ ' + escapeHtml(err.message) +
+      '<br><span style="font-size:11px;">ពិនិត្យ firebaseConfig និង Firestore Rules (allow read, write: if true)</span></div>';
+  });
 });
 
 function bindManualBackup() {
@@ -598,8 +561,7 @@ function rowIsMyDuty(rowObj) {
 
 function rowIsAutoOff(rowObj) {
   if (!rowObj) return true;
-  return !rowObj.SPV_Day1 && !rowObj.SPV_Day2 && !rowObj.SPV_Day3 &&
-         !rowObj.SPV_Night && !rowObj.HMV_Day && !rowObj.HMV_Night;
+  return !rowObj.SPV_Day1 && !rowObj.SPV_Day2 && !rowObj.SPV_Day3 && !rowObj.SPV_Night && !rowObj.HMV_Day && !rowObj.HMV_Night;
 }
 
 function detectClashesLocal(rowObj) {
@@ -657,7 +619,7 @@ function renderSchedule() {
     ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
-    html += renderOffCell(dateStr, row['SPV_Off'], row);
+    html += renderOffCell(dateStr, row['SPV_Off']);
     ['HMV_Day', 'HMV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
@@ -682,64 +644,16 @@ function renderSlotCell(dateStr, field, value, clashes) {
   var cls = isSpv ? 'spv' : 'hmv';
   var isClash = value && clashes.indexOf(value) !== -1;
   var display = value ? escapeHtml(value) : '—';
-
-  // Highlight according to doctor name
-  var doctorColor = getDoctorColor(value);
-  var style = '';
-
-  if (doctorColor && value) {
-    style =
-      'background:' + doctorColor + ';' +
-      'color:#1c2430;' +
-      'font-weight:700;';
-  }
-
-  return '<td>' +
-    '<div class="cell-slot ' +
-      (value ? cls : 'empty') +
-      (doctorColor ? ' doctor-colored' : '') +
-      (isClash ? ' clash' : '') +
-    '"' +
-      ' style="' + style + '"' +
-      ' data-date="' + dateStr + '"' +
-      ' data-field="' + field + '"' +
-      ' data-value="' + escapeAttr(value || '') + '">' +
-      display +
-    '</div>' +
-  '</td>';
+  return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') +
+    '" data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
+    display + '</div></td>';
 }
 
-function renderOffCell(dateStr, value, row) {
-  var spvMorning = !!(row && (row.SPV_Day1 || row.SPV_Day2 || row.SPV_Day3));
-  var hmvMorning = !!(row && row.HMV_Day);
-  var morningWork = spvMorning || hmvMorning;
-
-  var spvNight = !!(row && row.SPV_Night);
-  var hmvNight = !!(row && row.HMV_Night);
-  var nightWork = spvNight || hmvNight;
-
+function renderOffCell(dateStr, value) {
   var display = value ? escapeHtml(value) : '—';
-  var cls = value ? 'off' : 'empty';
-  var note = '';
-
-  if (!morningWork && !nightWork) {
-    display = 'DAY OFF';
-    cls = 'auto-dayoff';
-    note = '<span class="auto-dayoff-note">ព្រឹក + យប់</span>';
-  } else if (morningWork && !nightWork) {
-    display = 'DAY OFF';
-    cls = 'partial-dayoff';
-    note = '<span class="auto-dayoff-note">យប់</span>';
-  } else if (!morningWork && nightWork) {
-    display = 'DAY OFF';
-    cls = 'partial-dayoff';
-    note = '<span class="auto-dayoff-note">ព្រឹក</span>';
-  }
-
-  return '<td><div class="cell-slot ' + cls +
-    '" data-date="' + dateStr + '" data-field="SPV_Off" data-value="' +
-    escapeAttr(value || '') + '">' +
-    display + note + '</div></td>';
+  return '<td><div class="cell-slot ' + (value ? 'off' : 'empty') +
+    '" data-date="' + dateStr + '" data-field="SPV_Off" data-value="' + escapeAttr(value || '') + '">' +
+    display + '</div></td>';
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -833,27 +747,16 @@ var AUTO_OFF_TEXT = 'DAY OFF';
 // empty, write "DAY OFF" into SPV_Off (unless it already holds a manual note).
 // If a slot gets filled back in and SPV_Off still holds the auto text, clear it.
 function applyAutoOff(row) {
-  if (!row) return;
-
-  var spvMorning = !!(row.SPV_Day1 || row.SPV_Day2 || row.SPV_Day3);
-  var hmvMorning = !!row.HMV_Day;
-  var morningWork = spvMorning || hmvMorning;
-
-  var spvNight = !!row.SPV_Night;
-  var hmvNight = !!row.HMV_Night;
-  var nightWork = spvNight || hmvNight;
-
-  // No work in either clinic / either period -> full DAY OFF.
-  if (!morningWork && !nightWork) {
+  var allEmpty = SLOT_FIELDS_ALL.every(function (f) { return !row[f]; });
+  if (allEmpty && !row.SPV_Off) {
     row.SPV_Off = AUTO_OFF_TEXT;
-  } else if (row.SPV_Off === AUTO_OFF_TEXT) {
-    // Do not keep the full-day auto OFF once a shift is entered.
+  } else if (!allEmpty && row.SPV_Off === AUTO_OFF_TEXT) {
     row.SPV_Off = '';
   }
 }
 
-// The only "write" path: updates state + localStorage immediately (no network
-// wait at all), then fires a debounced background backup to the Sheet.
+// The only "write" path: updates state + Firestore immediately, then fires a
+// debounced background backup to the Sheet too.
 function saveCellValue(date, field, value) {
   var row = rowForDate(date);
   if (!row) { row = { Date: date }; STATE.scheduleAll.push(row); }
@@ -861,7 +764,6 @@ function saveCellValue(date, field, value) {
 
   if (field !== 'SPV_Off') applyAutoOff(row);
 
-  persistLocalState();
   renderSchedule();
 
   var clashes = detectClashesLocal(row);
@@ -881,9 +783,9 @@ function saveCellValue(date, field, value) {
     'អ្នកប្រើ': user
   });
   if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
-  persistLocalState();
   if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
 
+  persistRemoteState();
   scheduleBackup();
 }
 
@@ -918,7 +820,7 @@ function bindDoctorForm() {
     var id = (clinicPool === 'HMV' ? 'H' : clinicPool === 'SPV' ? 'S' : 'B') + Date.now();
     var doctor = { ID: id, NameSPV: nameSPV, NameHMV: nameHMV, ClinicPool: clinicPool, isLinda: isLinda, Active: true };
     STATE.doctors.push(doctor);
-    persistLocalState();
+    persistRemoteState();
     renderDoctors();
     showToast('បន្ថែមគ្រូពេទ្យរួចរាល់ ✓');
     document.getElementById('addDocForm').reset();
