@@ -646,8 +646,20 @@ function renderSchedule() {
   bindCellClicks();
 }
 
-// Deterministic per-name color, so the same doctor always gets the same
-// color everywhere (schedule cells, Doctors tab) — not tied to clinic.
+// Same per-doctor colors as her original Google Sheet (matched by doctor ID,
+// so it survives name-spelling differences like Dr.Ben Linda / វេជ្ជ.ប៊ិន លីនដា).
+// Any doctor not in this list (e.g. newly typed names) falls back to an
+// auto-generated color from the palette below.
+var MANUAL_DOCTOR_COLORS = {
+  S1: { bg: '#5B9BD5', text: '#ffffff' }, // Dr.Monyrachana — blue
+  S2: { bg: '#FFFFFF', text: '#333333' }, // Dr.Khean Daline — white/no highlight
+  S3: { bg: '#F4B6B6', text: '#7a1f1f' }, // Dr.Ka Seyla — pink
+  S4: { bg: '#E8B285', text: '#5c3a1e' }, // Dr.Phalla Daline — orange/peach
+  S5: { bg: '#F5D97A', text: '#6b5900' }, // Dr.Nann Vanna — yellow
+  S6: { bg: '#4C7A3D', text: '#ffffff' }, // Dr.Khim Piseth — dark green
+  LINDA: { bg: '#8DC63F', text: '#1f3d0a' } // Dr.Ben Linda — light green
+};
+
 var NAME_COLOR_PALETTE = [
   '#1747a6', '#0a6b4b', '#a52323', '#8a5300', '#6b3fd1',
   '#0f6b72', '#b23a6b', '#c9852e', '#1c7a3e', '#8a2be2',
@@ -658,11 +670,22 @@ function hashString(str) {
   for (var i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
   return Math.abs(hash);
 }
-function colorForName(name) {
-  if (!name) return '#1c2430';
+// Resolves a shift value (a name) to { bg, text } — checks the manual map
+// first (matched via doctor ID so aliases share one color), then falls back
+// to a deterministic hash-based text color with no forced background.
+function getNameColors(name) {
+  if (!name) return { bg: null, text: '#1c2430' };
   var doc = STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0];
-  var key = doc ? doc.ID : name; // resolves aliases (e.g. Linda's SPV vs HMV spelling) to one color
-  return NAME_COLOR_PALETTE[hashString(key) % NAME_COLOR_PALETTE.length];
+  var key = doc ? doc.ID : name;
+  if (MANUAL_DOCTOR_COLORS[key]) return MANUAL_DOCTOR_COLORS[key];
+  return { bg: null, text: NAME_COLOR_PALETTE[hashString(key) % NAME_COLOR_PALETTE.length] };
+}
+
+function styleFor(name) {
+  var c = getNameColors(name);
+  var s = 'color:' + c.text + ';';
+  if (c.bg) s += 'background:' + c.bg + ';';
+  return s;
 }
 
 function renderSlotCell(dateStr, field, value, clashes) {
@@ -670,7 +693,7 @@ function renderSlotCell(dateStr, field, value, clashes) {
   var cls = isSpv ? 'spv' : 'hmv';
   var isClash = value && clashes.indexOf(value) !== -1;
   var display = value ? escapeHtml(value) : '—';
-  var style = value && !isClash ? ' style="color:' + colorForName(value) + ';"' : '';
+  var style = value && !isClash ? ' style="' + styleFor(value) + '"' : '';
   return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') +
     '"' + style + ' data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
     display + '</div></td>';
@@ -680,7 +703,7 @@ function renderOffCell(dateStr, value, isMyPersonalOff) {
   var display = value ? escapeHtml(value) : '—';
   if (value === 'DAY OFF' && isMyPersonalOff) display = '🏠 ' + display;
   var isCustomName = value && value !== 'DAY OFF';
-  var style = isCustomName ? ' style="color:' + colorForName(value) + ';"' : '';
+  var style = isCustomName ? ' style="' + styleFor(value) + '"' : '';
   return '<td><div class="cell-slot ' + (value ? 'off' : 'empty') +
     '"' + style + ' data-date="' + dateStr + '" data-field="SPV_Off" data-value="' + escapeAttr(value || '') + '">' +
     display + '</div></td>';
@@ -832,7 +855,7 @@ function renderDoctors() {
     var name = d.NameSPV || d.NameHMV;
     var altName = (d.NameSPV && d.NameHMV && d.NameSPV !== d.NameHMV) ? d.NameHMV : null;
     return '<div class="doc-item">' +
-      '<div class="name" style="color:' + colorForName(name) + ';">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
+      '<div class="name" style="' + styleFor(name) + (getNameColors(name).bg ? 'padding:2px 8px;border-radius:6px;display:inline-block;' : '') + '">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
       (altName ? '<div style="color:var(--sub);font-size:11.5px;margin-top:2px;">' + escapeHtml(altName) + '</div>' : '') +
       '<span class="pool ' + poolClass + '">' + escapeHtml(d.ClinicPool) + '</span>' +
       '</div>';
