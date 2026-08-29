@@ -452,6 +452,7 @@ document.addEventListener('DOMContentLoaded', function () {
     incomeFirstSnapshotHandled = true;
     if (!STATE.incomeYear) { STATE.incomeYear = STATE.year; STATE.incomeMonth = STATE.month; }
     if (document.getElementById('panel-income').classList.contains('active')) renderIncome();
+    if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
   }, function (err) {
     showToast('⚠ មិនអាចភ្ជាប់ Firestore (ចំណូល) បានទេ៖ ' + err.message);
   });
@@ -994,14 +995,15 @@ function loadPayroll() {
   if (!STATE.payYear) { STATE.payYear = STATE.year; STATE.payMonth = STATE.month; }
   document.getElementById('monthLabelPay').textContent = MONTH_NAMES_KM[STATE.payMonth - 1] + ' ' + STATE.payYear;
   var summary = computePayrollClient(STATE.payYear, STATE.payMonth);
-  renderPayroll(summary);
+  var incomeSummary = computeIncomeSummary(STATE.payYear, STATE.payMonth);
+  renderPayroll(summary, incomeSummary);
   refreshMonthPickers();
 }
 
 function fmtUsd(n) { return '$' + (n || 0).toLocaleString(); }
 function fmtKhr(n) { return (n || 0).toLocaleString() + '៛'; }
 
-function renderPayroll(summary) {
+function renderPayroll(summary, incomeSummary) {
   if (!summary) { document.getElementById('payWrap').innerHTML = '<div class="empty-state">មិនមានទិន្នន័យទេ</div>'; return; }
 
   function table(list) {
@@ -1019,11 +1021,39 @@ function renderPayroll(summary) {
     '<div class="pay-col"><h3 class="hmv">HMV</h3>' + table(summary.hmv) + '</div>' +
     '</div>';
 
-  if (summary.linda && summary.linda.shifts) {
+  // ---- combined per-clinic total: payroll (all shifts) + income (Consult+IPD) ----
+  var spvPayrollTotal = summary.spv.reduce(function (s, c) { return s + c.usd; }, 0);
+  var hmvPayrollTotal = summary.hmv.reduce(function (s, c) { return s + c.usd; }, 0);
+  var spvIncomeTotal = incomeSummary ? incomeSummary.SPV.usd : 0;
+  var hmvIncomeTotal = incomeSummary ? incomeSummary.HMV.usd : 0;
+  var spvGrandTotal = spvPayrollTotal + spvIncomeTotal;
+  var hmvGrandTotal = hmvPayrollTotal + hmvIncomeTotal;
+
+  html += '<div class="card" style="margin-top:14px;background:#f7f8fb;box-shadow:none;border:1px solid var(--line);padding:14px;">' +
+    '<div style="font-weight:700;font-size:14px;margin-bottom:10px;">សរុបប្រចាំខែក្នុងគ្លីនិកនីមួយៗ (ប្រាក់ខែវេន + ចំណូល)</div>' +
+    '<table class="pay"><thead><tr><th>គ្លីនិក</th>' +
+    '<th style="text-align:right;">ប្រាក់ខែ (វេន)</th>' +
+    '<th style="text-align:right;">ចំណូល (Consult+IPD)</th>' +
+    '<th style="text-align:right;">សរុប</th></tr></thead><tbody>' +
+    '<tr><td style="color:var(--spv);font-weight:600;">SPV</td>' +
+    '<td class="num">' + fmtUsd(spvPayrollTotal) + '</td>' +
+    '<td class="num">' + fmtUsd(spvIncomeTotal) + '</td>' +
+    '<td class="num" style="font-weight:700;">' + fmtUsd(spvGrandTotal) + '</td></tr>' +
+    '<tr><td style="color:var(--hmv);font-weight:600;">HMV</td>' +
+    '<td class="num">' + fmtUsd(hmvPayrollTotal) + '</td>' +
+    '<td class="num">' + fmtUsd(hmvIncomeTotal) + '</td>' +
+    '<td class="num" style="font-weight:700;">' + fmtUsd(hmvGrandTotal) + '</td></tr>' +
+    '</tbody></table></div>';
+
+  // ---- one grand total for Linda alone, both clinics combined ----
+  if (summary.linda && (summary.linda.shifts || spvIncomeTotal || hmvIncomeTotal)) {
+    var incomeBothTotal = spvIncomeTotal + hmvIncomeTotal;
+    var lindaGrandTotal = summary.linda.usd + incomeBothTotal;
     html += '<div class="linda-box">' +
-      '<b>ប្រាក់ខែសរុបរបស់អ្នក ⭐</b> — ធ្វើវេនទាំង SPV និង HMV<br>' +
-      'SPV: ' + summary.linda.spvShifts + ' វេន &nbsp;|&nbsp; HMV: ' + summary.linda.hmvShifts + ' វេន &nbsp;|&nbsp; ' +
-      '<b>សរុប: ' + fmtUsd(summary.linda.usd) + ' (' + fmtKhr(summary.linda.khr) + ')</b>' +
+      '<b>ប្រាក់ខែពីវេនរបស់អ្នក ⭐</b> — SPV: ' + summary.linda.spvShifts + ' វេន &nbsp;|&nbsp; HMV: ' + summary.linda.hmvShifts + ' វេន &nbsp;|&nbsp; ' +
+      'សរុបវេន: ' + fmtUsd(summary.linda.usd) + '<br>' +
+      'ចំណូល Consult/IPD (SPV+HMV): ' + fmtUsd(incomeBothTotal) + '<br>' +
+      '<b style="font-size:15.5px;">សរុបប្រចាំខែទាំងអស់សម្រាប់អ្នក (ទាំង២គ្លីនិក): ' + fmtUsd(lindaGrandTotal) + ' (' + fmtKhr(lindaGrandTotal * STATE.khrPerUsd) + ')</b>' +
       '</div>';
   }
 
