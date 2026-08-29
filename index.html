@@ -294,7 +294,11 @@
 
     <div class="card" style="overflow-x:auto;">
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;">កំណត់ត្រាចំណូល — ថ្ងៃដែលអ្នកធ្វើការតែប៉ុណ្ណោះ</div>
-      <div style="font-size:11.5px;color:var(--sub);margin-bottom:10px;">បង្ហាញស្វ័យប្រវត្តិសម្រាប់តែថ្ងៃដែលអ្នកនៅវេន (SPV ឬ HMV) ទាំង២គ្លីនិក — វាយបញ្ចូលចំនួនផ្ទាល់ក្នុងតារាង រក្សាទុកភ្លាមៗ</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:6px;">បង្ហាញស្វ័យប្រវត្តិសម្រាប់តែថ្ងៃដែលអ្នកនៅវេន (SPV ឬ HMV) ទាំង២គ្លីនិក — វាយបញ្ចូលចំនួនផ្ទាល់ក្នុងតារាង រក្សាទុកភ្លាមៗ</div>
+      <div style="font-size:11px;color:var(--sub);margin-bottom:10px;display:flex;gap:12px;">
+        <span><span style="display:inline-block;background:var(--spv-bg);color:var(--spv);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;">SPV</span> = ថ្ងៃធ្វើវេននៅ SPV</span>
+        <span><span style="display:inline-block;background:var(--hmv-bg);color:var(--hmv);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;">HMV</span> = ថ្ងៃធ្វើវេននៅ HMV</span>
+      </div>
       <table class="sched" id="incomeEntriesTable"></table>
     </div>
   </div>
@@ -1068,6 +1072,24 @@ function incomeRowForDate(dateStr) {
   return null;
 }
 
+// Which clinic(s) Linda worked on this date — for a colored badge in the
+// income table (a day can be SPV only, HMV only, or both if she pulled a
+// shift in each clinic on the same day).
+function lindaClinicsForRow(row) {
+  var linda = lindaDoctor();
+  if (!linda || !row) return [];
+  var out = [];
+  var spvHit = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].some(function (f) {
+    return row[f] && (row[f] === linda.NameSPV || row[f] === linda.NameHMV);
+  });
+  var hmvHit = ['HMV_Day', 'HMV_Night'].some(function (f) {
+    return row[f] && (row[f] === linda.NameSPV || row[f] === linda.NameHMV);
+  });
+  if (spvHit) out.push('SPV');
+  if (hmvHit) out.push('HMV');
+  return out;
+}
+
 // A "working day" = Linda herself is on duty that date, in either clinic
 // (SPV or HMV). Days she isn't on shift are skipped — no need to log
 // Consult/IPD for a day she didn't personally work.
@@ -1190,7 +1212,15 @@ function renderIncomeTable() {
     var dayUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.SPV_IPD || 0) * rSpv.ipd +
       (entry.HMV_Consult || 0) * rHmv.consult + (entry.HMV_IPD || 0) * rHmv.ipd;
 
-    html += '<tr><td class="date-cell">' + d + '/' + pad2(m) + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
+    var clinics = lindaClinicsForRow(rowForDate(dateStr));
+    var badges = clinics.map(function (c) {
+      var bg = c === 'SPV' ? 'var(--spv-bg)' : 'var(--hmv-bg)';
+      var color = c === 'SPV' ? 'var(--spv)' : 'var(--hmv)';
+      return '<span style="display:inline-block;background:' + bg + ';color:' + color +
+        ';font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;">' + c + '</span>';
+    }).join('');
+
+    html += '<tr><td class="date-cell">' + d + '/' + pad2(m) + badges + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
       '<td>' + incomeNumberInput(dateStr, 'SPV_Consult', entry.SPV_Consult) + '</td>' +
       '<td>' + incomeNumberInput(dateStr, 'SPV_IPD', entry.SPV_IPD) + '</td>' +
       '<td>' + incomeNumberInput(dateStr, 'HMV_Consult', entry.HMV_Consult) + '</td>' +
