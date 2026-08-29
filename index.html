@@ -148,6 +148,8 @@
   .pay-col h3{font-size:14px;margin:0 0 10px;}
   .pay-col h3.spv{color:var(--spv);}
   .pay-col h3.hmv{color:var(--hmv);}
+  .field label{display:block;font-size:11.5px;color:var(--sub);margin-bottom:4px;font-weight:600;}
+  .field input{width:100%;padding:8px 9px;border-radius:9px;border:1px solid var(--line);font-family:inherit;font-size:13px;}
   table.pay{width:100%;border-collapse:collapse;font-size:12.8px;}
   table.pay th{text-align:left;color:var(--sub);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--line);}
   table.pay td{padding:7px 4px;border-bottom:1px solid var(--line);}
@@ -205,6 +207,7 @@
       <div class="tab active" data-panel="panel-schedule">កាលវិភាគ</div>
       <div class="tab" data-panel="panel-doctors">គ្រូពេទ្យ</div>
       <div class="tab" data-panel="panel-payroll">ប្រាក់ខែ</div>
+      <div class="tab" data-panel="panel-income">ចំណូល</div>
       <div class="tab" data-panel="panel-history">ប្រវត្តិកែប្រែ</div>
     </div>
   </header>
@@ -269,6 +272,33 @@
     </div>
   </div>
 
+  <!-- INCOME (Consult + IPD) -->
+  <div class="panel" id="panel-income">
+    <div class="card">
+      <div style="font-weight:700;font-size:15px;margin-bottom:12px;">អត្រា Consult / IPD (កែបានផ្ទាល់)</div>
+      <div class="pay-grid" id="incomeRatesWrap"></div>
+    </div>
+
+    <div class="card">
+      <div class="month-nav">
+        <div class="left">
+          <button class="nav-btn" id="prevMonthIncome">‹</button>
+          <div class="month-label" id="monthLabelIncome">—</div>
+          <button class="nav-btn" id="nextMonthIncome">›</button>
+          <select class="today-btn" id="monthPickerIncome" style="cursor:pointer;"></select>
+        </div>
+      </div>
+      <div class="stat-row" id="incomeStats"></div>
+      <div class="pay-grid" id="incomeSummaryWrap"></div>
+    </div>
+
+    <div class="card" style="overflow-x:auto;">
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px;">កំណត់ត្រាចំណូល — ថ្ងៃធ្វើការតែប៉ុណ្ណោះ</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:10px;">បង្ហាញស្វ័យប្រវត្តិសម្រាប់ថ្ងៃដែលមានវេនកំណត់ (SPV ឬ HMV) — វាយបញ្ចូលចំនួនផ្ទាល់ក្នុងតារាង រក្សាទុកភ្លាមៗ</div>
+      <table class="sched" id="incomeEntriesTable"></table>
+    </div>
+  </div>
+
   <!-- HISTORY -->
   <div class="panel" id="panel-history">
     <div class="card">
@@ -308,9 +338,11 @@ var fbApp = initializeApp(firebaseConfig);
 // render instantly from cache while Firestore syncs live in the background.
 var db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
 var scheduleDocRef = doc(db, 'scheduleApp', 'main');
+var incomeDocRef = doc(db, 'incomeApp', 'main');
 
 var RATES = { SPV_Day1: 25, SPV_Day2: 25, SPV_Day3: 25, SPV_Night: 25, HMV_Day: 24, HMV_Night: 20 };
 var KHR_PER_USD = 4000;
+var INCOME_RATES_DEFAULT = { SPV: { consult: 5, ipd: 20 }, HMV: { consult: 5, ipd: 20 } };
 
 var STATE = {
   doctors: [],
@@ -322,7 +354,11 @@ var STATE = {
   month: new Date().getMonth() + 1,
   payYear: null,
   payMonth: null,
-  editing: null
+  editing: null,
+  incomeRates: INCOME_RATES_DEFAULT,
+  incomeEntries: [],
+  incomeYear: null,
+  incomeMonth: null
 };
 
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
@@ -355,6 +391,16 @@ function persistRemoteState() {
   });
 }
 
+function persistIncomeState() {
+  setDoc(incomeDocRef, {
+    rates: STATE.incomeRates, entries: STATE.incomeEntries
+  }).catch(function (err) {
+    showToast('⚠ មិនអាចផ្ញើចំណូលទៅ Firestore បានទេ៖ ' + err.message);
+  });
+}
+
+var incomeFirstSnapshotHandled = false;
+
 var firstSnapshotHandled = false;
 
 /* ---------------- INIT ---------------- */
@@ -363,6 +409,8 @@ document.addEventListener('DOMContentLoaded', function () {
   bindMonthNav();
   bindDoctorForm();
   bindManualBackup();
+  bindIncomeForm();
+  bindIncomeMonthNav();
 
   document.getElementById('scheduleWrap').innerHTML =
     '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
@@ -390,6 +438,22 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('scheduleWrap').innerHTML =
       '<div class="empty-state">⚠ មិនអាចភ្ជាប់ Firestore បានទេ៖ ' + escapeHtml(err.message) +
       '<br><span style="font-size:11px;">ពិនិត្យ firebaseConfig និង Firestore Rules (allow read, write: if true)</span></div>';
+  });
+
+  onSnapshot(incomeDocRef, function (snap) {
+    if (snap.exists()) {
+      var d = snap.data();
+      STATE.incomeRates = d.rates || INCOME_RATES_DEFAULT;
+      STATE.incomeEntries = d.entries || [];
+    } else if (!incomeFirstSnapshotHandled) {
+      STATE.incomeRates = INCOME_RATES_DEFAULT;
+      persistIncomeState();
+    }
+    incomeFirstSnapshotHandled = true;
+    if (!STATE.incomeYear) { STATE.incomeYear = STATE.year; STATE.incomeMonth = STATE.month; }
+    if (document.getElementById('panel-income').classList.contains('active')) renderIncome();
+  }, function (err) {
+    showToast('⚠ មិនអាចភ្ជាប់ Firestore (ចំណូល) បានទេ៖ ' + err.message);
   });
 });
 
@@ -457,6 +521,7 @@ function bindTabs() {
       if (t.dataset.panel === 'panel-payroll') loadPayroll();
       if (t.dataset.panel === 'panel-history') renderHistory();
       if (t.dataset.panel === 'panel-doctors') renderDoctors();
+      if (t.dataset.panel === 'panel-income') renderIncome();
     });
   });
 }
@@ -963,6 +1028,185 @@ function renderPayroll(summary) {
   }
 
   document.getElementById('payWrap').innerHTML = html;
+}
+
+/* ---------------- INCOME (Consult + IPD, per clinic, rate-based) ---------------- */
+function bindIncomeMonthNav() {
+  document.getElementById('prevMonthIncome').addEventListener('click', function () { shiftIncomeMonth(-1); });
+  document.getElementById('nextMonthIncome').addEventListener('click', function () { shiftIncomeMonth(1); });
+  document.getElementById('monthPickerIncome').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.incomeYear = Number(parts[0]); STATE.incomeMonth = Number(parts[1]);
+    renderIncome();
+  });
+}
+
+function shiftIncomeMonth(delta) {
+  var m = STATE.incomeMonth + delta, y = STATE.incomeYear;
+  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+  STATE.incomeYear = y; STATE.incomeMonth = m;
+  renderIncome();
+}
+
+// bindIncomeForm is now a no-op (kept so the init call doesn't need editing) —
+// there's no separate "add entry" form anymore; the table below auto-lists
+// every working day and each number is editable directly in place.
+function bindIncomeForm() {}
+
+function incomeRowForDate(dateStr) {
+  for (var i = 0; i < STATE.incomeEntries.length; i++) {
+    if (STATE.incomeEntries[i].Date === dateStr) return STATE.incomeEntries[i];
+  }
+  return null;
+}
+
+// A "working day" = the duty schedule has at least one SPV or HMV shift
+// filled that date. Days with nothing scheduled (clinic closed / no data)
+// are skipped — no need to log Consult/IPD for a day nobody worked.
+function isWorkingDay(dateStr) {
+  var row = rowForDate(dateStr);
+  if (!row) return false;
+  return SLOT_FIELDS_ALL.some(function (f) { return !!row[f]; });
+}
+
+function updateIncomeCell(dateStr, field, value) {
+  var row = incomeRowForDate(dateStr);
+  if (!row) {
+    row = { Date: dateStr, SPV_Consult: 0, SPV_IPD: 0, HMV_Consult: 0, HMV_IPD: 0 };
+    STATE.incomeEntries.push(row);
+  }
+  row[field] = Math.max(0, Number(value) || 0);
+  persistIncomeState();
+  renderIncome();
+}
+window.updateIncomeCell = updateIncomeCell;
+
+function updateIncomeRate(clinic, type, value) {
+  if (!STATE.incomeRates[clinic]) STATE.incomeRates[clinic] = { consult: 0, ipd: 0 };
+  STATE.incomeRates[clinic][type] = Number(value) || 0;
+  persistIncomeState();
+  renderIncome();
+}
+window.updateIncomeRate = updateIncomeRate;
+
+function renderIncomeRates() {
+  var clinics = ['SPV', 'HMV'];
+  var html = clinics.map(function (c) {
+    var r = STATE.incomeRates[c] || { consult: 0, ipd: 0 };
+    var cls = c === 'SPV' ? 'spv' : 'hmv';
+    return '<div class="pay-col"><h3 class="' + cls + '">' + c + '</h3>' +
+      '<div class="field" style="margin-bottom:10px;"><label>អត្រា Consult ($/នាក់)</label>' +
+      '<input type="number" min="0" step="0.5" value="' + r.consult + '" onchange="updateIncomeRate(\'' + c + '\',\'consult\',this.value)"></div>' +
+      '<div class="field"><label>អត្រា IPD ($/នាក់)</label>' +
+      '<input type="number" min="0" step="0.5" value="' + r.ipd + '" onchange="updateIncomeRate(\'' + c + '\',\'ipd\',this.value)"></div>' +
+      '</div>';
+  }).join('');
+  document.getElementById('incomeRatesWrap').innerHTML = html;
+}
+
+function computeIncomeSummary(year, month) {
+  var prefix = year + '-' + pad2(month);
+  var entries = STATE.incomeEntries.filter(function (e) { return String(e.Date).indexOf(prefix) === 0; });
+  var byClinic = { SPV: { consult: 0, ipd: 0, usd: 0 }, HMV: { consult: 0, ipd: 0, usd: 0 } };
+  var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
+  var rHmv = STATE.incomeRates.HMV || { consult: 0, ipd: 0 };
+
+  entries.forEach(function (e) {
+    byClinic.SPV.consult += e.SPV_Consult || 0;
+    byClinic.SPV.ipd += e.SPV_IPD || 0;
+    byClinic.SPV.usd += (e.SPV_Consult || 0) * rSpv.consult + (e.SPV_IPD || 0) * rSpv.ipd;
+    byClinic.HMV.consult += e.HMV_Consult || 0;
+    byClinic.HMV.ipd += e.HMV_IPD || 0;
+    byClinic.HMV.usd += (e.HMV_Consult || 0) * rHmv.consult + (e.HMV_IPD || 0) * rHmv.ipd;
+  });
+
+  Object.keys(byClinic).forEach(function (c) { byClinic[c].khr = byClinic[c].usd * STATE.khrPerUsd; });
+  return byClinic;
+}
+
+function renderIncome() {
+  if (!STATE.incomeYear) { STATE.incomeYear = STATE.year; STATE.incomeMonth = STATE.month; }
+  renderIncomeRates();
+  document.getElementById('monthLabelIncome').textContent = MONTH_NAMES_KM[STATE.incomeMonth - 1] + ' ' + STATE.incomeYear;
+  refreshIncomeMonthPicker();
+
+  var byClinic = computeIncomeSummary(STATE.incomeYear, STATE.incomeMonth);
+  var totalUsd = byClinic.SPV.usd + byClinic.HMV.usd;
+  var totalConsult = byClinic.SPV.consult + byClinic.HMV.consult;
+  var totalIpd = byClinic.SPV.ipd + byClinic.HMV.ipd;
+
+  document.getElementById('incomeStats').innerHTML =
+    '<div class="stat"><div class="n">' + fmtUsd(totalUsd) + '</div><div class="l">ចំណូលសរុប</div></div>' +
+    '<div class="stat"><div class="n">' + fmtKhr(totalUsd * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
+    '<div class="stat"><div class="n">' + totalConsult + '</div><div class="l">Consult សរុប</div></div>' +
+    '<div class="stat"><div class="n">' + totalIpd + '</div><div class="l">IPD សរុប</div></div>';
+
+  function clinicCard(name, cls, d) {
+    return '<div class="pay-col"><h3 class="' + cls + '">' + name + '</h3>' +
+      '<table class="pay"><tbody>' +
+      '<tr><td>Consult</td><td class="num">' + d.consult + ' នាក់</td></tr>' +
+      '<tr><td>IPD</td><td class="num">' + d.ipd + ' នាក់</td></tr>' +
+      '<tr style="font-weight:700;"><td>សរុប</td><td class="num">' + fmtUsd(d.usd) + '<br><span style="font-weight:400;font-size:11px;color:var(--sub);">' + fmtKhr(d.khr) + '</span></td></tr>' +
+      '</tbody></table></div>';
+  }
+  document.getElementById('incomeSummaryWrap').innerHTML =
+    clinicCard('SPV', 'spv', byClinic.SPV) + clinicCard('HMV', 'hmv', byClinic.HMV);
+
+  renderIncomeTable();
+}
+
+var DOW_NAMES_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function incomeNumberInput(dateStr, field, val) {
+  return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
+    '" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + field + '\',this.value)">';
+}
+
+function renderIncomeTable() {
+  var y = STATE.incomeYear, m = STATE.incomeMonth;
+  var nDays = daysInMonth(y, m);
+  var html = '<thead><tr><th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
+    '<th class="group-spv">SPV Consult</th><th class="group-spv">SPV IPD</th>' +
+    '<th class="group-hmv">HMV Consult</th><th class="group-hmv">HMV IPD</th>' +
+    '<th>ចំណូលថ្ងៃ</th></tr></thead><tbody>';
+  var anyRow = false;
+  var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
+  var rHmv = STATE.incomeRates.HMV || { consult: 0, ipd: 0 };
+
+  for (var d = 1; d <= nDays; d++) {
+    var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
+    if (!isWorkingDay(dateStr)) continue;
+    anyRow = true;
+    var entry = incomeRowForDate(dateStr) || {};
+    var dow = new Date(y, m - 1, d).getDay();
+    var dayUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.SPV_IPD || 0) * rSpv.ipd +
+      (entry.HMV_Consult || 0) * rHmv.consult + (entry.HMV_IPD || 0) * rHmv.ipd;
+
+    html += '<tr><td class="date-cell">' + d + '/' + pad2(m) + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
+      '<td>' + incomeNumberInput(dateStr, 'SPV_Consult', entry.SPV_Consult) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'SPV_IPD', entry.SPV_IPD) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'HMV_Consult', entry.HMV_Consult) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'HMV_IPD', entry.HMV_IPD) + '</td>' +
+      '<td style="font-weight:700;">' + fmtUsd(dayUsd) + '</td></tr>';
+  }
+  if (!anyRow) html += '<tr><td colspan="6" class="empty-state">មិនមានថ្ងៃធ្វើការនៅខែនេះទេ (គ្មានវេនកំណត់ក្នុងកាលវិភាគ)</td></tr>';
+  html += '</tbody>';
+  document.getElementById('incomeEntriesTable').innerHTML = html;
+}
+
+function refreshIncomeMonthPicker() {
+  var set = {};
+  STATE.scheduleAll.forEach(function (r) {
+    var d = String(r.Date || '');
+    if (d.length >= 7) set[d.slice(0, 7)] = true;
+  });
+  var now = new Date();
+  set[now.getFullYear() + '-' + pad2(now.getMonth() + 1)] = true;
+  var months = Object.keys(set).sort().reverse();
+  var cur = STATE.incomeYear + '-' + pad2(STATE.incomeMonth);
+  document.getElementById('monthPickerIncome').innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
 }
 
 /* ---------------- HISTORY (rendered entirely from memory) ---------------- */
