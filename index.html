@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="km">
 <head>
-<base target="_top">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>តារាងវេន SPV + HMV</title>
@@ -88,12 +87,16 @@
   table.sched tbody tr.weekend td.date-cell{color:var(--off);}
   table.sched tbody tr.today{background:#fff8e9;}
   table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
-  table.sched tbody tr.day-fully-off{background:#fdf4f4;}
+  table.sched tbody tr.auto-off{background:#fdf4f4;}
   td.date-cell{font-weight:700;white-space:nowrap;text-align:left;padding-left:10px !important;}
   td.date-cell .dow{display:block;font-weight:500;color:var(--sub);font-size:10.8px;}
   td.date-cell .duty-star{color:var(--brand);font-size:11px;margin-left:4px;}
-  .day-off-badge{
+  .auto-off-badge{
     display:inline-block;background:var(--off-bg);color:#a52323;font-weight:600;
+    font-size:10.5px;padding:2px 8px;border-radius:20px;margin-left:6px;
+  }
+  .my-off-badge{
+    display:inline-block;background:#eceff1;color:#546e7a;font-weight:600;
     font-size:10.5px;padding:2px 8px;border-radius:20px;margin-left:6px;
   }
 
@@ -104,16 +107,12 @@
   }
   .cell-slot:hover{border-color:var(--line);background:#f7f9fc;}
   .cell-slot.empty{color:#c3c9d3;}
-  .cell-slot.spv{background:var(--spv-bg);color:#1747a6;}
-  .cell-slot.hmv{background:var(--hmv-bg);color:#0a6b4b;}
+  .cell-slot.spv{background:var(--spv-bg);}
+  .cell-slot.hmv{background:var(--hmv-bg);}
   .cell-slot.off{background:var(--off-bg);color:#a52323;font-weight:600;}
   .cell-slot.clash{outline:2px solid var(--warn);background:var(--warn-bg) !important;color:#8a5300 !important;}
-  .cell-slot.mine{background:#dbe9ff !important;color:#0b3fa8 !important;font-weight:700;outline:1.5px solid #2f6fed;}
-  .cell-slot.auto-off{cursor:default;font-size:11px;}
-  .cell-slot.auto-off:hover{border-color:transparent;background:none;}
-  .cell-slot.auto-off.off:hover{background:var(--off-bg);}
 
-  select.edit-select{
+  select.edit-select, input.edit-select{
     width:100%;font-size:12px;padding:5px;border-radius:7px;border:1px solid var(--brand);
     font-family:inherit;
   }
@@ -149,6 +148,8 @@
   .pay-col h3{font-size:14px;margin:0 0 10px;}
   .pay-col h3.spv{color:var(--spv);}
   .pay-col h3.hmv{color:var(--hmv);}
+  .field label{display:block;font-size:11.5px;color:var(--sub);margin-bottom:4px;font-weight:600;}
+  .field input{width:100%;padding:8px 9px;border-radius:9px;border:1px solid var(--line);font-family:inherit;font-size:13px;}
   table.pay{width:100%;border-collapse:collapse;font-size:12.8px;}
   table.pay th{text-align:left;color:var(--sub);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--line);}
   table.pay td{padding:7px 4px;border-bottom:1px solid var(--line);}
@@ -184,51 +185,11 @@
 
   .empty-state{text-align:center;padding:30px;color:var(--sub);font-size:13px;}
 
-  /* Finance (Income / Expense) */
-  .fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px;}
-  @media(max-width:720px){.fin-grid{grid-template-columns:1fr;}}
-  .fin-col-head{font-weight:700;font-size:14px;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--line);}
-  .fin-col-head.income{color:var(--hmv);}
-  .fin-col-head.expense{color:var(--off);}
-  .fin-row{
-    display:flex;align-items:center;justify-content:space-between;gap:8px;
-    padding:8px 4px;border-bottom:1px solid var(--line);font-size:12.5px;
+  .setup-banner{
+    background:#fff3cd;border:1px solid #ffe08a;color:#7a5c00;padding:12px 16px;
+    border-radius:12px;margin-bottom:16px;font-size:13px;line-height:1.6;
   }
-  .fin-row .meta{flex:1;min-width:0;}
-  .fin-row .meta .cat{font-weight:600;}
-  .fin-row .meta .desc{color:var(--sub);font-size:11.3px;}
-  .fin-row .amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
-  .fin-row .amt.income{color:var(--hmv);}
-  .fin-row .amt.expense{color:var(--off);}
-  .fin-del{
-    border:none;background:none;color:var(--sub);cursor:pointer;font-size:15px;padding:2px 6px;border-radius:6px;
-  }
-  .fin-del:hover{background:var(--off-bg);color:var(--off);}
-  form.add-fin{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);}
-  form.add-fin input{
-    padding:8px 9px;border-radius:9px;border:1px solid var(--line);font-family:inherit;font-size:12.5px;
-  }
-  form.add-fin input[type="text"]{flex:1;min-width:110px;}
-  form.add-fin input[type="number"]{width:90px;}
-  form.add-fin input[type="date"]{width:135px;}
-  form.add-fin button{
-    background:var(--brand);color:#fff;border:none;padding:8px 14px;border-radius:9px;font-weight:600;cursor:pointer;font-size:12.5px;
-  }
-  form.add-fin button:disabled{opacity:.6;cursor:default;}
-
-  .fin-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-  @media(max-width:640px){.fin-summary{grid-template-columns:1fr;}}
-  .fin-summary-card{border-radius:11px;padding:12px 14px;background:#fbfcfe;border:1px solid var(--line);}
-  .fin-summary-card .lbl{font-size:11.5px;color:var(--sub);font-weight:600;}
-  .fin-summary-card .val{font-size:18px;font-weight:700;margin-top:3px;}
-  .fin-summary-card.income .val{color:var(--hmv);}
-  .fin-summary-card.expense .val{color:var(--off);}
-  .fin-summary-card.net .val.pos{color:var(--hmv);}
-  .fin-summary-card.net .val.neg{color:var(--off);}
-  .fin-payroll-line{
-    display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--line);
-    font-size:12.5px;color:var(--sub);font-style:italic;
-  }
+  .setup-banner code{background:#fff;padding:1px 6px;border-radius:5px;font-size:12px;}
 </style>
 </head>
 <body>
@@ -238,15 +199,15 @@
     <div>
       <h1>តារាងវេន SPV + HMV</h1>
       <div class="muted">
-        <span>ទិន្នន័យទាំងអស់ត្រូវបានផ្ទុកមួយដងពេលបើកទំព័រ — កែប្រែនីមួយៗរក្សាទុកទៅ Sheet ភ្លាមៗ</span>
-        <span class="refresh-link" id="refreshLink">↻ ទាញទិន្នន័យចុងក្រោយពី Sheet</span>
+        <span>ទិន្នន័យ Sync ភ្លាមៗគ្រប់ឧបករណ៍តាមរយៈ Firestore — កែប្រែនៅទូរស័ព្ទ/កុំព្យូទ័រណាមួយ ឃើញគ្រប់ទីតាំង។ Sheet ទទួល backup ស្វ័យប្រវត្តិផ្ទាល់ខាងក្រោយសម្រាប់ជាកន្លែងទុកប្រវត្តិ។</span>
+        <span class="refresh-link" id="manualBackupBtn">🔗 Backup ទៅ Sheet ឥឡូវនេះ</span>
       </div>
     </div>
     <div class="tabs">
       <div class="tab active" data-panel="panel-schedule">កាលវិភាគ</div>
       <div class="tab" data-panel="panel-doctors">គ្រូពេទ្យ</div>
       <div class="tab" data-panel="panel-payroll">ប្រាក់ខែ</div>
-      <div class="tab" data-panel="panel-finance">ចំណូល-ចំណាយ</div>
+      <div class="tab" data-panel="panel-income">ចំណូល</div>
       <div class="tab" data-panel="panel-history">ប្រវត្តិកែប្រែ</div>
     </div>
   </header>
@@ -260,13 +221,13 @@
           <div class="month-label" id="monthLabel">—</div>
           <button class="nav-btn" id="nextMonth">›</button>
           <button class="today-btn" id="todayBtn">ខែនេះ</button>
+          <select class="today-btn" id="monthPicker" style="cursor:pointer;"></select>
         </div>
         <div class="legend">
           <span><span class="dot" style="background:var(--spv)"></span> SPV</span>
           <span><span class="dot" style="background:var(--hmv)"></span> HMV</span>
-          <span><span class="dot" style="background:var(--off)"></span> DAY OFF (Auto)</span>
+          <span><span class="dot" style="background:var(--off)"></span> DAY OFF</span>
           <span><span class="dot" style="background:var(--warn)"></span> ប៉ះទង្គិចវេន</span>
-          <span><span class="dot" style="background:#2f6fed"></span> ឈ្មោះអ្នក</span>
           <span><span class="dot" style="background:var(--brand)"></span> ★ ថ្ងៃយាមអ្នក</span>
         </div>
       </div>
@@ -304,49 +265,41 @@
           <button class="nav-btn" id="prevMonthPay">‹</button>
           <div class="month-label" id="monthLabelPay">—</div>
           <button class="nav-btn" id="nextMonthPay">›</button>
+          <select class="today-btn" id="monthPickerPay" style="cursor:pointer;"></select>
         </div>
       </div>
       <div id="payWrap"></div>
     </div>
   </div>
 
-  <!-- FINANCE (Income / Expense) -->
-  <div class="panel" id="panel-finance">
+  <!-- INCOME (Consult + IPD) -->
+  <div class="panel" id="panel-income">
+    <div class="card">
+      <div style="font-weight:700;font-size:15px;margin-bottom:12px;">អត្រា Consult / IPD (កែបានផ្ទាល់)</div>
+      <div class="pay-grid" id="incomeRatesWrap"></div>
+    </div>
+
     <div class="card">
       <div class="month-nav">
         <div class="left">
-          <button class="nav-btn" id="prevMonthFin">‹</button>
-          <div class="month-label" id="monthLabelFin">—</div>
-          <button class="nav-btn" id="nextMonthFin">›</button>
+          <button class="nav-btn" id="prevMonthIncome">‹</button>
+          <div class="month-label" id="monthLabelIncome">—</div>
+          <button class="nav-btn" id="nextMonthIncome">›</button>
+          <select class="today-btn" id="monthPickerIncome" style="cursor:pointer;"></select>
         </div>
       </div>
-      <div id="finSummaryWrap"></div>
+      <div class="stat-row" id="incomeStats"></div>
+      <div class="pay-grid" id="incomeSummaryWrap"></div>
+    </div>
 
-      <div class="fin-grid">
-        <div class="fin-col">
-          <div class="fin-col-head income">ចំណូល (Income)</div>
-          <div id="incomeListWrap"></div>
-          <div style="font-size:11px;color:var(--sub);margin-top:10px;">+ ចំណូលផ្សេងទៀត (ស្រេចចិត្ត)</div>
-          <form class="add-fin" id="addIncomeForm">
-            <input type="date" id="incDate" required>
-            <input type="text" id="incCategory" placeholder="ប្រភេទ — ឧ. សេវាព្យាបាល" required>
-            <input type="text" id="incDescription" placeholder="ព័ត៌មានលម្អិត (ស្រេចចិត្ត)">
-            <input type="number" id="incAmount" placeholder="$ ចំនួន" min="0" step="0.01" required>
-            <button type="submit" id="addIncomeBtn">+ បន្ថែមចំណូល</button>
-          </form>
-        </div>
-        <div class="fin-col">
-          <div class="fin-col-head expense">ចំណាយ (Expense)</div>
-          <div id="expenseListWrap"></div>
-          <form class="add-fin" id="addExpenseForm">
-            <input type="date" id="expDate" required>
-            <input type="text" id="expCategory" placeholder="ប្រភេទ — ឧ. ថ្នាំពេទ្យ, ភ្លើងទឹក" required>
-            <input type="text" id="expDescription" placeholder="ព័ត៌មានលម្អិត (ស្រេចចិត្ត)">
-            <input type="number" id="expAmount" placeholder="$ ចំនួន" min="0" step="0.01" required>
-            <button type="submit" id="addExpenseBtn">+ បន្ថែមចំណាយ</button>
-          </form>
-        </div>
+    <div class="card" style="overflow-x:auto;">
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px;">កំណត់ត្រាចំណូល — ថ្ងៃដែលអ្នកធ្វើការតែប៉ុណ្ណោះ</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:6px;">បង្ហាញស្វ័យប្រវត្តិសម្រាប់តែថ្ងៃដែលអ្នកនៅវេន (SPV ឬ HMV) ទាំង២គ្លីនិក — វាយបញ្ចូលចំនួនផ្ទាល់ក្នុងតារាង រក្សាទុកភ្លាមៗ</div>
+      <div style="font-size:11px;color:var(--sub);margin-bottom:10px;display:flex;gap:12px;">
+        <span><span style="display:inline-block;background:var(--spv-bg);color:var(--spv);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;">SPV</span> = ថ្ងៃធ្វើវេននៅ SPV</span>
+        <span><span style="display:inline-block;background:var(--hmv-bg);color:var(--hmv);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;">HMV</span> = ថ្ងៃធ្វើវេននៅ HMV</span>
       </div>
+      <table class="sched" id="incomeEntriesTable"></table>
     </div>
   </div>
 
@@ -362,43 +315,205 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
-/* ---------------- EMBEDDED INITIAL DATA (from server, one time, at page load) ---------------- */
-var RAW_INITIAL = <?!= initialDataJson ?>;
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  initializeFirestore, persistentLocalCache, doc, setDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ============================================================
+   CONFIG
+   ============================================================ */
+var firebaseConfig = {
+  apiKey: "AIzaSyDzNtFQ4Z5gYh56t1Btwy4Dltni16C-RfI",
+  authDomain: "schedual-57c23.firebaseapp.com",
+  projectId: "schedual-57c23",
+  storageBucket: "schedual-57c23.firebasestorage.app",
+  messagingSenderId: "1021432251619",
+  appId: "1:1021432251619:web:d46f2b866e897fdc07b1d6"
+};
+// Apps Script /exec URL — only used for the optional background "stock to
+// Sheet" history backup. Firestore (above) is the real, live, cross-device
+// data source now.
+var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfwtCf5YYNwFDrYao-s5uX39dm3YDjWAgHmLyBop_ONBNE-QjyhhzvyLYltIH3f4dhKw/exec';
+
+var fbApp = initializeApp(firebaseConfig);
+// persistentLocalCache = IndexedDB-backed offline cache, so repeat visits
+// render instantly from cache while Firestore syncs live in the background.
+var db = initializeFirestore(fbApp, { localCache: persistentLocalCache() });
+var scheduleDocRef = doc(db, 'scheduleApp', 'main');
+var incomeDocRef = doc(db, 'incomeApp', 'main');
+
+var RATES = { SPV_Day1: 25, SPV_Day2: 25, SPV_Day3: 25, SPV_Night: 25, HMV_Day: 24, HMV_Night: 20 };
+var KHR_PER_USD = 4000;
+var INCOME_RATES_DEFAULT = { SPV: { consult: 5, ipd: 20 }, HMV: { consult: 5, ipd: 20 } };
 
 var STATE = {
-  doctors: RAW_INITIAL.doctors || [],
-  scheduleAll: RAW_INITIAL.schedule || [],   // full history of every month ever entered
-  historyAll: RAW_INITIAL.history || [],
-  incomeAll: RAW_INITIAL.income || [],
-  expensesAll: RAW_INITIAL.expenses || [],
-  rates: RAW_INITIAL.rates || {},
-  khrPerUsd: RAW_INITIAL.khrPerUsd || 4000,
-  year: RAW_INITIAL.year,
-  month: RAW_INITIAL.month,
-  payYear: RAW_INITIAL.year,
-  payMonth: RAW_INITIAL.month,
-  finYear: RAW_INITIAL.year,
-  finMonth: RAW_INITIAL.month,
-  editing: null
+  doctors: [],
+  scheduleAll: [],
+  historyAll: [],
+  rates: RATES,
+  khrPerUsd: KHR_PER_USD,
+  year: new Date().getFullYear(),
+  month: new Date().getMonth() + 1,
+  payYear: null,
+  payMonth: null,
+  editing: null,
+  incomeRates: INCOME_RATES_DEFAULT,
+  incomeEntries: [],
+  incomeYear: null,
+  incomeMonth: null
 };
 
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
 var DOW_KM = {'Sunday':'អាទិត្យ','Monday':'ចន្ទ','Tuesday':'អង្គារ','Wednesday':'ពុធ','Thursday':'ព្រហ','Friday':'សុក្រ','Saturday':'សៅរ៍'};
 var SLOT_LABELS = {SPV_Day1:'SPV ១',SPV_Day2:'SPV ២',SPV_Day3:'SPV ៣',SPV_Night:'SPV យប់',HMV_Day:'HMV ថ្ងៃ',HMV_Night:'HMV យប់'};
-var ALL_SLOT_FIELDS = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'];
 
-/* ---------------- INIT (no server round-trip needed to display) ---------------- */
+/* ---------------- FIRESTORE (source of truth — real-time, cross-device) ---------------- */
+function seedDefaultDoctors() {
+  return [
+    { ID: 'S1', NameSPV: 'Dr.Monyrachana', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S2', NameSPV: 'Dr.Khean Daline', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S3', NameSPV: 'Dr.Ka Seyla', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S4', NameSPV: 'Dr.Phalla Daline', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S5', NameSPV: 'Dr.Nann Vanna', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'S6', NameSPV: 'Dr.Khim Piseth', NameHMV: '', ClinicPool: 'SPV', isLinda: false, Active: true },
+    { ID: 'H1', NameSPV: '', NameHMV: 'វេជ្ជ.ឈន ចំរឿន', ClinicPool: 'HMV', isLinda: false, Active: true },
+    { ID: 'H2', NameSPV: '', NameHMV: 'វេជ្ជ.អ៊ុងគីមឡេង', ClinicPool: 'HMV', isLinda: false, Active: true },
+    { ID: 'H3', NameSPV: '', NameHMV: 'ហុក ប៊ុនណារ៉ា', ClinicPool: 'HMV', isLinda: false, Active: true },
+    { ID: 'LINDA', NameSPV: 'Dr.Ben Linda', NameHMV: 'វេជ្ជ.ប៊ិន លីនដា', ClinicPool: 'Both', isLinda: true, Active: true }
+  ];
+}
+
+// Writes the full state to Firestore. Every open tab/device gets this update
+// within moments via the onSnapshot listener below (including this one).
+function persistRemoteState() {
+  setDoc(scheduleDocRef, {
+    doctors: STATE.doctors, scheduleAll: STATE.scheduleAll, historyAll: STATE.historyAll
+  }).catch(function (err) {
+    showToast('⚠ មិនអាចផ្ញើទៅ Firestore បានទេ៖ ' + err.message);
+  });
+}
+
+function persistIncomeState() {
+  setDoc(incomeDocRef, {
+    rates: STATE.incomeRates, entries: STATE.incomeEntries
+  }).catch(function (err) {
+    showToast('⚠ មិនអាចផ្ញើចំណូលទៅ Firestore បានទេ៖ ' + err.message);
+  });
+}
+
+var incomeFirstSnapshotHandled = false;
+
+var firstSnapshotHandled = false;
+
+/* ---------------- INIT ---------------- */
 document.addEventListener('DOMContentLoaded', function () {
   bindTabs();
   bindMonthNav();
   bindDoctorForm();
-  bindRefreshLink();
-  bindFinanceForms();
+  bindManualBackup();
+  bindIncomeForm();
+  bindIncomeMonthNav();
 
-  loadSchedule();
-  renderDoctors();
+  document.getElementById('scheduleWrap').innerHTML =
+    '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
+
+  // Real-time listener: fires immediately from local cache (near-instant),
+  // then again whenever data changes — on THIS device or any other one.
+  onSnapshot(scheduleDocRef, function (snap) {
+    if (snap.exists()) {
+      var data = snap.data();
+      STATE.doctors = data.doctors || [];
+      STATE.scheduleAll = data.scheduleAll || [];
+      STATE.historyAll = data.historyAll || [];
+    } else if (!firstSnapshotHandled) {
+      // Brand new Firestore doc — seed default doctors once.
+      STATE.doctors = seedDefaultDoctors();
+      persistRemoteState();
+    }
+    firstSnapshotHandled = true;
+    if (!STATE.payYear) { STATE.payYear = STATE.year; STATE.payMonth = STATE.month; }
+    loadSchedule();
+    renderDoctors();
+    if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+    if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+  }, function (err) {
+    document.getElementById('scheduleWrap').innerHTML =
+      '<div class="empty-state">⚠ មិនអាចភ្ជាប់ Firestore បានទេ៖ ' + escapeHtml(err.message) +
+      '<br><span style="font-size:11px;">ពិនិត្យ firebaseConfig និង Firestore Rules (allow read, write: if true)</span></div>';
+  });
+
+  onSnapshot(incomeDocRef, function (snap) {
+    if (snap.exists()) {
+      var d = snap.data();
+      STATE.incomeRates = d.rates || INCOME_RATES_DEFAULT;
+      STATE.incomeEntries = d.entries || [];
+    } else if (!incomeFirstSnapshotHandled) {
+      STATE.incomeRates = INCOME_RATES_DEFAULT;
+      persistIncomeState();
+    }
+    incomeFirstSnapshotHandled = true;
+    if (!STATE.incomeYear) { STATE.incomeYear = STATE.year; STATE.incomeMonth = STATE.month; }
+    if (document.getElementById('panel-income').classList.contains('active')) renderIncome();
+    if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+  }, function (err) {
+    showToast('⚠ មិនអាចភ្ជាប់ Firestore (ចំណូល) បានទេ៖ ' + err.message);
+  });
 });
+
+function bindManualBackup() {
+  var btn = document.getElementById('manualBackupBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
+      showToast('មិនទាន់កំណត់ APPS_SCRIPT_URL ទេ — មិនអាច backup បានទេ');
+      return;
+    }
+    clearTimeout(backupTimer);
+    doBackup();
+    showToast('កំពុងផ្ញើទិន្នន័យទៅ Sheet... ✓ (ពិនិត្យ Sheet ក្នុងប៉ុន្មានវិនាទី)');
+  });
+}
+
+/* ---------------- BACKGROUND BACKUP TO SHEET (fire-and-forget "history stock",
+   never blocks the UI and never shows an error if it fails) ----------------
+   Uses a hidden form POST to a hidden iframe: this avoids CORS entirely
+   because the browser never needs to read the response. */
+var backupTimer = null;
+function scheduleBackup() {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) return;
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(doBackup, 1500); // debounce rapid edits into one backup
+}
+
+function doBackup() {
+  try {
+    var iframeName = 'backupFrame';
+    var iframe = document.getElementById(iframeName);
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.name = iframeName;
+      iframe.id = iframeName;
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = APPS_SCRIPT_URL;
+    form.target = iframeName;
+    form.style.display = 'none';
+
+    var input = document.createElement('input');
+    input.name = 'payload';
+    input.value = JSON.stringify({ doctors: STATE.doctors, schedule: STATE.scheduleAll });
+    form.appendChild(input);
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  } catch (e) { /* backup is best-effort only */ }
+}
 
 function bindTabs() {
   var tabs = document.querySelectorAll('.tab');
@@ -409,9 +524,9 @@ function bindTabs() {
       t.classList.add('active');
       document.getElementById(t.dataset.panel).classList.add('active');
       if (t.dataset.panel === 'panel-payroll') loadPayroll();
-      if (t.dataset.panel === 'panel-finance') loadFinance();
       if (t.dataset.panel === 'panel-history') renderHistory();
       if (t.dataset.panel === 'panel-doctors') renderDoctors();
+      if (t.dataset.panel === 'panel-income') renderIncome();
     });
   });
 }
@@ -426,32 +541,49 @@ function bindMonthNav() {
   });
   document.getElementById('prevMonthPay').addEventListener('click', function () { shiftPayMonth(-1); });
   document.getElementById('nextMonthPay').addEventListener('click', function () { shiftPayMonth(1); });
-  document.getElementById('prevMonthFin').addEventListener('click', function () { shiftFinMonth(-1); });
-  document.getElementById('nextMonthFin').addEventListener('click', function () { shiftFinMonth(1); });
+
+  document.getElementById('monthPicker').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.year = Number(parts[0]); STATE.month = Number(parts[1]);
+    loadSchedule();
+  });
+  document.getElementById('monthPickerPay').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.payYear = Number(parts[0]); STATE.payMonth = Number(parts[1]);
+    loadPayroll();
+  });
 }
 
-function bindRefreshLink() {
-  document.getElementById('refreshLink').addEventListener('click', function () {
-    showToast('កំពុងទាញទិន្នន័យចុងក្រោយ...');
-    google.script.run.withSuccessHandler(function (data) {
-      STATE.doctors = data.doctors || [];
-      STATE.scheduleAll = data.schedule || [];
-      STATE.historyAll = data.history || [];
-      STATE.incomeAll = data.income || [];
-      STATE.expensesAll = data.expenses || [];
-      STATE.rates = data.rates || {};
-      STATE.khrPerUsd = data.khrPerUsd || 4000;
-      renderSchedule();
-      renderDoctors();
-      var payPanelActive = document.getElementById('panel-payroll').classList.contains('active');
-      var finPanelActive = document.getElementById('panel-finance').classList.contains('active');
-      var histPanelActive = document.getElementById('panel-history').classList.contains('active');
-      if (payPanelActive) loadPayroll();
-      if (finPanelActive) loadFinance();
-      if (histPanelActive) renderHistory();
-      showToast('ទាញទិន្នន័យចុងក្រោយពី Sheet ✓');
-    }).withFailureHandler(showError).getAllData();
+// Every distinct year-month found in the full schedule history, newest first,
+// plus the current real-world month even if it has no data yet.
+function getAvailableMonths() {
+  var set = {};
+  STATE.scheduleAll.forEach(function (r) {
+    var d = String(r.Date || '');
+    if (d.length >= 7) set[d.slice(0, 7)] = true;
   });
+  var now = new Date();
+  set[now.getFullYear() + '-' + pad2(now.getMonth() + 1)] = true;
+  return Object.keys(set).sort().reverse();
+}
+
+function monthOptionLabel(ym) {
+  var parts = ym.split('-');
+  return MONTH_NAMES_KM[Number(parts[1]) - 1] + ' ' + parts[0];
+}
+
+function refreshMonthPickers() {
+  var months = getAvailableMonths();
+  var cur = STATE.year + '-' + pad2(STATE.month);
+  var curPay = STATE.payYear + '-' + pad2(STATE.payMonth);
+  var picker = document.getElementById('monthPicker');
+  var pickerPay = document.getElementById('monthPickerPay');
+  picker.innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
+  pickerPay.innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === curPay ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
 }
 
 function shiftMonth(delta) {
@@ -466,18 +598,13 @@ function shiftPayMonth(delta) {
   STATE.payYear = y; STATE.payMonth = m;
   loadPayroll();
 }
-function shiftFinMonth(delta) {
-  var m = STATE.finMonth + delta, y = STATE.finYear;
-  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
-  STATE.finYear = y; STATE.finMonth = m;
-  loadFinance();
-}
 
 /* ---------------- SCHEDULE RENDER (fully from memory) ---------------- */
 function loadSchedule() {
   document.getElementById('monthLabel').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
   document.getElementById('clashBanner').classList.remove('show');
   renderSchedule();
+  refreshMonthPickers();
 }
 
 function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
@@ -502,26 +629,13 @@ function lindaDoctor() {
 function rowIsMyDuty(rowObj) {
   var linda = lindaDoctor();
   if (!linda || !rowObj) return false;
-  var names = ALL_SLOT_FIELDS.map(function (f) { return rowObj[f]; }).filter(Boolean);
+  var names = ['SPV_Day1','SPV_Day2','SPV_Day3','SPV_Night','HMV_Day','HMV_Night'].map(function (f) { return rowObj[f]; }).filter(Boolean);
   return names.some(function (n) { return n === linda.NameSPV || n === linda.NameHMV; });
 }
 
-// Whole day has literally nothing assigned anywhere (used only for the day-row shading/badge).
-function rowIsFullyOff(rowObj) {
+function rowIsAutoOff(rowObj) {
   if (!rowObj) return true;
-  return !ALL_SLOT_FIELDS.some(function (f) { return rowObj[f]; });
-}
-
-// Auto DAY OFF for the current user (you / Linda) only: true when your name does not
-// appear in ANY slot that day, checked across BOTH clinics (SPV Day1/2/3/Night + HMV Day/Night).
-function computeMyAutoOff(dateStr) {
-  var linda = lindaDoctor();
-  if (!linda) return false;
-  var row = rowForDate(dateStr) || {};
-  var workingNames = ALL_SLOT_FIELDS.map(function (f) { return row[f]; }).filter(Boolean);
-  var myNames = [linda.NameSPV, linda.NameHMV].filter(Boolean);
-  var isWorkingEitherClinic = myNames.some(function (n) { return workingNames.indexOf(n) !== -1; });
-  return !isWorkingEitherClinic;
+  return !rowObj.SPV_Day1 && !rowObj.SPV_Day2 && !rowObj.SPV_Day3 && !rowObj.SPV_Night && !rowObj.HMV_Day && !rowObj.HMV_Night;
 }
 
 function detectClashesLocal(rowObj) {
@@ -550,7 +664,7 @@ function renderSchedule() {
   var html = '<div style="overflow-x:auto;"><table class="sched"><thead><tr>' +
     '<th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
     '<th class="group-spv">SPV ១</th><th class="group-spv">SPV ២</th><th class="group-spv">SPV ៣</th>' +
-    '<th class="group-spv">SPV យប់</th><th class="group-spv">ថ្ងៃឈប់អ្នក<br><span style="font-weight:400;font-size:9.5px;">(Auto)</span></th>' +
+    '<th class="group-spv">SPV យប់</th><th class="group-spv">ឈប់សម្រាក</th>' +
     '<th class="group-hmv">HMV ថ្ងៃ</th><th class="group-hmv">HMV យប់</th>' +
     '</tr></thead><tbody>';
 
@@ -563,24 +677,26 @@ function renderSchedule() {
     var clashes = detectClashesLocal(row);
     if (clashes.length) allClashDays.push(dateStr);
     var isMyDuty = rowIsMyDuty(row);
-    var isFullyOff = rowIsFullyOff(row);
-    var isMyOff = computeMyAutoOff(dateStr);
+    var isAutoOff = rowIsAutoOff(row);
+    var isMyPersonalOff = !isMyDuty && !isAutoOff; // clinic still running, just not you
 
     var trClasses = [];
     if (isWeekend) trClasses.push('weekend');
     if (dateStr === todayStr) trClasses.push('today');
     if (isMyDuty) trClasses.push('my-duty');
-    if (isFullyOff) trClasses.push('day-fully-off');
+    if (isAutoOff) trClasses.push('auto-off');
 
     html += '<tr class="' + trClasses.join(' ') + '">';
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
       (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
-      '<span class="dow">' + DOW_KM[dowName] + (isFullyOff ? '<span class="day-off-badge">🚫 ថ្ងៃឈប់</span>' : '') + '</span></td>';
+      '<span class="dow">' + DOW_KM[dowName] +
+      (isAutoOff ? '<span class="auto-off-badge">🚫 ថ្ងៃឈប់</span>' : '') +
+      '</span></td>';
 
     ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
-    html += renderOffCell(isMyOff);
+    html += renderOffCell(dateStr, row['SPV_Off'], isMyPersonalOff);
     ['HMV_Day', 'HMV_Night'].forEach(function (f) {
       html += renderSlotCell(dateStr, f, row[f], clashes);
     });
@@ -600,33 +716,89 @@ function renderSchedule() {
   bindCellClicks();
 }
 
+// Same per-doctor colors as her original Google Sheet (matched by doctor ID,
+// so it survives name-spelling differences like Dr.Ben Linda / វេជ្ជ.ប៊ិន លីនដា).
+// Any doctor not in this list (e.g. newly typed names) falls back to an
+// auto-generated color from the palette below.
+var MANUAL_DOCTOR_COLORS = {
+  S1: { bg: '#5B9BD5', text: '#ffffff' }, // Dr.Monyrachana — blue
+  S2: { bg: '#FFFFFF', text: '#333333' }, // Dr.Khean Daline — white/no highlight
+  S3: { bg: '#F4B6B6', text: '#7a1f1f' }, // Dr.Ka Seyla — pink
+  S4: { bg: '#E8B285', text: '#5c3a1e' }, // Dr.Phalla Daline — orange/peach
+  S5: { bg: '#F5D97A', text: '#6b5900' }, // Dr.Nann Vanna — yellow
+  S6: { bg: '#4C7A3D', text: '#ffffff' }, // Dr.Khim Piseth — dark green
+  LINDA: { bg: '#8DC63F', text: '#1f3d0a' } // Dr.Ben Linda — light green
+};
+
+var NAME_COLOR_PALETTE = [
+  '#1747a6', '#0a6b4b', '#a52323', '#8a5300', '#6b3fd1',
+  '#0f6b72', '#b23a6b', '#c9852e', '#1c7a3e', '#8a2be2',
+  '#c2185b', '#00695c', '#5d4037', '#37474f', '#ad1457'
+];
+function hashString(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+  return Math.abs(hash);
+}
+// Resolves a shift value (a name) to { bg, text } — checks the manual map
+// first (matched via doctor ID so aliases share one color), then falls back
+// to a deterministic hash-based text color with no forced background.
+function getNameColors(name) {
+  if (!name) return { bg: null, text: '#1c2430' };
+  var doc = STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0];
+  var key = doc ? doc.ID : name;
+  if (MANUAL_DOCTOR_COLORS[key]) return MANUAL_DOCTOR_COLORS[key];
+  return { bg: null, text: NAME_COLOR_PALETTE[hashString(key) % NAME_COLOR_PALETTE.length] };
+}
+
+function styleFor(name) {
+  var c = getNameColors(name);
+  var s = 'color:' + c.text + ';';
+  if (c.bg) s += 'background:' + c.bg + ';';
+  return s;
+}
+
 function renderSlotCell(dateStr, field, value, clashes) {
   var isSpv = field.indexOf('SPV') === 0;
   var cls = isSpv ? 'spv' : 'hmv';
   var isClash = value && clashes.indexOf(value) !== -1;
-  var linda = lindaDoctor();
-  var isMine = value && linda && (value === linda.NameSPV || value === linda.NameHMV);
   var display = value ? escapeHtml(value) : '—';
-  return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') + (isMine ? ' mine' : '') +
-    '" data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
+  var style = value && !isClash ? ' style="' + styleFor(value) + '"' : '';
+  return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') +
+    '"' + style + ' data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
     display + '</div></td>';
 }
 
-// Auto-computed, read-only — shows "DAY OFF" only when it's YOUR (Linda's) off day,
-// so there is nothing to click or edit.
-function renderOffCell(isMyOff) {
-  var display = isMyOff ? 'DAY OFF' : '—';
-  return '<td><div class="cell-slot auto-off ' + (isMyOff ? 'off' : 'empty') +
-    '" title="គណនាស្វ័យប្រវត្តិ — សម្រាប់អ្នកតែម្នាក់ គ្មានវេនទាំង SPV និង HMV">' + display + '</div></td>';
+function renderOffCell(dateStr, value, isMyPersonalOff) {
+  var display = value ? escapeHtml(value) : '—';
+  if (value === 'DAY OFF' && isMyPersonalOff) display = '🏠 ' + display;
+  var isCustomName = value && value !== 'DAY OFF';
+  var style = isCustomName ? ' style="' + styleFor(value) + '"' : '';
+  return '<td><div class="cell-slot ' + (value ? 'off' : 'empty') +
+    '"' + style + ' data-date="' + dateStr + '" data-field="SPV_Off" data-value="' + escapeAttr(value || '') + '">' +
+    display + '</div></td>';
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
 
 function bindCellClicks() {
-  document.querySelectorAll('.cell-slot:not(.auto-off)').forEach(function (cell) {
+  document.querySelectorAll('.cell-slot').forEach(function (cell) {
     cell.addEventListener('click', function () { openEditor(cell); });
   });
+}
+
+// Every name ever typed into a given set of slot fields, across all months —
+// so autocomplete works purely from what's already in Schedule history,
+// no need to pre-register anyone in the Doctors list first.
+function harvestNames(fields) {
+  var set = {};
+  STATE.scheduleAll.forEach(function (r) {
+    fields.forEach(function (f) {
+      if (r[f]) set[r[f]] = true;
+    });
+  });
+  return Object.keys(set).sort();
 }
 
 function openEditor(cell) {
@@ -636,74 +808,109 @@ function openEditor(cell) {
   var currentVal = cell.dataset.value;
   STATE.editing = { date: date, field: field };
 
-  var select = document.createElement('select');
-  select.className = 'edit-select';
+  var suggestions = [];
+  if (field === 'SPV_Off') {
+    var offFromDoctors = STATE.doctors.filter(function (d) { return d.ClinicPool === 'SPV' || d.ClinicPool === 'Both'; })
+      .map(function (d) { return d.NameSPV; }).filter(Boolean);
+    var offFromHistory = harvestNames(['SPV_Off']).filter(function (n) { return n !== 'DAY OFF'; });
+    suggestions = ['DAY OFF'].concat(offFromDoctors, offFromHistory);
+  } else {
+    var isSpv = field.indexOf('SPV') === 0;
+    var poolFields = isSpv ? ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'] : ['HMV_Day', 'HMV_Night'];
+    var fromDoctors = STATE.doctors.filter(function (d) { return d.ClinicPool === (isSpv ? 'SPV' : 'HMV') || d.ClinicPool === 'Both'; })
+      .map(function (d) { return isSpv ? d.NameSPV : d.NameHMV; }).filter(Boolean);
+    var fromHistory = harvestNames(poolFields);
+    suggestions = fromDoctors.concat(fromHistory);
+  }
+  // de-dupe while keeping order
+  var seen = {};
+  suggestions = suggestions.filter(function (s) { return s && !seen[s] && (seen[s] = true); });
 
-  var isSpv = field.indexOf('SPV') === 0;
-  var pool = STATE.doctors.filter(function (d) { return d.ClinicPool === (isSpv ? 'SPV' : 'HMV') || d.ClinicPool === 'Both'; });
-  var names = pool.map(function (d) { return isSpv ? d.NameSPV : d.NameHMV; }).filter(Boolean);
-  var options = ['(ទទេ)'].concat(names);
-
-  options.forEach(function (opt) {
+  var listId = 'dlist_' + date.replace(/-/g, '') + '_' + field;
+  var datalist = document.createElement('datalist');
+  datalist.id = listId;
+  suggestions.forEach(function (s) {
     var o = document.createElement('option');
-    var val = opt === '(ទទេ)' ? '' : opt;
-    o.value = val;
-    o.textContent = opt;
-    if (val === currentVal) o.selected = true;
-    select.appendChild(o);
+    o.value = s;
+    datalist.appendChild(o);
   });
 
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'edit-select';
+  input.setAttribute('list', listId);
+  input.value = currentVal || '';
+  input.placeholder = 'វាយបញ្ចូលឈ្មោះ...';
+
   cell.innerHTML = '';
-  cell.appendChild(select);
-  select.focus();
+  cell.appendChild(input);
+  cell.appendChild(datalist);
+  input.focus();
+  input.select();
 
   function commit() {
-    var newVal = select.value;
+    var newVal = input.value.trim();
     STATE.editing = null;
     if (newVal === currentVal) { renderSchedule(); return; }
     saveCellValue(date, field, newVal);
   }
-  select.addEventListener('change', commit);
-  select.addEventListener('blur', function () {
-    setTimeout(function () { if (STATE.editing) { STATE.editing = null; renderSchedule(); } }, 120);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { STATE.editing = null; renderSchedule(); }
+  });
+  input.addEventListener('blur', function () {
+    setTimeout(commit, 80);
   });
 }
 
-// The only "write" path: updates in-memory state immediately (optimistic),
-// then persists to the Sheet in the background. Reverts on failure.
+var SLOT_FIELDS_ALL = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'];
+var AUTO_OFF_TEXT = 'DAY OFF';
+
+// Auto DAY OFF, scoped to Linda specifically: if she is not on any shift in
+// either clinic that day, write "DAY OFF" into SPV_Off (unless it already
+// holds some other manual note — never overwrite that). If she gets assigned
+// a shift again and SPV_Off still holds the auto-written text, clear it back.
+function applyAutoOff(row) {
+  var imOff = !rowIsMyDuty(row);
+  if (imOff && !row.SPV_Off) {
+    row.SPV_Off = AUTO_OFF_TEXT;
+  } else if (!imOff && row.SPV_Off === AUTO_OFF_TEXT) {
+    row.SPV_Off = '';
+  }
+}
+
+// The only "write" path: updates state + Firestore immediately, then fires a
+// debounced background backup to the Sheet too.
 function saveCellValue(date, field, value) {
   var row = rowForDate(date);
-  var isNewRow = false;
-  if (!row) { row = { Date: date }; STATE.scheduleAll.push(row); isNewRow = true; }
-  var prevValue = row[field];
+  if (!row) { row = { Date: date }; STATE.scheduleAll.push(row); }
   row[field] = value;
-  renderSchedule();
-  showToast('កំពុងរក្សាទុក...');
 
-  google.script.run.withSuccessHandler(function (res) {
-    if (res && res.ok) {
-      showToast('រក្សាទុករួចរាល់ ✓');
-      if (res.clashes && res.clashes.length) {
-        showToast('⚠ ប៉ះទង្គិចវេន: ' + res.clashes.join(', '));
-      }
-      if (res.historyEntry) {
-        STATE.historyAll.unshift(res.historyEntry);
-        if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
-        if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
-      }
-    } else {
-      row[field] = prevValue;
-      if (isNewRow) STATE.scheduleAll = STATE.scheduleAll.filter(function (r) { return r !== row; });
-      renderSchedule();
-      showToast('មានបញ្ហា៖ ' + (res && res.error ? res.error : 'unknown'));
-    }
-  }).withFailureHandler(function (err) {
-    row[field] = prevValue;
-    if (isNewRow) STATE.scheduleAll = STATE.scheduleAll.filter(function (r) { return r !== row; });
-    renderSchedule();
-    showToast('មិនអាចរក្សាទុកបានទេ');
-    showError(err);
-  }).saveCell(date, field, value);
+  if (field !== 'SPV_Off') applyAutoOff(row);
+
+  renderSchedule();
+
+  var clashes = detectClashesLocal(row);
+  if (clashes.length) {
+    showToast('⚠ ប៉ះទង្គិចវេន: ' + clashes.join(', '));
+  } else {
+    showToast('រក្សាទុករួចរាល់ ✓');
+  }
+
+  var user = 'you';
+  STATE.historyAll.unshift({
+    'ពេលវេលា': new Date().toISOString().slice(0, 16).replace('T', ' '),
+    'កាលបរិច្ឆេទ': date,
+    'វេន (Field)': field,
+    'ឈ្មោះចាស់': '',
+    'ឈ្មោះថ្មី': value || '',
+    'អ្នកប្រើ': user
+  });
+  if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
+  if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+
+  persistRemoteState();
+  scheduleBackup();
 }
 
 /* ---------------- DOCTORS ---------------- */
@@ -718,7 +925,7 @@ function renderDoctors() {
     var name = d.NameSPV || d.NameHMV;
     var altName = (d.NameSPV && d.NameHMV && d.NameSPV !== d.NameHMV) ? d.NameHMV : null;
     return '<div class="doc-item">' +
-      '<div class="name">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
+      '<div class="name" style="' + styleFor(name) + (getNameColors(name).bg ? 'padding:2px 8px;border-radius:6px;display:inline-block;' : '') + '">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
       (altName ? '<div style="color:var(--sub);font-size:11.5px;margin-top:2px;">' + escapeHtml(altName) + '</div>' : '') +
       '<span class="pool ' + poolClass + '">' + escapeHtml(d.ClinicPool) + '</span>' +
       '</div>';
@@ -734,74 +941,35 @@ function bindDoctorForm() {
     var isLinda = document.getElementById('newIsLinda').checked;
     if (!nameSPV && !nameHMV) { showToast('សូមបញ្ចូលឈ្មោះយ៉ាងហោចណាស់មួយ'); return; }
 
-    var btn = document.getElementById('addDocBtn');
-    btn.disabled = true;
-
-    google.script.run.withSuccessHandler(function (res) {
-      btn.disabled = false;
-      if (res && res.ok && res.doctor) {
-        STATE.doctors.push(res.doctor);
-        renderDoctors();
-        showToast('បន្ថែមគ្រូពេទ្យរួចរាល់ ✓');
-        document.getElementById('addDocForm').reset();
-      } else {
-        showToast('មិនអាចបន្ថែមបានទេ');
-      }
-    }).withFailureHandler(function (err) {
-      btn.disabled = false;
-      showError(err);
-    }).addDoctor({
-      nameSPV: nameSPV, nameHMV: nameHMV, clinicPool: clinicPool, isLinda: isLinda
-    });
+    var id = (clinicPool === 'HMV' ? 'H' : clinicPool === 'SPV' ? 'S' : 'B') + Date.now();
+    var doctor = { ID: id, NameSPV: nameSPV, NameHMV: nameHMV, ClinicPool: clinicPool, isLinda: isLinda, Active: true };
+    STATE.doctors.push(doctor);
+    persistRemoteState();
+    renderDoctors();
+    showToast('បន្ថែមគ្រូពេទ្យរួចរាល់ ✓');
+    document.getElementById('addDocForm').reset();
+    scheduleBackup();
   });
 }
 
 /* ---------------- PAYROLL (computed entirely client-side from embedded schedule) ---------------- */
-// The four distinct 12-hour periods in a day. SPV_Day1/2/3 are three concurrent positions
-// covering the SAME 12-hour daytime period, so they collapse into one paid period. SPV Night
-// is a separate 12-hour period from SPV Day. Same idea for HMV.
-var PERIOD_GROUPS = [
-  { key: 'SPV_DAY', fields: ['SPV_Day1', 'SPV_Day2', 'SPV_Day3'], clinic: 'SPV' },
-  { key: 'SPV_NIGHT', fields: ['SPV_Night'], clinic: 'SPV' },
-  { key: 'HMV_DAY', fields: ['HMV_Day'], clinic: 'HMV' },
-  { key: 'HMV_NIGHT', fields: ['HMV_Night'], clinic: 'HMV' }
-];
-
-// For ONE schedule row (one day), returns a capped list of paid shifts: at most ONE shift
-// per doctor per 12-HOUR PERIOD per day. Filling several slots within the SAME period
-// (e.g. SPV_Day1 + SPV_Day2, both the same daytime period) is one shift, not two. A doctor
-// covering a DIFFERENT period the same day — SPV day + SPV night, or SPV + HMV — is
-// legitimately working extra hours, so each period they cover is paid.
-function capDailyEarningsClient(rowObj) {
-  var buckets = {}; // key: docKey|periodKey
-  PERIOD_GROUPS.forEach(function (group) {
-    group.fields.forEach(function (f) {
-      var name = rowObj[f];
-      if (!name) return;
-      var doc = findDoctorByNameClient(name);
-      var docKey = doc ? doc.ID : name;
-      var key = docKey + '|' + group.key;
-      var rate = STATE.rates[f] || 0;
-      var displayName = doc ? (group.clinic === 'SPV' ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
-      if (!buckets[key] || rate > buckets[key].rate) {
-        buckets[key] = { docKey: docKey, displayName: displayName, clinic: group.clinic, period: group.key, rate: rate };
-      }
-    });
-  });
-  return Object.keys(buckets).map(function (k) { return buckets[k]; });
-}
-
 function computePayrollClient(year, month) {
   var prefix = year + '-' + pad2(month);
   var rows = STATE.scheduleAll.filter(function (r) { return String(r.Date).indexOf(prefix) === 0; });
   var spvCounts = {}, hmvCounts = {};
 
   rows.forEach(function (r) {
-    capDailyEarningsClient(r).forEach(function (e) {
-      var bucket = e.clinic === 'SPV' ? spvCounts : hmvCounts;
-      if (!bucket[e.docKey]) bucket[e.docKey] = { name: e.displayName, shifts: 0, usd: 0 };
-      bucket[e.docKey].shifts++;
-      bucket[e.docKey].usd += e.rate;
+    ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'].forEach(function (f) {
+      var name = r[f];
+      if (!name) return;
+      var doc = findDoctorByNameClient(name);
+      var key = doc ? doc.ID : name;
+      var isSpv = f.indexOf('SPV') === 0;
+      var displayName = doc ? (isSpv ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
+      var bucket = isSpv ? spvCounts : hmvCounts;
+      if (!bucket[key]) bucket[key] = { name: displayName, shifts: 0, usd: 0 };
+      bucket[key].shifts++;
+      bucket[key].usd += STATE.rates[f] || 0;
     });
   });
 
@@ -827,49 +995,19 @@ function computePayrollClient(year, month) {
   return { spv: toList(spvCounts), hmv: toList(hmvCounts), linda: linda };
 }
 
-// Your (Linda's) personal duty income for one date: which period(s) you worked and the $
-// amount — using the same capped-per-period rule as payroll. hours = periods you worked × 12.
-// Returns null if you didn't work that day.
-function getMyDutyDayClient(dateStr) {
-  var linda = lindaDoctor();
-  if (!linda) return null;
-  var row = rowForDate(dateStr);
-  if (!row) return null;
-  var mine = capDailyEarningsClient(row).filter(function (e) { return e.docKey === linda.ID; });
-  if (!mine.length) return null;
-  var usd = mine.reduce(function (s, e) { return s + e.rate; }, 0);
-  return {
-    date: dateStr,
-    clinics: mine.map(function (e) { return e.clinic; }),
-    hours: mine.length * 12,
-    usd: usd
-  };
-}
-
-// All of your duty-income days within a given month, most recent first.
-function computeMyDutyIncomeForMonth(year, month) {
-  var nDays = daysInMonth(year, month);
-  var out = [];
-  for (var d = 1; d <= nDays; d++) {
-    var dateStr = year + '-' + pad2(month) + '-' + pad2(d);
-    var day = getMyDutyDayClient(dateStr);
-    if (day) out.push(day);
-  }
-  return out.reverse();
-}
-
-
 function loadPayroll() {
   if (!STATE.payYear) { STATE.payYear = STATE.year; STATE.payMonth = STATE.month; }
   document.getElementById('monthLabelPay').textContent = MONTH_NAMES_KM[STATE.payMonth - 1] + ' ' + STATE.payYear;
   var summary = computePayrollClient(STATE.payYear, STATE.payMonth);
-  renderPayroll(summary);
+  var incomeSummary = computeIncomeSummary(STATE.payYear, STATE.payMonth);
+  renderPayroll(summary, incomeSummary);
+  refreshMonthPickers();
 }
 
 function fmtUsd(n) { return '$' + (n || 0).toLocaleString(); }
 function fmtKhr(n) { return (n || 0).toLocaleString() + '៛'; }
 
-function renderPayroll(summary) {
+function renderPayroll(summary, incomeSummary) {
   if (!summary) { document.getElementById('payWrap').innerHTML = '<div class="empty-state">មិនមានទិន្នន័យទេ</div>'; return; }
 
   function table(list) {
@@ -887,169 +1025,226 @@ function renderPayroll(summary) {
     '<div class="pay-col"><h3 class="hmv">HMV</h3>' + table(summary.hmv) + '</div>' +
     '</div>';
 
-  if (summary.linda && summary.linda.shifts) {
+  // ---- one grand total for Linda alone, both clinics combined ----
+  var spvIncomeTotal = incomeSummary ? incomeSummary.SPV.usd : 0;
+  var hmvIncomeTotal = incomeSummary ? incomeSummary.HMV.usd : 0;
+  if (summary.linda && (summary.linda.shifts || spvIncomeTotal || hmvIncomeTotal)) {
+    var incomeBothTotal = spvIncomeTotal + hmvIncomeTotal;
+    var lindaGrandTotal = summary.linda.usd + incomeBothTotal;
     html += '<div class="linda-box">' +
-      '<b>ប្រាក់ខែសរុបរបស់អ្នក ⭐</b> — ធ្វើវេនទាំង SPV និង HMV<br>' +
-      'SPV: ' + summary.linda.spvShifts + ' វេន &nbsp;|&nbsp; HMV: ' + summary.linda.hmvShifts + ' វេន &nbsp;|&nbsp; ' +
-      '<b>សរុប: ' + fmtUsd(summary.linda.usd) + ' (' + fmtKhr(summary.linda.khr) + ')</b>' +
+      '<b>ប្រាក់ខែពីវេនរបស់អ្នក ⭐</b> — SPV: ' + summary.linda.spvShifts + ' វេន &nbsp;|&nbsp; HMV: ' + summary.linda.hmvShifts + ' វេន &nbsp;|&nbsp; ' +
+      'សរុបវេន: ' + fmtUsd(summary.linda.usd) + '<br>' +
+      'ចំណូល Consult/IPD (SPV+HMV): ' + fmtUsd(incomeBothTotal) + '<br>' +
+      '<b style="font-size:15.5px;">សរុបប្រចាំខែទាំងអស់សម្រាប់អ្នក (ទាំង២គ្លីនិក): ' + fmtUsd(lindaGrandTotal) + ' (' + fmtKhr(lindaGrandTotal * STATE.khrPerUsd) + ')</b>' +
       '</div>';
   }
 
   document.getElementById('payWrap').innerHTML = html;
 }
 
-/* ---------------- FINANCE: Income / Expense (client render, server writes) ---------------- */
-function loadFinance() {
-  document.getElementById('monthLabelFin').textContent = MONTH_NAMES_KM[STATE.finMonth - 1] + ' ' + STATE.finYear;
-  renderFinance();
+/* ---------------- INCOME (Consult + IPD, per clinic, rate-based) ---------------- */
+function bindIncomeMonthNav() {
+  document.getElementById('prevMonthIncome').addEventListener('click', function () { shiftIncomeMonth(-1); });
+  document.getElementById('nextMonthIncome').addEventListener('click', function () { shiftIncomeMonth(1); });
+  document.getElementById('monthPickerIncome').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.incomeYear = Number(parts[0]); STATE.incomeMonth = Number(parts[1]);
+    renderIncome();
+  });
 }
 
-function financeRowsForMonth(list, year, month) {
-  var prefix = year + '-' + pad2(month);
-  return list.filter(function (r) { return String(r.Date).indexOf(prefix) === 0; })
-    .sort(function (a, b) { return String(b.Date).localeCompare(String(a.Date)); });
+function shiftIncomeMonth(delta) {
+  var m = STATE.incomeMonth + delta, y = STATE.incomeYear;
+  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+  STATE.incomeYear = y; STATE.incomeMonth = m;
+  renderIncome();
 }
 
-function monthlyPayrollTotal(year, month) {
-  var summary = computePayrollClient(year, month);
-  var total = 0;
-  summary.spv.forEach(function (c) { total += c.usd; });
-  summary.hmv.forEach(function (c) { total += c.usd; });
-  return total;
-}
+// bindIncomeForm is now a no-op (kept so the init call doesn't need editing) —
+// there's no separate "add entry" form anymore; the table below auto-lists
+// every working day and each number is editable directly in place.
+function bindIncomeForm() {}
 
-function renderFinance() {
-  var y = STATE.finYear, m = STATE.finMonth;
-  var incomeRows = financeRowsForMonth(STATE.incomeAll, y, m);
-  var expenseRows = financeRowsForMonth(STATE.expensesAll, y, m);
-  var payrollTotal = monthlyPayrollTotal(y, m);
-  var myDutyDays = computeMyDutyIncomeForMonth(y, m);
-  var myDutyTotal = myDutyDays.reduce(function (s, d) { return s + d.usd; }, 0);
-
-  var manualIncomeTotal = incomeRows.reduce(function (s, r) { return s + (Number(r.AmountUSD) || 0); }, 0);
-  var incomeTotal = manualIncomeTotal + myDutyTotal;
-  var manualExpenseTotal = expenseRows.reduce(function (s, r) { return s + (Number(r.AmountUSD) || 0); }, 0);
-  var expenseTotal = manualExpenseTotal + payrollTotal;
-  var net = incomeTotal - expenseTotal;
-
-  document.getElementById('finSummaryWrap').innerHTML =
-    '<div class="fin-summary">' +
-    '<div class="fin-summary-card income"><div class="lbl">ចំណូលសរុប</div><div class="val">' + fmtUsd(incomeTotal) + '</div></div>' +
-    '<div class="fin-summary-card expense"><div class="lbl">ចំណាយសរុប (រួមប្រាក់ខែ)</div><div class="val">' + fmtUsd(expenseTotal) + '</div></div>' +
-    '<div class="fin-summary-card net"><div class="lbl">ចំណេញ/ខាត</div><div class="val ' + (net >= 0 ? 'pos' : 'neg') + '">' + fmtUsd(net) + '</div></div>' +
-    '</div>';
-
-  function financeList(rows, kind) {
-    var html = rows.map(function (r) {
-      return '<div class="fin-row">' +
-        '<div class="meta"><span class="cat">' + escapeHtml(r.Category) + '</span>' +
-        (r.Description ? '<div class="desc">' + escapeHtml(r.Description) + ' · ' + escapeHtml(r.Date) + '</div>' : '<div class="desc">' + escapeHtml(r.Date) + '</div>') +
-        '</div>' +
-        '<div class="amt ' + kind + '">' + fmtUsd(Number(r.AmountUSD) || 0) + '</div>' +
-        '<button class="fin-del" data-id="' + escapeAttr(r.ID) + '" data-kind="' + kind + '" title="លុប">✕</button>' +
-        '</div>';
-    }).join('');
-    if (kind === 'expense') {
-      html = '<div class="fin-payroll-line"><span>ប្រាក់ខែ (Payroll — គណនាស្វ័យប្រវត្តិ)</span><span>' + fmtUsd(payrollTotal) + '</span></div>' + html;
-    }
-    if (!rows.length && kind !== 'expense') html = '<div class="empty-state" style="padding:14px 0;">មិនទាន់មានទិន្នន័យទេ</div>';
-    return html;
+function incomeRowForDate(dateStr) {
+  for (var i = 0; i < STATE.incomeEntries.length; i++) {
+    if (STATE.incomeEntries[i].Date === dateStr) return STATE.incomeEntries[i];
   }
-
-  // Your duty-based income: only days you actually worked, one line per day,
-  // labeled 12ម៉ោង (one clinic) or 24ម៉ោង (both clinics that day).
-  var dutyHtml = myDutyDays.length
-    ? myDutyDays.map(function (d) {
-        var clinicLabel = d.clinics.length === 2 ? 'SPV + HMV' : d.clinics[0];
-        return '<div class="fin-row">' +
-          '<div class="meta"><span class="cat">' + d.hours + 'ម៉ោង — ' + clinicLabel + '</span>' +
-          '<div class="desc">' + escapeHtml(d.date) + '</div></div>' +
-          '<div class="amt income">' + fmtUsd(d.usd) + '</div>' +
-          '</div>';
-      }).join('')
-    : '<div class="empty-state" style="padding:10px 0;font-size:11.5px;">មិនមានថ្ងៃធ្វើការក្នុងខែនេះទេ</div>';
-
-  document.getElementById('incomeListWrap').innerHTML =
-    '<div class="fin-payroll-line"><span>ចំណូលពីវេន (' + myDutyDays.length + ' ថ្ងៃ)</span><span>' + fmtUsd(myDutyTotal) + '</span></div>' +
-    dutyHtml +
-    financeList(incomeRows, 'income');
-  document.getElementById('expenseListWrap').innerHTML = financeList(expenseRows, 'expense');
-
-  document.querySelectorAll('.fin-del').forEach(function (btn) {
-    btn.addEventListener('click', function () { deleteFinanceEntryClient(btn.dataset.id, btn.dataset.kind); });
-  });
+  return null;
 }
 
-function bindFinanceForms() {
-  var todayStr = new Date().toISOString().slice(0, 10);
-  document.getElementById('incDate').value = todayStr;
-  document.getElementById('expDate').value = todayStr;
-
-  document.getElementById('addIncomeForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    submitFinanceEntry('income');
+// Which clinic(s) Linda worked on this date — for a colored badge in the
+// income table (a day can be SPV only, HMV only, or both if she pulled a
+// shift in each clinic on the same day).
+function lindaClinicsForRow(row) {
+  var linda = lindaDoctor();
+  if (!linda || !row) return [];
+  var out = [];
+  var spvHit = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night'].some(function (f) {
+    return row[f] && (row[f] === linda.NameSPV || row[f] === linda.NameHMV);
   });
-  document.getElementById('addExpenseForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    submitFinanceEntry('expense');
+  var hmvHit = ['HMV_Day', 'HMV_Night'].some(function (f) {
+    return row[f] && (row[f] === linda.NameSPV || row[f] === linda.NameHMV);
   });
+  if (spvHit) out.push('SPV');
+  if (hmvHit) out.push('HMV');
+  return out;
 }
 
-function submitFinanceEntry(kind) {
-  var prefix = kind === 'income' ? 'inc' : 'exp';
-  var date = document.getElementById(prefix + 'Date').value;
-  var category = document.getElementById(prefix + 'Category').value.trim();
-  var description = document.getElementById(prefix + 'Description').value.trim();
-  var amount = parseFloat(document.getElementById(prefix + 'Amount').value);
-
-  if (!date || !category || !(amount > 0)) { showToast('សូមបំពេញព័ត៌មានឲ្យគ្រប់'); return; }
-
-  var btn = document.getElementById((kind === 'income' ? 'addIncomeBtn' : 'addExpenseBtn'));
-  btn.disabled = true;
-
-  var payload = { date: date, category: category, description: description, amountUsd: amount };
-  var serverFn = kind === 'income' ? 'addIncome' : 'addExpense';
-
-  google.script.run.withSuccessHandler(function (res) {
-    btn.disabled = false;
-    if (res && res.ok && res.entry) {
-      if (kind === 'income') STATE.incomeAll.push(res.entry); else STATE.expensesAll.push(res.entry);
-      renderFinance();
-      showToast((kind === 'income' ? 'បន្ថែមចំណូល' : 'បន្ថែមចំណាយ') + 'រួចរាល់ ✓');
-      document.getElementById(kind === 'income' ? 'addIncomeForm' : 'addExpenseForm').reset();
-      var todayStr = new Date().toISOString().slice(0, 10);
-      document.getElementById(prefix + 'Date').value = todayStr;
-    } else {
-      showToast('មិនអាចបន្ថែមបានទេ');
-    }
-  }).withFailureHandler(function (err) {
-    btn.disabled = false;
-    showError(err);
-  })[serverFn](payload);
+// A "working day" = Linda herself is on duty that date, in either clinic
+// (SPV or HMV). Days she isn't on shift are skipped — no need to log
+// Consult/IPD for a day she didn't personally work.
+function isWorkingDay(dateStr) {
+  var row = rowForDate(dateStr);
+  if (!row) return false;
+  return rowIsMyDuty(row);
 }
 
-function deleteFinanceEntryClient(id, kind) {
-  var list = kind === 'income' ? STATE.incomeAll : STATE.expensesAll;
-  var idx = list.findIndex(function (r) { return r.ID === id; });
-  if (idx === -1) return;
-  var removed = list[idx];
-  list.splice(idx, 1);
-  renderFinance();
+function updateIncomeCell(dateStr, field, value) {
+  var row = incomeRowForDate(dateStr);
+  if (!row) {
+    row = { Date: dateStr, SPV_Consult: 0, SPV_IPD: 0, HMV_Consult: 0, HMV_IPD: 0 };
+    STATE.incomeEntries.push(row);
+  }
+  row[field] = Math.max(0, Number(value) || 0);
+  persistIncomeState();
+  renderIncome();
+}
+window.updateIncomeCell = updateIncomeCell;
 
-  var serverFn = kind === 'income' ? 'deleteIncome' : 'deleteExpense';
-  google.script.run.withSuccessHandler(function (res) {
-    if (!res || !res.ok) {
-      list.splice(idx, 0, removed);
-      renderFinance();
-      showToast('មិនអាចលុបបានទេ');
-    } else {
-      showToast('លុបរួចរាល់ ✓');
-    }
-  }).withFailureHandler(function (err) {
-    list.splice(idx, 0, removed);
-    renderFinance();
-    showError(err);
-  })[serverFn](id);
+function updateIncomeRate(clinic, type, value) {
+  if (!STATE.incomeRates[clinic]) STATE.incomeRates[clinic] = { consult: 0, ipd: 0 };
+  STATE.incomeRates[clinic][type] = Number(value) || 0;
+  persistIncomeState();
+  renderIncome();
+}
+window.updateIncomeRate = updateIncomeRate;
+
+function renderIncomeRates() {
+  var clinics = ['SPV', 'HMV'];
+  var html = clinics.map(function (c) {
+    var r = STATE.incomeRates[c] || { consult: 0, ipd: 0 };
+    var cls = c === 'SPV' ? 'spv' : 'hmv';
+    return '<div class="pay-col"><h3 class="' + cls + '">' + c + '</h3>' +
+      '<div class="field" style="margin-bottom:10px;"><label>អត្រា Consult ($/នាក់)</label>' +
+      '<input type="number" min="0" step="0.5" value="' + r.consult + '" onchange="updateIncomeRate(\'' + c + '\',\'consult\',this.value)"></div>' +
+      '<div class="field"><label>អត្រា IPD ($/នាក់)</label>' +
+      '<input type="number" min="0" step="0.5" value="' + r.ipd + '" onchange="updateIncomeRate(\'' + c + '\',\'ipd\',this.value)"></div>' +
+      '</div>';
+  }).join('');
+  document.getElementById('incomeRatesWrap').innerHTML = html;
+}
+
+function computeIncomeSummary(year, month) {
+  var prefix = year + '-' + pad2(month);
+  var entries = STATE.incomeEntries.filter(function (e) { return String(e.Date).indexOf(prefix) === 0; });
+  var byClinic = { SPV: { consult: 0, ipd: 0, usd: 0 }, HMV: { consult: 0, ipd: 0, usd: 0 } };
+  var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
+  var rHmv = STATE.incomeRates.HMV || { consult: 0, ipd: 0 };
+
+  entries.forEach(function (e) {
+    byClinic.SPV.consult += e.SPV_Consult || 0;
+    byClinic.SPV.ipd += e.SPV_IPD || 0;
+    byClinic.SPV.usd += (e.SPV_Consult || 0) * rSpv.consult + (e.SPV_IPD || 0) * rSpv.ipd;
+    byClinic.HMV.consult += e.HMV_Consult || 0;
+    byClinic.HMV.ipd += e.HMV_IPD || 0;
+    byClinic.HMV.usd += (e.HMV_Consult || 0) * rHmv.consult + (e.HMV_IPD || 0) * rHmv.ipd;
+  });
+
+  Object.keys(byClinic).forEach(function (c) { byClinic[c].khr = byClinic[c].usd * STATE.khrPerUsd; });
+  return byClinic;
+}
+
+function renderIncome() {
+  if (!STATE.incomeYear) { STATE.incomeYear = STATE.year; STATE.incomeMonth = STATE.month; }
+  renderIncomeRates();
+  document.getElementById('monthLabelIncome').textContent = MONTH_NAMES_KM[STATE.incomeMonth - 1] + ' ' + STATE.incomeYear;
+  refreshIncomeMonthPicker();
+
+  var byClinic = computeIncomeSummary(STATE.incomeYear, STATE.incomeMonth);
+  var totalUsd = byClinic.SPV.usd + byClinic.HMV.usd;
+  var totalConsult = byClinic.SPV.consult + byClinic.HMV.consult;
+  var totalIpd = byClinic.SPV.ipd + byClinic.HMV.ipd;
+
+  document.getElementById('incomeStats').innerHTML =
+    '<div class="stat"><div class="n">' + fmtUsd(totalUsd) + '</div><div class="l">ចំណូលសរុប</div></div>' +
+    '<div class="stat"><div class="n">' + fmtKhr(totalUsd * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
+    '<div class="stat"><div class="n">' + totalConsult + '</div><div class="l">Consult សរុប</div></div>' +
+    '<div class="stat"><div class="n">' + totalIpd + '</div><div class="l">IPD សរុប</div></div>';
+
+  function clinicCard(name, cls, d) {
+    return '<div class="pay-col"><h3 class="' + cls + '">' + name + '</h3>' +
+      '<table class="pay"><tbody>' +
+      '<tr><td>Consult</td><td class="num">' + d.consult + ' នាក់</td></tr>' +
+      '<tr><td>IPD</td><td class="num">' + d.ipd + ' នាក់</td></tr>' +
+      '<tr style="font-weight:700;"><td>សរុប</td><td class="num">' + fmtUsd(d.usd) + '<br><span style="font-weight:400;font-size:11px;color:var(--sub);">' + fmtKhr(d.khr) + '</span></td></tr>' +
+      '</tbody></table></div>';
+  }
+  document.getElementById('incomeSummaryWrap').innerHTML =
+    clinicCard('SPV', 'spv', byClinic.SPV) + clinicCard('HMV', 'hmv', byClinic.HMV);
+
+  renderIncomeTable();
+}
+
+var DOW_NAMES_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function incomeNumberInput(dateStr, field, val) {
+  return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
+    '" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + field + '\',this.value)">';
+}
+
+function renderIncomeTable() {
+  var y = STATE.incomeYear, m = STATE.incomeMonth;
+  var nDays = daysInMonth(y, m);
+  var html = '<thead><tr><th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
+    '<th class="group-spv">SPV Consult</th><th class="group-spv">SPV IPD</th>' +
+    '<th class="group-hmv">HMV Consult</th><th class="group-hmv">HMV IPD</th>' +
+    '<th>ចំណូលថ្ងៃ</th></tr></thead><tbody>';
+  var anyRow = false;
+  var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
+  var rHmv = STATE.incomeRates.HMV || { consult: 0, ipd: 0 };
+
+  for (var d = 1; d <= nDays; d++) {
+    var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
+    if (!isWorkingDay(dateStr)) continue;
+    anyRow = true;
+    var entry = incomeRowForDate(dateStr) || {};
+    var dow = new Date(y, m - 1, d).getDay();
+    var dayUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.SPV_IPD || 0) * rSpv.ipd +
+      (entry.HMV_Consult || 0) * rHmv.consult + (entry.HMV_IPD || 0) * rHmv.ipd;
+
+    var clinics = lindaClinicsForRow(rowForDate(dateStr));
+    var badges = clinics.map(function (c) {
+      var bg = c === 'SPV' ? 'var(--spv-bg)' : 'var(--hmv-bg)';
+      var color = c === 'SPV' ? 'var(--spv)' : 'var(--hmv)';
+      return '<span style="display:inline-block;background:' + bg + ';color:' + color +
+        ';font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;">' + c + '</span>';
+    }).join('');
+
+    html += '<tr><td class="date-cell">' + d + '/' + pad2(m) + badges + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
+      '<td>' + incomeNumberInput(dateStr, 'SPV_Consult', entry.SPV_Consult) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'SPV_IPD', entry.SPV_IPD) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'HMV_Consult', entry.HMV_Consult) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'HMV_IPD', entry.HMV_IPD) + '</td>' +
+      '<td style="font-weight:700;">' + fmtUsd(dayUsd) + '</td></tr>';
+  }
+  if (!anyRow) html += '<tr><td colspan="6" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
+  html += '</tbody>';
+  document.getElementById('incomeEntriesTable').innerHTML = html;
+}
+
+function refreshIncomeMonthPicker() {
+  var set = {};
+  STATE.scheduleAll.forEach(function (r) {
+    var d = String(r.Date || '');
+    if (d.length >= 7) set[d.slice(0, 7)] = true;
+  });
+  var now = new Date();
+  set[now.getFullYear() + '-' + pad2(now.getMonth() + 1)] = true;
+  var months = Object.keys(set).sort().reverse();
+  var cur = STATE.incomeYear + '-' + pad2(STATE.incomeMonth);
+  document.getElementById('monthPickerIncome').innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
 }
 
 /* ---------------- HISTORY (rendered entirely from memory) ---------------- */
