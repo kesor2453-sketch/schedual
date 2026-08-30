@@ -1,12 +1,28 @@
 /**
  * តារាងវេន SPV + HMV — Duty Schedule (matches real paper/Excel layout)
  * Columns: Date | Day | SPV Day1 | SPV Day2 | SPV Day3 | SPV Night | SPV Off Today | HMV Day | HMV Night
+ *
+ * ARCHITECTURE NOTE:
+ * The dashboard loads ALL data (doctors, full schedule, history) ONE time when the
+ * page opens (via getAllData(), embedded straight into the HTML by doGet()).
+ * After that, the client never re-fetches for reading — browsing months, payroll,
+ * and history all run from the data already in memory.
+ * The Sheet is still the source of truth and permanent storage for:
+ *   - Schedule (current + all past/"old" months — nothing is deleted)
+ *   - History (every cell change, who/when/old→new)
+ *   - Payroll (computed on demand from Schedule, not stored separately)
+ * The ONLY things that still talk to the server after load are actions that WRITE:
+ * saveCell() and addDoctor().
  */
 
 var SS = SpreadsheetApp.getActiveSpreadsheet();
 var SHEET_DOCTORS = 'Doctors';
 var SHEET_SCHEDULE = 'Schedule';
 var SHEET_HISTORY = 'History';
+var SHEET_INCOME = 'Income';
+var SHEET_EXPENSES = 'Expenses';
+
+var FINANCE_HEADERS = ['ID', 'Date', 'Category', 'Description', 'AmountUSD', 'CreatedAt', 'CreatedBy'];
 
 var SCHEDULE_HEADERS = ['Date', 'Day', 'SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'SPV_Off', 'HMV_Day', 'HMV_Night', 'UpdatedAt', 'UpdatedBy'];
 var SLOT_FIELDS = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'];
@@ -50,6 +66,16 @@ function initializeSheets() {
     historySh.appendRow(['ពេលវេលា', 'កាលបរិច្ឆេទ', 'វេន (Field)', 'ឈ្មោះចាស់', 'ឈ្មោះថ្មី', 'អ្នកប្រើ']);
     historySh.setFrozenRows(1);
   }
+  var incomeSh = SS.getSheetByName(SHEET_INCOME) || SS.insertSheet(SHEET_INCOME);
+  if (incomeSh.getLastRow() === 0) {
+    incomeSh.appendRow(FINANCE_HEADERS);
+    incomeSh.setFrozenRows(1);
+  }
+  var expensesSh = SS.getSheetByName(SHEET_EXPENSES) || SS.insertSheet(SHEET_EXPENSES);
+  if (expensesSh.getLastRow() === 0) {
+    expensesSh.appendRow(FINANCE_HEADERS);
+    expensesSh.setFrozenRows(1);
+  }
   return 'OK';
 }
 
@@ -75,7 +101,7 @@ function resetAndSeed() {
   // placeholder first so there's always at least one sheet left during cleanup.
   var placeholder = SS.insertSheet('__temp_reset__');
 
-  [SHEET_DOCTORS, SHEET_SCHEDULE, SHEET_HISTORY].forEach(function (name) {
+  [SHEET_DOCTORS, SHEET_SCHEDULE, SHEET_HISTORY, SHEET_INCOME, SHEET_EXPENSES].forEach(function (name) {
     var sh = SS.getSheetByName(name);
     if (sh) SS.deleteSheet(sh);
   });
@@ -115,7 +141,7 @@ function seedAugust2026() {
     ['2026-08-24', 'Dr.Nann Vanna', 'Dr.Khean Daline', '', 'Dr.Nann Vanna', '', 'វេជ្ជ.ប៊ិន លីនដា', 'វេជ្ជ.អ៊ុងគីមឡេង'],
     ['2026-08-25', 'Dr.Phalla Daline', 'Dr.Khean Daline', '', 'Dr.Nann Vanna', 'DAY OFF', 'ហុក ប៊ុនណារ៉ា', 'ហុក ប៊ុនណារ៉ា'],
     ['2026-08-26', 'Dr.Phalla Daline', 'Dr.Khean Daline', '', 'Dr.Monyrachana', 'DAY OFF', 'ហុក ប៊ុនណារ៉ា', 'ហុក ប៊ុនណារ៉ា'],
-    ['2026-08-27', 'Dr.Nann Vanna', 'Dr.Khean Daline', '', 'Dr.Khim Piseth', 'DAY OFF', 'វេជ្ជ.ឈន ចំរឿន', 'វេជ្ជ.ឈន ចំរឿន'],
+    ['2026-08-27', 'Dr.Nann Vanna', 'Dr.Khean Daline', '', 'Dr.Ben Linda', '', 'វេជ្ជ.ឈន ចំរឿន', 'វេជ្ជ.ឈន ចំរឿន'],
     ['2026-08-28', 'Dr.Nann Vanna', 'Dr.Ben Linda', '', 'Dr.Nann Vanna', '', 'ហុក ប៊ុនណារ៉ា', 'វេជ្ជ.ប៊ិន លីនដា'],
     ['2026-08-29', 'Dr.Monyrachana', 'Dr.Nann Vanna', '', 'Dr.Monyrachana', 'DAY OFF', 'វេជ្ជ.អ៊ុងគីមឡេង', 'វេជ្ជ.អ៊ុងគីមឡេង'],
     ['2026-08-30', 'Dr.Phalla Daline', 'Dr.Khean Daline', 'Dr.Ben Linda', 'Dr.Phalla Daline', '', 'វេជ្ជ.អ៊ុងគីមឡេង', 'វេជ្ជ.អ៊ុងគីមឡេង'],
@@ -131,111 +157,16 @@ function seedAugust2026() {
 
 /* ---------------- WEB APP ---------------- */
 
-// Two modes on the same /exec URL:
-//   1) No "action" param  -> serves the Apps Script HTML app (kept as a fallback/testing view)
-//   2) ?action=... present -> serves a JSON API response for the static GitHub Pages website
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action) {
-    return handleApiRequest(e.parameter);
-  }
   initializeSheets();
   var tmpl = HtmlService.createTemplateFromFile('Index');
+  // Everything the dashboard needs to render is embedded right here, once,
+  // at page load. No follow-up fetch is needed just to display data.
   tmpl.initialDataJson = JSON.stringify(getAllData());
   return tmpl.evaluate()
     .setTitle('តារាងវេន SPV + HMV')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
-// JSON/JSONP API for the static website (GitHub Pages). Apps Script Web Apps
-// do NOT reliably send CORS headers for cross-origin fetch(), so when a
-// "callback" param is present we respond as JSONP (a <script> tag load,
-// which browsers never block via CORS) instead of raw JSON.
-function handleApiRequest(params) {
-  initializeSheets();
-  var action = params.action;
-  var result;
-  try {
-    if (action === 'getAllData') {
-      result = getAllData();
-    } else if (action === 'saveCell') {
-      result = saveCell(params.date, params.field, params.value || '');
-    } else if (action === 'addDoctor') {
-      result = addDoctor({
-        nameSPV: params.nameSPV || '',
-        nameHMV: params.nameHMV || '',
-        clinicPool: params.clinicPool || 'SPV',
-        isLinda: params.isLinda === 'true'
-      });
-    } else {
-      result = { ok: false, error: 'unknown action: ' + action };
-    }
-  } catch (err) {
-    result = { ok: false, error: String(err) };
-  }
-
-  if (params.callback) {
-    var js = params.callback + '(' + JSON.stringify(result) + ');';
-    return ContentService.createTextOutput(js).setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
-  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
-}
-
-// Receives a fire-and-forget backup from the offline website (localStorage is
-// its real source of truth — this just "stocks" a copy into the Sheet as
-// history). Posted as a hidden-iframe form submit, so no CORS issues and no
-// response is read back by the browser.
-function doPost(e) {
-  try {
-    var payload = JSON.parse((e && e.parameter && e.parameter.payload) || '{}');
-    bulkBackup(payload);
-  } catch (err) {
-    // best-effort only — never surfaces to the website
-  }
-  return ContentService.createTextOutput('ok');
-}
-
-function bulkBackup(payload) {
-  initializeSheets();
-  if (payload.doctors && payload.doctors.length) upsertDoctors(payload.doctors);
-  if (payload.schedule && payload.schedule.length) upsertSchedule(payload.schedule);
-}
-
-function upsertDoctors(doctors) {
-  var sh = SS.getSheetByName(SHEET_DOCTORS);
-  var existing = sheetToObjects(sh);
-  var rowById = {};
-  existing.forEach(function (d) { rowById[d.ID] = d._row; });
-
-  doctors.forEach(function (d) {
-    var vals = [d.ID, d.NameSPV || '', d.NameHMV || '', d.ClinicPool || '', !!d.isLinda, d.Active !== false];
-    if (rowById[d.ID]) {
-      sh.getRange(rowById[d.ID], 1, 1, vals.length).setValues([vals]);
-    } else {
-      sh.appendRow(vals);
-    }
-  });
-}
-
-function upsertSchedule(schedule) {
-  var sh = SS.getSheetByName(SHEET_SCHEDULE);
-  var existing = sheetToObjects(sh).map(function (r) { r.Date = fmtDate(r.Date); return r; });
-  var rowByDate = {};
-  existing.forEach(function (r) { rowByDate[r.Date] = r._row; });
-  var headers = SCHEDULE_HEADERS;
-
-  schedule.forEach(function (row) {
-    var vals = headers.map(function (h) {
-      if (h === 'UpdatedAt') return new Date();
-      if (h === 'UpdatedBy') return 'website-backup';
-      return row[h] || '';
-    });
-    if (rowByDate[row.Date]) {
-      sh.getRange(rowByDate[row.Date], 1, 1, vals.length).setValues([vals]);
-    } else {
-      sh.appendRow(vals);
-    }
-  });
 }
 
 /* ---------------- HELPERS ---------------- */
@@ -273,12 +204,12 @@ function getDoctors() {
 function addDoctor(doc) {
   var sh = SS.getSheetByName(SHEET_DOCTORS);
   var id = (doc.clinicPool === 'HMV' ? 'H' : doc.clinicPool === 'SPV' ? 'S' : 'B') + new Date().getTime();
-  var isLinda = !!doc.isLinda;
-  sh.appendRow([id, doc.nameSPV || '', doc.nameHMV || '', doc.clinicPool, isLinda, true]);
-  return {
-    ok: true,
-    doctor: { ID: id, NameSPV: doc.nameSPV || '', NameHMV: doc.nameHMV || '', ClinicPool: doc.clinicPool, isLinda: isLinda, Active: true }
+  sh.appendRow([id, doc.nameSPV || '', doc.nameHMV || '', doc.clinicPool, !!doc.isLinda, true]);
+  var newDoctor = {
+    ID: id, NameSPV: doc.nameSPV || '', NameHMV: doc.nameHMV || '',
+    ClinicPool: doc.clinicPool, isLinda: !!doc.isLinda, Active: true
   };
+  return { ok: true, id: id, doctor: newDoctor };
 }
 
 function findDoctorByName(doctors, name) {
@@ -288,14 +219,16 @@ function findDoctorByName(doctors, name) {
 
 /* ---------------- SCHEDULE ---------------- */
 
-function getMonthSchedule(year, month) {
+function getFullSchedule() {
   var sh = SS.getSheetByName(SHEET_SCHEDULE);
-  var rows = sheetToObjects(sh);
-  var prefix = year + '-' + ('0' + month).slice(-2);
-  return rows
+  return sheetToObjects(sh)
     .map(function (r) { r.Date = fmtDate(r.Date); return r; })
-    .filter(function (r) { return String(r.Date).indexOf(prefix) === 0; })
-    .sort(function (a, b) { return a.Date.localeCompare(b.Date); });
+    .sort(function (a, b) { return String(a.Date).localeCompare(String(b.Date)); });
+}
+
+function getMonthSchedule(year, month) {
+  var prefix = year + '-' + ('0' + month).slice(-2);
+  return getFullSchedule().filter(function (r) { return String(r.Date).indexOf(prefix) === 0; });
 }
 
 function getOrCreateRow(sh, date) {
@@ -338,8 +271,6 @@ function computeClashesForRow(rowObj, doctors) {
   return dayClash.concat(nightClash);
 }
 
-var AUTO_OFF_TEXT = 'DAY OFF';
-
 function saveCell(date, field, value) {
   if (SLOT_FIELDS.indexOf(field) === -1 && field !== 'SPV_Off') {
     return { ok: false, error: 'invalid field' };
@@ -357,8 +288,8 @@ function saveCell(date, field, value) {
 
   var historyEntry = null;
   if (String(oldValue) !== String(value)) {
-    var histSh = SS.getSheetByName(SHEET_HISTORY);
     var now = new Date();
+    var histSh = SS.getSheetByName(SHEET_HISTORY);
     histSh.appendRow([now, date, field, oldValue || '', value || '', user]);
     historyEntry = {
       'ពេលវេលា': Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
@@ -370,29 +301,13 @@ function saveCell(date, field, value) {
     };
   }
 
-  // Auto DAY OFF: if every SPV/HMV slot is now empty, write "DAY OFF" into SPV_Off
-  // (only if that cell is currently blank, so a manual note is never overwritten).
-  // If a slot just got filled in and SPV_Off still holds the auto-written text,
-  // clear it back out automatically.
-  if (field !== 'SPV_Off') {
-    var offColIdx = headers.indexOf('SPV_Off') + 1;
-    var offValue = sh.getRange(rowIdx, offColIdx).getValue();
-    var rowNow = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
-    var allEmpty = SLOT_FIELDS.every(function (f) { return !rowNow[headers.indexOf(f)]; });
-    if (allEmpty && !offValue) {
-      sh.getRange(rowIdx, offColIdx).setValue(AUTO_OFF_TEXT);
-    } else if (!allEmpty && offValue === AUTO_OFF_TEXT) {
-      sh.getRange(rowIdx, offColIdx).setValue('');
-    }
-  }
-
   var rowValues = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
   var rowObj = {};
   headers.forEach(function (h, i) { rowObj[h] = rowValues[i]; });
   rowObj.Date = fmtDate(rowObj.Date);
   var clashes = computeClashesForRow(rowObj, getDoctors());
 
-  return { ok: true, clashes: clashes, historyEntry: historyEntry, offValue: rowObj.SPV_Off };
+  return { ok: true, clashes: clashes, historyEntry: historyEntry };
 }
 
 /* ---------------- HISTORY ---------------- */
@@ -415,6 +330,40 @@ function getHistory(filters) {
 var RATES_USD = { SPV_Day1: 25, SPV_Day2: 25, SPV_Day3: 25, SPV_Night: 25, HMV_Day: 24, HMV_Night: 20 };
 var KHR_PER_USD = 4000; // 25 USD = 100,000 KHR
 
+// The four distinct 12-hour periods in a day. SPV_Day1/2/3 are three concurrent
+// positions covering the SAME 12-hour daytime period, so they collapse into one
+// paid period. SPV Night is a separate 12-hour period from SPV Day. Same for HMV.
+var PERIOD_GROUPS = [
+  { key: 'SPV_DAY', fields: ['SPV_Day1', 'SPV_Day2', 'SPV_Day3'], clinic: 'SPV' },
+  { key: 'SPV_NIGHT', fields: ['SPV_Night'], clinic: 'SPV' },
+  { key: 'HMV_DAY', fields: ['HMV_Day'], clinic: 'HMV' },
+  { key: 'HMV_NIGHT', fields: ['HMV_Night'], clinic: 'HMV' }
+];
+
+// For ONE schedule row (one day), returns a capped list of paid shifts: at most ONE
+// shift per doctor per 12-HOUR PERIOD per day. Filling several slots within the SAME
+// period (e.g. SPV_Day1 + SPV_Day2, both the same daytime period) is one shift, not two.
+// A doctor covering a DIFFERENT period the same day — SPV day + SPV night, or SPV + HMV —
+// is legitimately working extra hours, so each period they cover is paid.
+function capDailyEarnings(rowObj, doctors) {
+  var buckets = {}; // key: docKey|periodKey
+  PERIOD_GROUPS.forEach(function (group) {
+    group.fields.forEach(function (f) {
+      var name = rowObj[f];
+      if (!name) return;
+      var doc = findDoctorByName(doctors, name);
+      var docKey = doc ? doc.ID : name;
+      var key = docKey + '|' + group.key;
+      var rate = RATES_USD[f] || 0;
+      var displayName = doc ? (group.clinic === 'SPV' ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
+      if (!buckets[key] || rate > buckets[key].rate) {
+        buckets[key] = { docKey: docKey, displayName: displayName, clinic: group.clinic, period: group.key, rate: rate };
+      }
+    });
+  });
+  return Object.keys(buckets).map(function (k) { return buckets[k]; });
+}
+
 function getPayrollSummary(year, month) {
   var rows = getMonthSchedule(year, month);
   var doctors = getDoctors();
@@ -422,17 +371,11 @@ function getPayrollSummary(year, month) {
   var hmvCounts = {};
 
   rows.forEach(function (r) {
-    SLOT_FIELDS.forEach(function (f) {
-      var name = r[f];
-      if (!name) return;
-      var doc = findDoctorByName(doctors, name);
-      var key = doc ? doc.ID : name;
-      var isSpv = f.indexOf('SPV') === 0;
-      var displayName = doc ? (isSpv ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
-      var bucket = isSpv ? spvCounts : hmvCounts;
-      if (!bucket[key]) bucket[key] = { name: displayName, shifts: 0, usd: 0 };
-      bucket[key].shifts++;
-      bucket[key].usd += RATES_USD[f] || 0;
+    capDailyEarnings(r, doctors).forEach(function (e) {
+      var bucket = e.clinic === 'SPV' ? spvCounts : hmvCounts;
+      if (!bucket[e.docKey]) bucket[e.docKey] = { name: e.displayName, shifts: 0, usd: 0 };
+      bucket[e.docKey].shifts++;
+      bucket[e.docKey].usd += e.rate;
     });
   });
 
@@ -458,45 +401,103 @@ function getPayrollSummary(year, month) {
   return { spv: toList(spvCounts), hmv: toList(hmvCounts), linda: linda };
 }
 
+// Your (Linda's) personal duty income for one day: which clinic(s) you worked,
+// whether it was a 12-hour (one clinic) or 24-hour (both clinics) day, and the $ amount —
+// using the same capped-per-clinic rule as payroll.
+function getMyDutyDay(rowObj, doctors) {
+  var lindaDoc = doctors.filter(function (d) { return d.isLinda; })[0];
+  if (!lindaDoc) return null;
+  var mine = capDailyEarnings(rowObj, doctors).filter(function (e) { return e.docKey === lindaDoc.ID; });
+  if (!mine.length) return null;
+  var usd = mine.reduce(function (s, e) { return s + e.rate; }, 0);
+  return {
+    clinics: mine.map(function (e) { return e.clinic; }),
+    periods: mine.map(function (e) { return e.period; }),
+    hours: mine.length * 12,
+    usd: usd,
+    khr: usd * KHR_PER_USD
+  };
+}
+
 function getDayPay(rowObj) {
+  var doctors = getDoctors();
   var usd = 0;
-  SLOT_FIELDS.forEach(function (f) { if (rowObj[f]) usd += RATES_USD[f] || 0; });
+  capDailyEarnings(rowObj, doctors).forEach(function (e) { usd += e.rate; });
   return { usd: usd, khr: usd * KHR_PER_USD };
 }
 
-/* ---------------- INIT DATA FOR CLIENT ---------------- */
+/* ---------------- INCOME / EXPENSES ---------------- */
 
+function getFinanceRows(sheetName) {
+  var sh = SS.getSheetByName(sheetName);
+  return sheetToObjects(sh).map(function (r) { r.Date = fmtDate(r.Date); return r; });
+}
+
+function getAllIncome() { return getFinanceRows(SHEET_INCOME); }
+function getAllExpenses() { return getFinanceRows(SHEET_EXPENSES); }
+
+function addFinanceEntry(sheetName, entry) {
+  if (!entry || !entry.date || !entry.category || !(entry.amountUsd > 0)) {
+    return { ok: false, error: 'invalid entry' };
+  }
+  var sh = SS.getSheetByName(sheetName);
+  var id = 'F' + new Date().getTime();
+  var now = new Date();
+  var user = Session.getActiveUser().getEmail() || 'unknown';
+  sh.appendRow([id, entry.date, entry.category, entry.description || '', entry.amountUsd, now, user]);
+  return {
+    ok: true,
+    entry: {
+      ID: id, Date: entry.date, Category: entry.category,
+      Description: entry.description || '', AmountUSD: entry.amountUsd
+    }
+  };
+}
+
+function deleteFinanceEntry(sheetName, id) {
+  var sh = SS.getSheetByName(sheetName);
+  var data = sh.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) {
+    if (data[r][0] === id) { sh.deleteRow(r + 1); return { ok: true }; }
+  }
+  return { ok: false, error: 'not found' };
+}
+
+function addIncome(entry) { return addFinanceEntry(SHEET_INCOME, entry); }
+function addExpense(entry) { return addFinanceEntry(SHEET_EXPENSES, entry); }
+function deleteIncome(id) { return deleteFinanceEntry(SHEET_INCOME, id); }
+function deleteExpense(id) { return deleteFinanceEntry(SHEET_EXPENSES, id); }
+
+/* ---------------- BUNDLED INIT DATA (used by doGet at page load) ---------------- */
+
+function getAllData() {
+  var today = new Date();
+  var histSh = SS.getSheetByName(SHEET_HISTORY);
+  var allHistory = sheetToObjects(histSh);
+  allHistory.forEach(function (r) {
+    r['ពេលវេលា'] = Utilities.formatDate(new Date(r['ពេលវេលា']), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  });
+  allHistory.sort(function (a, b) { return b['ពេលវេលា'].localeCompare(a['ពេលវេលា']); });
+  allHistory = allHistory.slice(0, 300);
+
+  return {
+    doctors: getDoctors(),
+    schedule: getFullSchedule(),   // every month ever entered — current + old — all embedded
+    history: allHistory,
+    income: getAllIncome(),
+    expenses: getAllExpenses(),
+    rates: RATES_USD,
+    khrPerUsd: KHR_PER_USD,
+    year: today.getFullYear(),
+    month: today.getMonth() + 1
+  };
+}
+
+// Kept for optional manual "refresh from sheet" use, and for backward compatibility.
 function getInitialData() {
   var today = new Date();
   return {
     doctors: getDoctors(), year: today.getFullYear(), month: today.getMonth() + 1,
     rates: RATES_USD, khrPerUsd: KHR_PER_USD
-  };
-}
-
-// Loads everything once — used by doGet() (embedded) and the "ទាញទិន្នន័យចុងក្រោយ" refresh link.
-// Returns the FULL schedule history (all months ever entered) so the client can page
-// between months locally without extra server round-trips.
-function getAllData() {
-  var today = new Date();
-  var scheduleSh = SS.getSheetByName(SHEET_SCHEDULE);
-  var scheduleRows = sheetToObjects(scheduleSh).map(function (r) { r.Date = fmtDate(r.Date); return r; });
-
-  var histSh = SS.getSheetByName(SHEET_HISTORY);
-  var historyRows = sheetToObjects(histSh);
-  historyRows.forEach(function (r) {
-    r['ពេលវេលា'] = Utilities.formatDate(new Date(r['ពេលវេលា']), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
-  });
-  historyRows.sort(function (a, b) { return b['ពេលវេលា'].localeCompare(a['ពេលវេលា']); });
-  historyRows = historyRows.slice(0, 300);
-
-  return {
-    doctors: getDoctors(),
-    schedule: scheduleRows,
-    history: historyRows,
-    rates: RATES_USD,
-    khrPerUsd: KHR_PER_USD,
-    year: today.getFullYear(),
-    month: today.getMonth() + 1
   };
 }
