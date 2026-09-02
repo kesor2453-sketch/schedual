@@ -1245,6 +1245,7 @@ function renderIncomeTable() {
   var html = '<thead><tr><th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
     '<th class="group-spv">SPV Consult</th><th class="group-spv">SPV IPD</th>' +
     '<th class="group-hmv">HMV Consult</th><th class="group-hmv">HMV IPD</th>' +
+    '<th>ចំណូល Consult</th><th>ចំណូល IPD</th>' +
     '<th>ចំណូលវេន</th><th>សរុបថ្ងៃ</th></tr></thead><tbody>';
   var anyRow = false;
   var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
@@ -1256,8 +1257,9 @@ function renderIncomeTable() {
     anyRow = true;
     var entry = incomeRowForDate(dateStr) || {};
     var dow = new Date(y, m - 1, d).getDay();
-    var consultIpdUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.SPV_IPD || 0) * rSpv.ipd +
-      (entry.HMV_Consult || 0) * rHmv.consult + (entry.HMV_IPD || 0) * rHmv.ipd;
+    var consultUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.HMV_Consult || 0) * rHmv.consult;
+    var ipdUsd = (entry.SPV_IPD || 0) * rSpv.ipd + (entry.HMV_IPD || 0) * rHmv.ipd;
+    var consultIpdUsd = consultUsd + ipdUsd;
 
     var clinics = lindaClinicsForRow(rowForDate(dateStr));
     var worksSpv = clinics.indexOf('SPV') !== -1;
@@ -1285,10 +1287,12 @@ function renderIncomeTable() {
       '<td>' + spvIpdCell + '</td>' +
       '<td>' + hmvConsultCell + '</td>' +
       '<td>' + hmvIpdCell + '</td>' +
+      '<td style="font-weight:600;">' + fmtUsd(consultUsd) + '</td>' +
+      '<td style="font-weight:600;">' + fmtUsd(ipdUsd) + '</td>' +
       '<td style="font-weight:600;color:var(--sub);">' + fmtUsd(dutyUsd) + '</td>' +
       '<td style="font-weight:700;">' + fmtUsd(dayTotal) + '</td></tr>';
   }
-  if (!anyRow) html += '<tr><td colspan="7" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
+  if (!anyRow) html += '<tr><td colspan="9" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
   html += '</tbody>';
   document.getElementById('incomeEntriesTable').innerHTML = html;
 }
