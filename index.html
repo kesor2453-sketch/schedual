@@ -275,10 +275,8 @@
   <!-- INCOME (Consult + IPD) -->
   <div class="panel" id="panel-income">
     <div class="card">
-      <details id="ratesDetails">
-        <summary style="font-weight:700;font-size:15px;cursor:pointer;">អត្រា Consult / IPD (កែបានផ្ទាល់) — ចុចដើម្បីបង្ហាញ</summary>
-        <div class="pay-grid" id="incomeRatesWrap" style="margin-top:12px;"></div>
-      </details>
+      <div style="font-weight:700;font-size:15px;margin-bottom:12px;">អត្រា Consult / IPD (កែបានផ្ទាល់)</div>
+      <div class="pay-grid" id="incomeRatesWrap"></div>
     </div>
 
     <div class="card">
@@ -955,53 +953,23 @@ function bindDoctorForm() {
 }
 
 /* ---------------- PAYROLL (computed entirely client-side from embedded schedule) ---------------- */
-// The four distinct 12-hour periods in a day. SPV_Day1/2/3 are three concurrent
-// positions covering the SAME 12-hour daytime period, so they collapse into one
-// paid period. SPV Night is a separate 12-hour period from SPV Day. Same idea
-// for HMV Day vs HMV Night. A doctor covering more than one PERIOD the same day
-// (SPV day+night, or SPV+HMV) is legitimately working extra hours and gets
-// paid for each period.
-var PERIOD_GROUPS = [
-  { key: 'SPV_DAY', fields: ['SPV_Day1', 'SPV_Day2', 'SPV_Day3'], clinic: 'SPV' },
-  { key: 'SPV_NIGHT', fields: ['SPV_Night'], clinic: 'SPV' },
-  { key: 'HMV_DAY', fields: ['HMV_Day'], clinic: 'HMV' },
-  { key: 'HMV_NIGHT', fields: ['HMV_Night'], clinic: 'HMV' }
-];
-
-// For ONE schedule row (one day), returns a capped list of paid shifts: at most
-// ONE shift per doctor per 12-HOUR PERIOD per day. Filling several slots within
-// the SAME period (e.g. SPV_Day1 + SPV_Day2, both the same daytime period) is
-// one shift, not two.
-function capDailyEarningsClient(rowObj) {
-  var buckets = {}; // key: docKey|periodKey
-  PERIOD_GROUPS.forEach(function (group) {
-    group.fields.forEach(function (f) {
-      var name = rowObj[f];
-      if (!name) return;
-      var doc = findDoctorByNameClient(name);
-      var docKey = doc ? doc.ID : name;
-      var key = docKey + '|' + group.key;
-      var rate = STATE.rates[f] || 0;
-      var displayName = doc ? (group.clinic === 'SPV' ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
-      if (!buckets[key] || rate > buckets[key].rate) {
-        buckets[key] = { docKey: docKey, displayName: displayName, clinic: group.clinic, period: group.key, rate: rate };
-      }
-    });
-  });
-  return Object.keys(buckets).map(function (k) { return buckets[k]; });
-}
-
 function computePayrollClient(year, month) {
   var prefix = year + '-' + pad2(month);
   var rows = STATE.scheduleAll.filter(function (r) { return String(r.Date).indexOf(prefix) === 0; });
   var spvCounts = {}, hmvCounts = {};
 
   rows.forEach(function (r) {
-    capDailyEarningsClient(r).forEach(function (e) {
-      var bucket = e.clinic === 'SPV' ? spvCounts : hmvCounts;
-      if (!bucket[e.docKey]) bucket[e.docKey] = { name: e.displayName, shifts: 0, usd: 0 };
-      bucket[e.docKey].shifts++;
-      bucket[e.docKey].usd += e.rate;
+    ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'].forEach(function (f) {
+      var name = r[f];
+      if (!name) return;
+      var doc = findDoctorByNameClient(name);
+      var key = doc ? doc.ID : name;
+      var isSpv = f.indexOf('SPV') === 0;
+      var displayName = doc ? (isSpv ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
+      var bucket = isSpv ? spvCounts : hmvCounts;
+      if (!bucket[key]) bucket[key] = { name: displayName, shifts: 0, usd: 0 };
+      bucket[key].shifts++;
+      bucket[key].usd += STATE.rates[f] || 0;
     });
   });
 
@@ -1025,21 +993,6 @@ function computePayrollClient(year, month) {
   }
 
   return { spv: toList(spvCounts), hmv: toList(hmvCounts), linda: linda };
-}
-
-// Your (Linda's) duty/shift pay for ONE date — same capped-per-period rule as
-// payroll above. Returns { usd, clinics } or null if you didn't work that day.
-function getMyDutyPayForDate(dateStr) {
-  var linda = lindaDoctor();
-  if (!linda) return null;
-  var row = rowForDate(dateStr);
-  if (!row) return null;
-  var mine = capDailyEarningsClient(row).filter(function (e) { return e.docKey === linda.ID; });
-  if (!mine.length) return null;
-  var usd = mine.reduce(function (s, e) { return s + e.rate; }, 0);
-  var clinics = [];
-  mine.forEach(function (e) { if (clinics.indexOf(e.clinic) === -1) clinics.push(e.clinic); });
-  return { usd: usd, clinics: clinics };
 }
 
 function loadPayroll() {
@@ -1245,7 +1198,7 @@ function renderIncomeTable() {
   var html = '<thead><tr><th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
     '<th class="group-spv">SPV Consult</th><th class="group-spv">SPV IPD</th>' +
     '<th class="group-hmv">HMV Consult</th><th class="group-hmv">HMV IPD</th>' +
-    '<th>ចំណូលវេន</th><th>សរុបថ្ងៃ</th></tr></thead><tbody>';
+    '<th>ចំណូលថ្ងៃ</th></tr></thead><tbody>';
   var anyRow = false;
   var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
   var rHmv = STATE.incomeRates.HMV || { consult: 0, ipd: 0 };
@@ -1256,16 +1209,10 @@ function renderIncomeTable() {
     anyRow = true;
     var entry = incomeRowForDate(dateStr) || {};
     var dow = new Date(y, m - 1, d).getDay();
-    var consultIpdUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.SPV_IPD || 0) * rSpv.ipd +
+    var dayUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.SPV_IPD || 0) * rSpv.ipd +
       (entry.HMV_Consult || 0) * rHmv.consult + (entry.HMV_IPD || 0) * rHmv.ipd;
 
     var clinics = lindaClinicsForRow(rowForDate(dateStr));
-    var worksSpv = clinics.indexOf('SPV') !== -1;
-    var worksHmv = clinics.indexOf('HMV') !== -1;
-    var dutyPay = getMyDutyPayForDate(dateStr);
-    var dutyUsd = dutyPay ? dutyPay.usd : 0;
-    var dayTotal = consultIpdUsd + dutyUsd;
-
     var badges = clinics.map(function (c) {
       var bg = c === 'SPV' ? 'var(--spv-bg)' : 'var(--hmv-bg)';
       var color = c === 'SPV' ? 'var(--spv)' : 'var(--hmv)';
@@ -1273,22 +1220,14 @@ function renderIncomeTable() {
         ';font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;">' + c + '</span>';
     }).join('');
 
-    // Only show an editable box for the clinic(s) actually worked that day —
-    // the other clinic just shows a dash, since there's nothing to log there.
-    var spvConsultCell = worksSpv ? incomeNumberInput(dateStr, 'SPV_Consult', entry.SPV_Consult) : '<span style="color:#c3c9d3;">—</span>';
-    var spvIpdCell = worksSpv ? incomeNumberInput(dateStr, 'SPV_IPD', entry.SPV_IPD) : '<span style="color:#c3c9d3;">—</span>';
-    var hmvConsultCell = worksHmv ? incomeNumberInput(dateStr, 'HMV_Consult', entry.HMV_Consult) : '<span style="color:#c3c9d3;">—</span>';
-    var hmvIpdCell = worksHmv ? incomeNumberInput(dateStr, 'HMV_IPD', entry.HMV_IPD) : '<span style="color:#c3c9d3;">—</span>';
-
     html += '<tr><td class="date-cell">' + d + '/' + pad2(m) + badges + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
-      '<td>' + spvConsultCell + '</td>' +
-      '<td>' + spvIpdCell + '</td>' +
-      '<td>' + hmvConsultCell + '</td>' +
-      '<td>' + hmvIpdCell + '</td>' +
-      '<td style="font-weight:600;color:var(--sub);">' + fmtUsd(dutyUsd) + '</td>' +
-      '<td style="font-weight:700;">' + fmtUsd(dayTotal) + '</td></tr>';
+      '<td>' + incomeNumberInput(dateStr, 'SPV_Consult', entry.SPV_Consult) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'SPV_IPD', entry.SPV_IPD) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'HMV_Consult', entry.HMV_Consult) + '</td>' +
+      '<td>' + incomeNumberInput(dateStr, 'HMV_IPD', entry.HMV_IPD) + '</td>' +
+      '<td style="font-weight:700;">' + fmtUsd(dayUsd) + '</td></tr>';
   }
-  if (!anyRow) html += '<tr><td colspan="7" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
+  if (!anyRow) html += '<tr><td colspan="6" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
   html += '</tbody>';
   document.getElementById('incomeEntriesTable').innerHTML = html;
 }
