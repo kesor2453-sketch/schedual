@@ -361,7 +361,8 @@ var STATE = {
   payYear: null,
   payMonth: null,
   editing: null,
-  incomeRates: INCOME_RATES_DEFAULT,
+  incomeRatesByMonth: {},   // { 'YYYY-MM': { SPV:{consult,ipd}, HMV:{consult,ipd} } }
+  incomeExtraByMonth: {},   // { 'YYYY-MM': { SPV_Consult, SPV_IPD, HMV_Consult, HMV_IPD } } — not tied to a specific day
   incomeEntries: [],
   incomeYear: null,
   incomeMonth: null
@@ -399,7 +400,7 @@ function persistRemoteState() {
 
 function persistIncomeState() {
   setDoc(incomeDocRef, {
-    rates: STATE.incomeRates, entries: STATE.incomeEntries
+    ratesByMonth: STATE.incomeRatesByMonth, entries: STATE.incomeEntries, extraByMonth: STATE.incomeExtraByMonth
   }).catch(function (err) {
     showToast('⚠ មិនអាចផ្ញើចំណូលទៅ Firestore បានទេ៖ ' + err.message);
   });
@@ -449,10 +450,18 @@ document.addEventListener('DOMContentLoaded', function () {
   onSnapshot(incomeDocRef, function (snap) {
     if (snap.exists()) {
       var d = snap.data();
-      STATE.incomeRates = d.rates || INCOME_RATES_DEFAULT;
+      STATE.incomeRatesByMonth = d.ratesByMonth || {};
       STATE.incomeEntries = d.entries || [];
+      STATE.incomeExtraByMonth = d.extraByMonth || {};
+      // backward-compat: an older doc may only have a flat "rates" field —
+      // seed it as this month's rate so nothing silently resets to $0.
+      if (!Object.keys(STATE.incomeRatesByMonth).length && d.rates) {
+        var seedKey = monthKey(new Date().getFullYear(), new Date().getMonth() + 1);
+        STATE.incomeRatesByMonth[seedKey] = d.rates;
+      }
     } else if (!incomeFirstSnapshotHandled) {
-      STATE.incomeRates = INCOME_RATES_DEFAULT;
+      STATE.incomeRatesByMonth = {};
+      STATE.incomeExtraByMonth = {};
       persistIncomeState();
     }
     incomeFirstSnapshotHandled = true;
@@ -1158,18 +1167,58 @@ function updateIncomeCell(dateStr, field, value) {
 }
 window.updateIncomeCell = updateIncomeCell;
 
+function monthKey(year, month) { return year + '-' + pad2(month); }
+
+// Rates for a given month: uses that month's own rate if it's ever been set;
+// otherwise carries forward the most recent EARLIER month's rate (so a new
+// month isn't silently blank), and only falls back to the hard default if
+// no rate has ever been set at all. Editing one month never touches another.
+function getRatesForMonth(year, month) {
+  var key = monthKey(year, month);
+  if (STATE.incomeRatesByMonth[key]) return STATE.incomeRatesByMonth[key];
+  var earlierKeys = Object.keys(STATE.incomeRatesByMonth).filter(function (k) { return k < key; }).sort();
+  if (earlierKeys.length) return STATE.incomeRatesByMonth[earlierKeys[earlierKeys.length - 1]];
+  return INCOME_RATES_DEFAULT;
+}
+
+function getExtraForMonth(year, month) {
+  var key = monthKey(year, month);
+  return STATE.incomeExtraByMonth[key] || { SPV_Consult: 0, SPV_IPD: 0, HMV_Consult: 0, HMV_IPD: 0 };
+}
+
+// Edits the CURRENTLY VIEWED income month's rate only — writes a fresh
+// per-month entry (cloned from whatever it was showing) so past months keep
+// their original numbers even if this month's rate changes later.
 function updateIncomeRate(clinic, type, value) {
-  if (!STATE.incomeRates[clinic]) STATE.incomeRates[clinic] = { consult: 0, ipd: 0 };
-  STATE.incomeRates[clinic][type] = Number(value) || 0;
+  var key = monthKey(STATE.incomeYear, STATE.incomeMonth);
+  var current = getRatesForMonth(STATE.incomeYear, STATE.incomeMonth);
+  var updated = JSON.parse(JSON.stringify(current));
+  if (!updated[clinic]) updated[clinic] = { consult: 0, ipd: 0 };
+  updated[clinic][type] = Number(value) || 0;
+  STATE.incomeRatesByMonth[key] = updated;
   persistIncomeState();
   renderIncome();
 }
 window.updateIncomeRate = updateIncomeRate;
 
+// The extra/adjustment line for the currently viewed month — Consult/IPD
+// counts not tied to a specific day, added into that month's total only.
+function updateIncomeExtra(field, value) {
+  var key = monthKey(STATE.incomeYear, STATE.incomeMonth);
+  var current = getExtraForMonth(STATE.incomeYear, STATE.incomeMonth);
+  var updated = Object.assign({}, current);
+  updated[field] = Math.max(0, Number(value) || 0);
+  STATE.incomeExtraByMonth[key] = updated;
+  persistIncomeState();
+  renderIncome();
+}
+window.updateIncomeExtra = updateIncomeExtra;
+
 function renderIncomeRates() {
   var clinics = ['SPV', 'HMV'];
+  var rates = getRatesForMonth(STATE.incomeYear, STATE.incomeMonth);
   var html = clinics.map(function (c) {
-    var r = STATE.incomeRates[c] || { consult: 0, ipd: 0 };
+    var r = rates[c] || { consult: 0, ipd: 0 };
     var cls = c === 'SPV' ? 'spv' : 'hmv';
     return '<div class="pay-col"><h3 class="' + cls + '">' + c + '</h3>' +
       '<div class="field" style="margin-bottom:10px;"><label>អត្រា Consult ($/នាក់)</label>' +
@@ -1185,8 +1234,9 @@ function computeIncomeSummary(year, month) {
   var prefix = year + '-' + pad2(month);
   var entries = STATE.incomeEntries.filter(function (e) { return String(e.Date).indexOf(prefix) === 0; });
   var byClinic = { SPV: { consult: 0, ipd: 0, usd: 0 }, HMV: { consult: 0, ipd: 0, usd: 0 } };
-  var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
-  var rHmv = STATE.incomeRates.HMV || { consult: 0, ipd: 0 };
+  var rates = getRatesForMonth(year, month);
+  var rSpv = rates.SPV || { consult: 0, ipd: 0 };
+  var rHmv = rates.HMV || { consult: 0, ipd: 0 };
 
   entries.forEach(function (e) {
     byClinic.SPV.consult += e.SPV_Consult || 0;
@@ -1196,6 +1246,16 @@ function computeIncomeSummary(year, month) {
     byClinic.HMV.ipd += e.HMV_IPD || 0;
     byClinic.HMV.usd += (e.HMV_Consult || 0) * rHmv.consult + (e.HMV_IPD || 0) * rHmv.ipd;
   });
+
+  // + extra/adjustment counts for the month, not tied to a specific day —
+  // included in the total the same as any day's entry.
+  var extra = getExtraForMonth(year, month);
+  byClinic.SPV.consult += extra.SPV_Consult || 0;
+  byClinic.SPV.ipd += extra.SPV_IPD || 0;
+  byClinic.SPV.usd += (extra.SPV_Consult || 0) * rSpv.consult + (extra.SPV_IPD || 0) * rSpv.ipd;
+  byClinic.HMV.consult += extra.HMV_Consult || 0;
+  byClinic.HMV.ipd += extra.HMV_IPD || 0;
+  byClinic.HMV.usd += (extra.HMV_Consult || 0) * rHmv.consult + (extra.HMV_IPD || 0) * rHmv.ipd;
 
   Object.keys(byClinic).forEach(function (c) { byClinic[c].khr = byClinic[c].usd * STATE.khrPerUsd; });
   return byClinic;
@@ -1239,6 +1299,11 @@ function incomeNumberInput(dateStr, field, val) {
     '" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + field + '\',this.value)">';
 }
 
+function extraNumberInput(field, val) {
+  return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
+    '" onchange="updateIncomeExtra(\'' + field + '\',this.value)">';
+}
+
 function renderIncomeTable() {
   var y = STATE.incomeYear, m = STATE.incomeMonth;
   var nDays = daysInMonth(y, m);
@@ -1248,8 +1313,9 @@ function renderIncomeTable() {
     '<th>ចំណូល Consult+IPD</th>' +
     '<th>ចំណូលវេន</th><th>សរុបថ្ងៃ</th></tr></thead><tbody>';
   var anyRow = false;
-  var rSpv = STATE.incomeRates.SPV || { consult: 0, ipd: 0 };
-  var rHmv = STATE.incomeRates.HMV || { consult: 0, ipd: 0 };
+  var rates = getRatesForMonth(y, m);
+  var rSpv = rates.SPV || { consult: 0, ipd: 0 };
+  var rHmv = rates.HMV || { consult: 0, ipd: 0 };
 
   for (var d = 1; d <= nDays; d++) {
     var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
@@ -1291,6 +1357,23 @@ function renderIncomeTable() {
       '<td style="font-weight:700;">' + fmtUsd(dayTotal) + '</td></tr>';
   }
   if (!anyRow) html += '<tr><td colspan="8" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
+
+  // Extra/adjustment row, after the last day of the month — Consult/IPD
+  // counts for both clinics not tied to any specific day, folded into the
+  // month's total the same as any day's entry.
+  var extra = getExtraForMonth(y, m);
+  var extraUsd = (extra.SPV_Consult || 0) * rSpv.consult + (extra.SPV_IPD || 0) * rSpv.ipd +
+    (extra.HMV_Consult || 0) * rHmv.consult + (extra.HMV_IPD || 0) * rHmv.ipd;
+  html += '<tr style="background:#f7f8fb;">' +
+    '<td class="date-cell" style="font-style:italic;color:var(--sub);">+ បន្ថែម (ក្រៅតារាងថ្ងៃ)</td>' +
+    '<td>' + extraNumberInput('SPV_Consult', extra.SPV_Consult) + '</td>' +
+    '<td>' + extraNumberInput('SPV_IPD', extra.SPV_IPD) + '</td>' +
+    '<td>' + extraNumberInput('HMV_Consult', extra.HMV_Consult) + '</td>' +
+    '<td>' + extraNumberInput('HMV_IPD', extra.HMV_IPD) + '</td>' +
+    '<td style="font-weight:600;">' + fmtUsd(extraUsd) + '</td>' +
+    '<td style="color:#c3c9d3;">—</td>' +
+    '<td style="font-weight:700;">' + fmtUsd(extraUsd) + '</td></tr>';
+
   html += '</tbody>';
   document.getElementById('incomeEntriesTable').innerHTML = html;
 }
