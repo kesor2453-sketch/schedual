@@ -190,6 +190,21 @@
     border-radius:12px;margin-bottom:16px;font-size:13px;line-height:1.6;
   }
   .setup-banner code{background:#fff;padding:1px 6px;border-radius:5px;font-size:12px;}
+
+  /* Clinic income ledger */
+  .ledger-input{
+    width:100%;border:1px solid transparent;background:none;font-family:inherit;font-size:12.3px;
+    padding:4px 5px;border-radius:6px;color:var(--ink);
+  }
+  .ledger-input:hover, .ledger-input:focus{border-color:var(--line);background:#fff;}
+  .ledger-del{
+    border:none;background:none;color:var(--sub);cursor:pointer;font-size:15px;padding:2px 6px;border-radius:6px;
+  }
+  .ledger-del:hover{background:var(--off-bg);color:var(--off);}
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;}
+  .stat{background:#fbfcfe;border:1px solid var(--line);border-radius:11px;padding:10px 16px;min-width:120px;}
+  .stat .n{font-size:17px;font-weight:700;}
+  .stat .l{font-size:11px;color:var(--sub);margin-top:2px;}
 </style>
 </head>
 <body>
@@ -208,7 +223,7 @@
       <div class="tab" data-panel="panel-doctors">គ្រូពេទ្យ</div>
       <div class="tab" data-panel="panel-payroll">ប្រាក់ខែ</div>
       <div class="tab" data-panel="panel-income">ចំណូល</div>
-      <div class="tab" data-panel="panel-history">ប្រវត្តិកែប្រែ</div>
+      <div class="tab" data-panel="panel-history">លុយធ្វើការគ្លីនិកសរុប</div>
     </div>
   </header>
 
@@ -305,11 +320,30 @@
     </div>
   </div>
 
-  <!-- HISTORY -->
+  <!-- CLINIC TOTAL (manual past-income ledger, was History) -->
   <div class="panel" id="panel-history">
     <div class="card">
-      <div style="font-weight:700;font-size:15px;margin-bottom:10px;">ប្រវត្តិកែប្រែ (ចុងក្រោយ 300)</div>
-      <div id="histWrap"></div>
+      <div class="month-nav">
+        <div class="left">
+          <button class="nav-btn" id="prevMonthClinic">‹</button>
+          <div class="month-label" id="monthLabelClinic">—</div>
+          <button class="nav-btn" id="nextMonthClinic">›</button>
+          <select class="today-btn" id="monthPickerClinic" style="cursor:pointer;"></select>
+        </div>
+      </div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px;">លុយធ្វើការគ្លីនិកសរុប</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">កំណត់ត្រាចំណូលពីការងារគ្លីនិកមុនៗ បញ្ចូលដោយដៃ — ដាក់ឈ្មោះគ្លីនិកបានសេរី និងកែ/លុបបានគ្រប់ពេល</div>
+      <div id="clinicStatsWrap" style="margin-bottom:14px;"></div>
+      <div style="overflow-x:auto;">
+        <table class="sched" id="clinicLedgerTable"></table>
+      </div>
+      <form class="add-doc" id="addClinicIncomeForm" style="margin-top:16px;">
+        <input type="date" id="clinicDate" required>
+        <input type="text" id="clinicName" placeholder="ឈ្មោះគ្លីនិក — ឧ. គ្លីនិកឯកជន X" required>
+        <input type="text" id="clinicDescription" placeholder="ព័ត៌មានលម្អិត (ស្រេចចិត្ត)">
+        <input type="number" id="clinicAmount" placeholder="$ ចំនួន" min="0" step="0.01" required>
+        <button type="submit" id="addClinicIncomeBtn">+ បន្ថែមចំណូល</button>
+      </form>
     </div>
   </div>
 
@@ -365,7 +399,10 @@ var STATE = {
   incomeExtraByMonth: {},   // { 'YYYY-MM': { SPV_Consult, SPV_IPD, HMV_Consult, HMV_IPD } } — not tied to a specific day
   incomeEntries: [],
   incomeYear: null,
-  incomeMonth: null
+  incomeMonth: null,
+  pastIncomeEntries: [],   // manual ledger: { ID, Date, Clinic, Description, AmountUSD }
+  clinicYear: null,
+  clinicMonth: null
 };
 
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
@@ -400,7 +437,8 @@ function persistRemoteState() {
 
 function persistIncomeState() {
   setDoc(incomeDocRef, {
-    ratesByMonth: STATE.incomeRatesByMonth, entries: STATE.incomeEntries, extraByMonth: STATE.incomeExtraByMonth
+    ratesByMonth: STATE.incomeRatesByMonth, entries: STATE.incomeEntries, extraByMonth: STATE.incomeExtraByMonth,
+    pastIncome: STATE.pastIncomeEntries
   }).catch(function (err) {
     showToast('⚠ មិនអាចផ្ញើចំណូលទៅ Firestore បានទេ៖ ' + err.message);
   });
@@ -418,6 +456,8 @@ document.addEventListener('DOMContentLoaded', function () {
   bindManualBackup();
   bindIncomeForm();
   bindIncomeMonthNav();
+  bindClinicMonthNav();
+  bindClinicIncomeForm();
 
   document.getElementById('scheduleWrap').innerHTML =
     '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
@@ -440,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function () {
     loadSchedule();
     renderDoctors();
     if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
-    if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+    if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
   }, function (err) {
     document.getElementById('scheduleWrap').innerHTML =
       '<div class="empty-state">⚠ មិនអាចភ្ជាប់ Firestore បានទេ៖ ' + escapeHtml(err.message) +
@@ -453,6 +493,7 @@ document.addEventListener('DOMContentLoaded', function () {
       STATE.incomeRatesByMonth = d.ratesByMonth || {};
       STATE.incomeEntries = d.entries || [];
       STATE.incomeExtraByMonth = d.extraByMonth || {};
+      STATE.pastIncomeEntries = d.pastIncome || [];
       // backward-compat: an older doc may only have a flat "rates" field —
       // seed it as this month's rate so nothing silently resets to $0.
       if (!Object.keys(STATE.incomeRatesByMonth).length && d.rates) {
@@ -535,7 +576,7 @@ function bindTabs() {
       t.classList.add('active');
       document.getElementById(t.dataset.panel).classList.add('active');
       if (t.dataset.panel === 'panel-payroll') loadPayroll();
-      if (t.dataset.panel === 'panel-history') renderHistory();
+      if (t.dataset.panel === 'panel-history') renderClinicLedger();
       if (t.dataset.panel === 'panel-doctors') renderDoctors();
       if (t.dataset.panel === 'panel-income') renderIncome();
     });
@@ -918,7 +959,7 @@ function saveCellValue(date, field, value) {
     'អ្នកប្រើ': user
   });
   if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
-  if (document.getElementById('panel-history').classList.contains('active')) renderHistory();
+  if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
 
   persistRemoteState();
   scheduleBackup();
@@ -1394,27 +1435,118 @@ function refreshIncomeMonthPicker() {
 }
 
 /* ---------------- HISTORY (rendered entirely from memory) ---------------- */
-function renderHistory() {
-  var rows = STATE.historyAll;
-  if (!rows || !rows.length) {
-    document.getElementById('histWrap').innerHTML = '<div class="empty-state">មិនទាន់មានប្រវត្តិកែប្រែទេ</div>';
-    return;
-  }
+/* ---------------- CLINIC INCOME LEDGER (manual, editable, free-text clinic name) ---------------- */
+function bindClinicMonthNav() {
+  document.getElementById('prevMonthClinic').addEventListener('click', function () { shiftClinicMonth(-1); });
+  document.getElementById('nextMonthClinic').addEventListener('click', function () { shiftClinicMonth(1); });
+  document.getElementById('monthPickerClinic').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.clinicYear = Number(parts[0]); STATE.clinicMonth = Number(parts[1]);
+    renderClinicLedger();
+  });
+}
+
+function shiftClinicMonth(delta) {
+  var m = STATE.clinicMonth + delta, y = STATE.clinicYear;
+  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+  STATE.clinicYear = y; STATE.clinicMonth = m;
+  renderClinicLedger();
+}
+
+function refreshClinicMonthPicker() {
+  var set = {};
+  STATE.pastIncomeEntries.forEach(function (r) {
+    var d = String(r.Date || '');
+    if (d.length >= 7) set[d.slice(0, 7)] = true;
+  });
+  var now = new Date();
+  set[now.getFullYear() + '-' + pad2(now.getMonth() + 1)] = true;
+  var months = Object.keys(set).sort().reverse();
+  var cur = STATE.clinicYear + '-' + pad2(STATE.clinicMonth);
+  document.getElementById('monthPickerClinic').innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
+}
+
+function bindClinicIncomeForm() {
+  document.getElementById('addClinicIncomeForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var date = document.getElementById('clinicDate').value;
+    var clinic = document.getElementById('clinicName').value.trim();
+    var description = document.getElementById('clinicDescription').value.trim();
+    var amount = parseFloat(document.getElementById('clinicAmount').value);
+    if (!date || !clinic || !(amount > 0)) { showToast('សូមបំពេញព័ត៌មានឲ្យគ្រប់'); return; }
+
+    STATE.pastIncomeEntries.push({
+      ID: 'CI' + Date.now(), Date: date, Clinic: clinic, Description: description, AmountUSD: amount
+    });
+    persistIncomeState();
+    document.getElementById('addClinicIncomeForm').reset();
+    var todayStr = new Date().toISOString().slice(0, 10);
+    document.getElementById('clinicDate').value = todayStr;
+    showToast('បន្ថែមចំណូលរួចរាល់ ✓');
+
+    var ym = date.slice(0, 7).split('-');
+    STATE.clinicYear = Number(ym[0]); STATE.clinicMonth = Number(ym[1]);
+    renderClinicLedger();
+  });
+  var todayStr = new Date().toISOString().slice(0, 10);
+  document.getElementById('clinicDate').value = todayStr;
+}
+
+function updatePastIncomeField(id, field, value) {
+  var entry = STATE.pastIncomeEntries.filter(function (e) { return e.ID === id; })[0];
+  if (!entry) return;
+  entry[field] = field === 'AmountUSD' ? Math.max(0, Number(value) || 0) : value;
+  persistIncomeState();
+  renderClinicLedger();
+}
+window.updatePastIncomeField = updatePastIncomeField;
+
+function deletePastIncome(id) {
+  STATE.pastIncomeEntries = STATE.pastIncomeEntries.filter(function (e) { return e.ID !== id; });
+  persistIncomeState();
+  renderClinicLedger();
+  showToast('លុបរួចរាល់ ✓');
+}
+window.deletePastIncome = deletePastIncome;
+
+function renderClinicLedger() {
+  if (!STATE.clinicYear) { STATE.clinicYear = STATE.year; STATE.clinicMonth = STATE.month; }
+  document.getElementById('monthLabelClinic').textContent = MONTH_NAMES_KM[STATE.clinicMonth - 1] + ' ' + STATE.clinicYear;
+  refreshClinicMonthPicker();
+
+  var prefix = STATE.clinicYear + '-' + pad2(STATE.clinicMonth);
+  var rows = STATE.pastIncomeEntries
+    .filter(function (r) { return String(r.Date).indexOf(prefix) === 0; })
+    .sort(function (a, b) { return String(b.Date).localeCompare(String(a.Date)); });
+
+  var total = rows.reduce(function (s, r) { return s + (Number(r.AmountUSD) || 0); }, 0);
+  document.getElementById('clinicStatsWrap').innerHTML =
+    '<div class="stat-row">' +
+    '<div class="stat"><div class="n">' + fmtUsd(total) + '</div><div class="l">ចំណូលសរុបខែនេះ</div></div>' +
+    '<div class="stat"><div class="n">' + fmtKhr(total * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
+    '<div class="stat"><div class="n">' + rows.length + '</div><div class="l">ចំនួនកំណត់ត្រា</div></div>' +
+    '</div>';
+
   var body = rows.map(function (r) {
     return '<tr>' +
-      '<td>' + escapeHtml(r['ពេលវេលា']) + '</td>' +
-      '<td>' + escapeHtml(r['កាលបរិច្ឆេទ']) + '</td>' +
-      '<td>' + escapeHtml(SLOT_LABELS[r['វេន (Field)']] || r['វេន (Field)']) + '</td>' +
-      '<td><span class="old-val">' + escapeHtml(r['ឈ្មោះចាស់'] || '(ទទេ)') + '</span>' +
-      '<span class="arrow">→</span>' +
-      '<span class="new-val">' + escapeHtml(r['ឈ្មោះថ្មី'] || '(ទទេ)') + '</span></td>' +
-      '<td>' + escapeHtml(r['អ្នកប្រើ']) + '</td>' +
+      '<td style="min-width:120px;"><input type="date" class="ledger-input" value="' + escapeAttr(r.Date) +
+        '" onchange="updatePastIncomeField(\'' + r.ID + '\',\'Date\',this.value)"></td>' +
+      '<td style="min-width:150px;"><input type="text" class="ledger-input" value="' + escapeAttr(r.Clinic) +
+        '" onchange="updatePastIncomeField(\'' + r.ID + '\',\'Clinic\',this.value)"></td>' +
+      '<td style="min-width:160px;"><input type="text" class="ledger-input" value="' + escapeAttr(r.Description || '') +
+        '" placeholder="—" onchange="updatePastIncomeField(\'' + r.ID + '\',\'Description\',this.value)"></td>' +
+      '<td style="min-width:90px;"><input type="number" min="0" step="0.01" class="ledger-input" style="text-align:right;font-weight:600;" value="' + (r.AmountUSD || 0) +
+        '" onchange="updatePastIncomeField(\'' + r.ID + '\',\'AmountUSD\',this.value)"></td>' +
+      '<td style="width:36px;"><button class="ledger-del" title="លុប" onclick="deletePastIncome(\'' + r.ID + '\')">✕</button></td>' +
       '</tr>';
   }).join('');
-  document.getElementById('histWrap').innerHTML =
-    '<div style="overflow-x:auto;"><table class="hist"><thead><tr>' +
-    '<th>ពេលវេលា</th><th>កាលបរិច្ឆេទ</th><th>វេន</th><th>ការផ្លាស់ប្ដូរ</th><th>អ្នកប្រើ</th>' +
-    '</tr></thead><tbody>' + body + '</tbody></table></div>';
+
+  document.getElementById('clinicLedgerTable').innerHTML =
+    '<thead><tr><th style="text-align:left;">កាលបរិច្ឆេទ</th><th style="text-align:left;">ឈ្មោះគ្លីនិក</th>' +
+    '<th style="text-align:left;">ព័ត៌មានលម្អិត</th><th style="text-align:right;">$ ចំនួន</th><th></th></tr></thead>' +
+    '<tbody>' + (body || '<tr><td colspan="5" class="empty-state">មិនទាន់មានកំណត់ត្រាខែនេះទេ</td></tr>') + '</tbody>';
 }
 
 /* ---------------- UTIL ---------------- */
