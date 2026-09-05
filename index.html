@@ -329,6 +329,7 @@
       <div style="overflow-x:auto;">
         <table class="sched" id="clinicGridTable"></table>
       </div>
+      <div id="archivedClinicsWrap"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);">
         <input type="month" id="newClinicMonth" class="ledger-input" style="border:1px solid var(--line);width:150px;">
         <button type="button" id="addClinicMonthBtn" class="today-btn" style="cursor:pointer;">+ ខែថ្មី</button>
@@ -393,7 +394,8 @@ var STATE = {
   incomeMonth: null,
   pastIncomeEntries: [],   // legacy — kept only so an old Firestore doc doesn't crash on load
   clinicTotals: {},        // { 'YYYY-MM': { clinicName: amountUsd } } — the editable grid's data
-  clinicNames: ['SPV', 'HMV']  // column order; extend via the "+ គ្លីនិកថ្មី" control
+  clinicNames: ['SPV', 'HMV'],  // active columns shown in the grid; extend via "+ គ្លីនិកថ្មី"
+  archivedClinics: []           // clinics you no longer work at — data kept, just hidden from the grid
 };
 
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
@@ -429,7 +431,7 @@ function persistRemoteState() {
 function persistIncomeState() {
   setDoc(incomeDocRef, {
     ratesByMonth: STATE.incomeRatesByMonth, entries: STATE.incomeEntries, extraByMonth: STATE.incomeExtraByMonth,
-    clinicTotals: STATE.clinicTotals, clinicNames: STATE.clinicNames
+    clinicTotals: STATE.clinicTotals, clinicNames: STATE.clinicNames, archivedClinics: STATE.archivedClinics
   }).catch(function (err) {
     showToast('⚠ មិនអាចផ្ញើចំណូលទៅ Firestore បានទេ៖ ' + err.message);
   });
@@ -485,6 +487,7 @@ document.addEventListener('DOMContentLoaded', function () {
       STATE.incomeExtraByMonth = d.extraByMonth || {};
       STATE.clinicTotals = d.clinicTotals || {};
       STATE.clinicNames = d.clinicNames && d.clinicNames.length ? d.clinicNames : ['SPV', 'HMV'];
+      STATE.archivedClinics = d.archivedClinics || [];
       // backward-compat: an older doc may only have a flat "rates" field —
       // seed it as this month's rate so nothing silently resets to $0.
       if (!Object.keys(STATE.incomeRatesByMonth).length && d.rates) {
@@ -1463,30 +1466,54 @@ function deleteClinicMonthRow(monthKeyVal) {
 }
 window.deleteClinicMonthRow = deleteClinicMonthRow;
 
-function deleteClinicColumn(clinicName) {
+// Archiving keeps all historical data intact — it just removes the clinic
+// from the editable grid's columns and stops asking for new monthly amounts.
+function archiveClinic(clinicName) {
   STATE.clinicNames = STATE.clinicNames.filter(function (c) { return c !== clinicName; });
-  Object.keys(STATE.clinicTotals).forEach(function (mk) { delete STATE.clinicTotals[mk][clinicName]; });
+  if (STATE.archivedClinics.indexOf(clinicName) === -1) STATE.archivedClinics.push(clinicName);
   persistIncomeState();
   renderClinicLedger();
-  showToast('លុបគ្លីនិកនេះរួចរាល់ ✓');
+  showToast('ប្តូរទៅជាគ្លីនិកឈប់ធ្វើ ✓ (ទិន្នន័យចាស់នៅរក្សាទុក)');
 }
-window.deleteClinicColumn = deleteClinicColumn;
+window.archiveClinic = archiveClinic;
+
+function unarchiveClinic(clinicName) {
+  STATE.archivedClinics = STATE.archivedClinics.filter(function (c) { return c !== clinicName; });
+  if (STATE.clinicNames.indexOf(clinicName) === -1) STATE.clinicNames.push(clinicName);
+  persistIncomeState();
+  renderClinicLedger();
+}
+window.unarchiveClinic = unarchiveClinic;
+
+function archivedClinicTotal(clinicName) {
+  var total = 0;
+  Object.keys(STATE.clinicTotals).forEach(function (mk) { total += (STATE.clinicTotals[mk][clinicName] || 0); });
+  return total;
+}
 
 function renderClinicLedger() {
-  var monthKeys = Object.keys(STATE.clinicTotals).sort().reverse();
   var now = new Date();
   var curKey = monthKey(now.getFullYear(), now.getMonth() + 1);
-  if (monthKeys.indexOf(curKey) === -1) monthKeys.unshift(curKey);
   var clinicNames = STATE.clinicNames;
 
   var clinicColTotals = {};
   clinicNames.forEach(function (c) { clinicColTotals[c] = 0; });
   var grandTotal = 0;
 
+  // Only show a month row if at least one active clinic has a value that
+  // month, or it's the current month (kept visible so there's always
+  // somewhere to enter this month's numbers).
+  var monthKeys = Object.keys(STATE.clinicTotals).filter(function (mk) {
+    if (mk === curKey) return true;
+    var vals = STATE.clinicTotals[mk] || {};
+    return clinicNames.some(function (c) { return (vals[c] || 0) > 0; });
+  }).sort().reverse();
+  if (monthKeys.indexOf(curKey) === -1) monthKeys.unshift(curKey);
+
   var head = '<thead><tr><th style="text-align:left;">ខែ</th>' +
     clinicNames.map(function (c) {
       return '<th style="text-align:right;">' + escapeHtml(c) +
-        ' <button class="ledger-del" style="font-size:11px;" title="លុបគ្លីនិកនេះ" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">✕</button></th>';
+        ' <button class="ledger-del" style="font-size:11px;" title="ឈប់ធ្វើ (លាក់ចេញពីតារាង)" onclick="archiveClinic(\'' + escapeAttr(c) + '\')">✕</button></th>';
     }).join('') +
     '<th style="text-align:right;">សរុប</th><th></th></tr></thead>';
 
@@ -1512,10 +1539,30 @@ function renderClinicLedger() {
 
   document.getElementById('clinicGridTable').innerHTML = head + '<tbody>' + body + footer + '</tbody>';
 
+  var archivedTotal = STATE.archivedClinics.reduce(function (s, c) { return s + archivedClinicTotal(c); }, 0);
+  var overallTotal = grandTotal + archivedTotal;
+
   document.getElementById('clinicStatsWrap').innerHTML =
     '<div class="stat-row">' +
-    '<div class="stat"><div class="n">' + fmtUsd(grandTotal) + '</div><div class="l">ចំណូលសរុបទាំងអស់</div></div>' +
-    '<div class="stat"><div class="n">' + fmtKhr(grandTotal * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
+    '<div class="stat"><div class="n">' + fmtUsd(overallTotal) + '</div><div class="l">ចំណូលសរុបទាំងអស់</div></div>' +
+    '<div class="stat"><div class="n">' + fmtKhr(overallTotal * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
+    '</div>';
+
+  renderArchivedClinics();
+}
+
+// Clinics you've stopped working at: shown as a single lifetime total each,
+// no longer editable per month, with an option to bring one back if needed.
+function renderArchivedClinics() {
+  var wrap = document.getElementById('archivedClinicsWrap');
+  if (!STATE.archivedClinics.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML =
+    '<div style="font-weight:700;font-size:13px;color:var(--sub);margin:16px 0 8px;">គ្លីនិកឈប់ធ្វើ (សរុបចាស់)</div>' +
+    '<div class="stat-row">' +
+    STATE.archivedClinics.map(function (c) {
+      return '<div class="stat"><div class="n">' + fmtUsd(archivedClinicTotal(c)) + '</div>' +
+        '<div class="l">' + escapeHtml(c) + ' <span style="cursor:pointer;color:var(--brand);text-decoration:underline;" onclick="unarchiveClinic(\'' + escapeAttr(c) + '\')">↺ ត្រឡប់</span></div></div>';
+    }).join('') +
     '</div>';
 }
 
