@@ -320,18 +320,24 @@
     </div>
   </div>
 
-  <!-- CLINIC TOTAL (editable month × clinic grid, was History) -->
+  <!-- CLINIC TOTAL (month-picker driven, editable, was History) -->
   <div class="panel" id="panel-history">
     <div class="card">
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;">លុយធ្វើការគ្លីនិកសរុប</div>
-      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">វាយបញ្ចូល/កែ/លុបចំនួន $ ដោយផ្ទាល់ក្នុងតារាង — រក្សាទុកភ្លាមៗ</div>
-      <div id="clinicStatsWrap" style="margin-bottom:14px;"></div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">ជ្រើសខែ ដើម្បីមើល/កែ/លុបចំនួន $ តាមគ្លីនិក — រក្សាទុកភ្លាមៗ</div>
+      <div class="month-nav">
+        <div class="left">
+          <button class="nav-btn" id="prevMonthClinic">‹</button>
+          <div class="month-label" id="monthLabelClinic">—</div>
+          <button class="nav-btn" id="nextMonthClinic">›</button>
+          <select class="today-btn" id="monthPickerClinic" style="cursor:pointer;"></select>
+        </div>
+      </div>
+      <div id="clinicStatsWrap" style="margin:14px 0;"></div>
       <div style="overflow-x:auto;">
         <table class="sched" id="clinicGridTable"></table>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);">
-        <input type="month" id="newClinicMonth" class="ledger-input" style="border:1px solid var(--line);width:150px;">
-        <button type="button" id="addClinicMonthBtn" class="today-btn" style="cursor:pointer;">+ ខែថ្មី</button>
         <input type="text" id="newClinicName" placeholder="ឈ្មោះគ្លីនិកថ្មី" class="ledger-input" style="border:1px solid var(--line);flex:1;min-width:150px;">
         <button type="button" id="addClinicColBtn" class="today-btn" style="cursor:pointer;">+ គ្លីនិកថ្មី</button>
       </div>
@@ -393,7 +399,9 @@ var STATE = {
   incomeMonth: null,
   pastIncomeEntries: [],   // legacy — kept only so an old Firestore doc doesn't crash on load
   clinicTotals: {},        // { 'YYYY-MM': { clinicName: amountUsd } } — the editable grid's data
-  clinicNames: ['SPV', 'HMV']  // column order; extend via the "+ គ្លីនិកថ្មី" control
+  clinicNames: ['SPV', 'HMV'],  // column order; extend via the "+ គ្លីនិកថ្មី" control
+  clinicViewYear: null,
+  clinicViewMonth: null
 };
 
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
@@ -1425,19 +1433,44 @@ function refreshIncomeMonthPicker() {
   }).join('');
 }
 
-/* ---------------- CLINIC TOTAL GRID (editable month x clinic matrix) ---------------- */
-function monthKeyFromInput(val) { return val; } // <input type="month"> already gives 'YYYY-MM'
-
-function bindClinicGridControls() {
-  document.getElementById('addClinicMonthBtn').addEventListener('click', function () {
-    var val = document.getElementById('newClinicMonth').value;
-    if (!val) { showToast('សូមជ្រើសរើសខែសិន'); return; }
-    if (!STATE.clinicTotals[val]) STATE.clinicTotals[val] = {};
-    persistIncomeState();
-    document.getElementById('newClinicMonth').value = '';
+/* ---------------- CLINIC TOTAL (month-picker driven, editable) ---------------- */
+function bindClinicMonthNav() {
+  document.getElementById('prevMonthClinic').addEventListener('click', function () { shiftClinicViewMonth(-1); });
+  document.getElementById('nextMonthClinic').addEventListener('click', function () { shiftClinicViewMonth(1); });
+  document.getElementById('monthPickerClinic').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.clinicViewYear = Number(parts[0]); STATE.clinicViewMonth = Number(parts[1]);
     renderClinicLedger();
   });
+}
 
+function shiftClinicViewMonth(delta) {
+  var m = STATE.clinicViewMonth + delta, y = STATE.clinicViewYear;
+  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+  STATE.clinicViewYear = y; STATE.clinicViewMonth = m;
+  renderClinicLedger();
+}
+
+// Every month that has any clinic data, plus the current real-world month,
+// newest first — same pattern as the other tabs' month pickers.
+function getClinicAvailableMonths() {
+  var set = {};
+  Object.keys(STATE.clinicTotals).forEach(function (mk) { set[mk] = true; });
+  var now = new Date();
+  set[monthKey(now.getFullYear(), now.getMonth() + 1)] = true;
+  return Object.keys(set).sort().reverse();
+}
+
+function refreshClinicMonthPicker() {
+  var months = getClinicAvailableMonths();
+  var cur = monthKey(STATE.clinicViewYear, STATE.clinicViewMonth);
+  document.getElementById('monthPickerClinic').innerHTML = months.map(function (ym) {
+    return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
+  }).join('');
+}
+
+function bindClinicGridControls() {
+  bindClinicMonthNav();
   document.getElementById('addClinicColBtn').addEventListener('click', function () {
     var name = document.getElementById('newClinicName').value.trim();
     if (!name) { showToast('សូមវាយបញ្ចូលឈ្មោះគ្លីនិក'); return; }
@@ -1457,14 +1490,6 @@ function updateClinicTotal(monthKeyVal, clinicName, value) {
 }
 window.updateClinicTotal = updateClinicTotal;
 
-function deleteClinicMonthRow(monthKeyVal) {
-  delete STATE.clinicTotals[monthKeyVal];
-  persistIncomeState();
-  renderClinicLedger();
-  showToast('លុបខែនេះរួចរាល់ ✓');
-}
-window.deleteClinicMonthRow = deleteClinicMonthRow;
-
 function deleteClinicColumn(clinicName) {
   STATE.clinicNames = STATE.clinicNames.filter(function (c) { return c !== clinicName; });
   Object.keys(STATE.clinicTotals).forEach(function (mk) { delete STATE.clinicTotals[mk][clinicName]; });
@@ -1474,51 +1499,57 @@ function deleteClinicColumn(clinicName) {
 }
 window.deleteClinicColumn = deleteClinicColumn;
 
+// Clears just this clinic's amount for the currently-viewed month (leaves
+// the clinic itself and other months untouched).
+function clearClinicMonthValue(clinicName) {
+  var key = monthKey(STATE.clinicViewYear, STATE.clinicViewMonth);
+  if (STATE.clinicTotals[key]) delete STATE.clinicTotals[key][clinicName];
+  persistIncomeState();
+  renderClinicLedger();
+}
+window.clearClinicMonthValue = clearClinicMonthValue;
+
+// Shows only the clinics that actually have a value for the selected month —
+// if a month has 2 clinics, both rows show, and the total below sums them.
 function renderClinicLedger() {
-  var monthKeys = Object.keys(STATE.clinicTotals).sort().reverse();
-  var now = new Date();
-  var curKey = monthKey(now.getFullYear(), now.getMonth() + 1);
-  if (monthKeys.indexOf(curKey) === -1) monthKeys.unshift(curKey);
-  var clinicNames = STATE.clinicNames;
+  if (!STATE.clinicViewYear) {
+    var now = new Date();
+    STATE.clinicViewYear = now.getFullYear(); STATE.clinicViewMonth = now.getMonth() + 1;
+  }
+  document.getElementById('monthLabelClinic').textContent = MONTH_NAMES_KM[STATE.clinicViewMonth - 1] + ' ' + STATE.clinicViewYear;
+  refreshClinicMonthPicker();
 
-  var clinicColTotals = {};
-  clinicNames.forEach(function (c) { clinicColTotals[c] = 0; });
-  var grandTotal = 0;
+  var key = monthKey(STATE.clinicViewYear, STATE.clinicViewMonth);
+  var monthData = STATE.clinicTotals[key] || {};
+  var usedClinics = STATE.clinicNames.filter(function (c) { return (monthData[c] || 0) > 0; });
+  // Always offer one blank row (first unused clinic) so a new value can be added for this month.
+  var unusedClinics = STATE.clinicNames.filter(function (c) { return usedClinics.indexOf(c) === -1; });
 
-  var head = '<thead><tr><th style="text-align:left;">ខែ</th>' +
-    clinicNames.map(function (c) {
-      return '<th style="text-align:right;">' + escapeHtml(c) +
-        ' <button class="ledger-del" style="font-size:11px;" title="លុបគ្លីនិកនេះ" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">✕</button></th>';
-    }).join('') +
-    '<th style="text-align:right;">សរុប</th><th></th></tr></thead>';
-
-  var body = monthKeys.map(function (mk) {
-    var rowVals = STATE.clinicTotals[mk] || {};
-    var rowTotal = 0;
-    var cells = clinicNames.map(function (c) {
-      var v = rowVals[c] || 0;
-      rowTotal += v;
-      clinicColTotals[c] += v;
-      return '<td><input type="number" min="0" step="0.01" class="ledger-input" style="text-align:right;" value="' + v +
-        '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>';
-    }).join('');
-    grandTotal += rowTotal;
-    return '<tr><td class="date-cell">' + monthOptionLabel(mk) + '</td>' + cells +
-      '<td style="text-align:right;font-weight:700;">' + fmtUsd(rowTotal) + '</td>' +
-      '<td><button class="ledger-del" title="លុបខែនេះ" onclick="deleteClinicMonthRow(\'' + mk + '\')">✕</button></td></tr>';
-  }).join('');
-
-  var footer = '<tr style="background:#f7f8fb;font-weight:700;"><td class="date-cell">សរុប</td>' +
-    clinicNames.map(function (c) { return '<td style="text-align:right;">' + fmtUsd(clinicColTotals[c]) + '</td>'; }).join('') +
-    '<td style="text-align:right;">' + fmtUsd(grandTotal) + '</td><td></td></tr>';
-
-  document.getElementById('clinicGridTable').innerHTML = head + '<tbody>' + body + footer + '</tbody>';
-
+  var total = usedClinics.reduce(function (s, c) { return s + (monthData[c] || 0); }, 0);
   document.getElementById('clinicStatsWrap').innerHTML =
     '<div class="stat-row">' +
-    '<div class="stat"><div class="n">' + fmtUsd(grandTotal) + '</div><div class="l">ចំណូលសរុបទាំងអស់</div></div>' +
-    '<div class="stat"><div class="n">' + fmtKhr(grandTotal * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
+    '<div class="stat"><div class="n">' + fmtUsd(total) + '</div><div class="l">សរុបខែនេះ</div></div>' +
+    '<div class="stat"><div class="n">' + fmtKhr(total * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
+    '<div class="stat"><div class="n">' + usedClinics.length + '</div><div class="l">ចំនួនគ្លីនិកខែនេះ</div></div>' +
     '</div>';
+
+  function rowHtml(c) {
+    var v = monthData[c] || 0;
+    return '<tr><td class="date-cell">' + escapeHtml(c) + '</td>' +
+      '<td><input type="number" min="0" step="0.01" class="ledger-input" style="text-align:right;width:120px;" value="' + v +
+      '" onchange="updateClinicTotal(\'' + key + '\',\'' + escapeAttr(c) + '\',this.value)"></td>' +
+      '<td><button class="ledger-del" title="សម្អាតខែនេះ" onclick="clearClinicMonthValue(\'' + escapeAttr(c) + '\')">✕</button></td></tr>';
+  }
+
+  var body = usedClinics.map(rowHtml).join('') +
+    (unusedClinics.length ? rowHtml(unusedClinics[0]) : '');
+
+  var footer = '<tr style="background:#f7f8fb;font-weight:700;"><td class="date-cell">សរុប</td>' +
+    '<td style="text-align:right;">' + fmtUsd(total) + '</td><td></td></tr>';
+
+  document.getElementById('clinicGridTable').innerHTML =
+    '<thead><tr><th style="text-align:left;">ឈ្មោះគ្លីនិក</th><th style="text-align:right;">$ ចំនួន</th><th></th></tr></thead>' +
+    '<tbody>' + (body || '<tr><td colspan="3" class="empty-state">មិនទាន់មានទិន្នន័យខែនេះទេ</td></tr>') + footer + '</tbody>';
 }
 
 /* ---------------- UTIL ---------------- */
