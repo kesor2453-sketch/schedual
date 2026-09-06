@@ -1368,16 +1368,19 @@ function renderIncomeTable() {
     var dutyPay = getMyDutyPayForDate(dateStr);
     var dutyUsd = dutyPay ? dutyPay.usd : 0;
     var dayTotal = consultIpdUsd + dutyUsd;
-    // Red fill only for a 12-hour NIGHT-only day; a 12-hour DAY-only day gets
-    // no fill; 24-hour (two periods, e.g. day+night or both clinics) = blue.
+    // 12-hour NIGHT-only = red; 12-hour DAY-only = green; 24-hour (two
+    // periods, e.g. day+night or both clinics) = blue.
     var dutyStyle = '';
     if (dutyPay) {
-      var isNightOnly = dutyPay.hours === 12 && dutyPay.periods.length === 1 &&
-        dutyPay.periods[0].indexOf('NIGHT') !== -1;
+      var isSinglePeriod = dutyPay.hours === 12 && dutyPay.periods.length === 1;
+      var isNightOnly = isSinglePeriod && dutyPay.periods[0].indexOf('NIGHT') !== -1;
+      var isDayOnly = isSinglePeriod && dutyPay.periods[0].indexOf('DAY') !== -1;
       if (dutyPay.hours >= 24) {
         dutyStyle = 'background:var(--spv-bg);color:var(--spv);';
       } else if (isNightOnly) {
         dutyStyle = 'background:var(--off-bg);color:var(--off);';
+      } else if (isDayOnly) {
+        dutyStyle = 'background:var(--hmv-bg);color:var(--hmv);';
       }
     }
 
