@@ -1083,7 +1083,8 @@ function getMyDutyPayForDate(dateStr) {
   var usd = mine.reduce(function (s, e) { return s + e.rate; }, 0);
   var clinics = [];
   mine.forEach(function (e) { if (clinics.indexOf(e.clinic) === -1) clinics.push(e.clinic); });
-  return { usd: usd, clinics: clinics, hours: mine.length * 12 };
+  var periods = mine.map(function (e) { return e.period; });
+  return { usd: usd, clinics: clinics, hours: mine.length * 12, periods: periods };
 }
 
 function loadPayroll() {
@@ -1367,13 +1368,17 @@ function renderIncomeTable() {
     var dutyPay = getMyDutyPayForDate(dateStr);
     var dutyUsd = dutyPay ? dutyPay.usd : 0;
     var dayTotal = consultIpdUsd + dutyUsd;
-    // 12-hour day (one period worked) = red fill; 24-hour day (two periods,
-    // e.g. day+night or both clinics) = blue fill.
+    // Red fill only for a 12-hour NIGHT-only day; a 12-hour DAY-only day gets
+    // no fill; 24-hour (two periods, e.g. day+night or both clinics) = blue.
     var dutyStyle = '';
     if (dutyPay) {
-      dutyStyle = dutyPay.hours >= 24
-        ? 'background:var(--spv-bg);color:var(--spv);'
-        : 'background:var(--off-bg);color:var(--off);';
+      var isNightOnly = dutyPay.hours === 12 && dutyPay.periods.length === 1 &&
+        dutyPay.periods[0].indexOf('NIGHT') !== -1;
+      if (dutyPay.hours >= 24) {
+        dutyStyle = 'background:var(--spv-bg);color:var(--spv);';
+      } else if (isNightOnly) {
+        dutyStyle = 'background:var(--off-bg);color:var(--off);';
+      }
     }
 
     var badges = clinics.map(function (c) {
