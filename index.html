@@ -1494,6 +1494,11 @@ function archivedClinicTotal(clinicName) {
 function renderClinicLedger() {
   var now = new Date();
   var curKey = monthKey(now.getFullYear(), now.getMonth() + 1);
+  var prevMonthNum = now.getMonth(); // 0-based this month => previous month is (month-1), 1-based = now.getMonth()
+  var prevYear = now.getFullYear();
+  var prevM = prevMonthNum === 0 ? 12 : prevMonthNum;
+  if (prevMonthNum === 0) prevYear -= 1;
+  var prevKey = monthKey(prevYear, prevM);
   var clinicNames = STATE.clinicNames;
 
   var clinicColTotals = {};
@@ -1501,14 +1506,15 @@ function renderClinicLedger() {
   var grandTotal = 0;
 
   // Only show a month row if at least one active clinic has a value that
-  // month, or it's the current month (kept visible so there's always
-  // somewhere to enter this month's numbers).
+  // month, or it's one of the last 2 months (kept visible so there's always
+  // somewhere to enter recent numbers, even before anything's been typed in).
   var monthKeys = Object.keys(STATE.clinicTotals).filter(function (mk) {
-    if (mk === curKey) return true;
+    if (mk === curKey || mk === prevKey) return true;
     var vals = STATE.clinicTotals[mk] || {};
     return clinicNames.some(function (c) { return (vals[c] || 0) > 0; });
   }).sort().reverse();
   if (monthKeys.indexOf(curKey) === -1) monthKeys.unshift(curKey);
+  if (monthKeys.indexOf(prevKey) === -1) monthKeys.splice(1, 0, prevKey);
 
   var head = '<thead><tr><th style="text-align:left;">ខែ</th>' +
     clinicNames.map(function (c) {
