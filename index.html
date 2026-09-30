@@ -205,6 +205,38 @@
   .stat{background:#fbfcfe;border:1px solid var(--line);border-radius:11px;padding:10px 16px;min-width:120px;}
   .stat .n{font-size:17px;font-weight:700;}
   .stat .l{font-size:11px;color:var(--sub);margin-top:2px;}
+
+  /* Clinic-total grid (redesigned for easier entry / column editing) */
+  #clinicGridTable{font-size:13.3px;}
+  #clinicGridTable thead th{padding:8px 6px;}
+  .clinic-col-head{display:flex;flex-direction:column;align-items:flex-end;gap:5px;}
+  .clinic-col-head input.col-name-input{
+    width:100%;min-width:88px;max-width:130px;text-align:right;font-weight:700;font-size:12.8px;
+    color:inherit;border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 7px;
+  }
+  .clinic-col-head input.col-name-input:focus{border-color:var(--brand);outline:none;}
+  .clinic-col-actions{display:flex;gap:3px;}
+  .clinic-col-actions button{
+    border:1px solid var(--line);background:#fff;border-radius:6px;font-size:11px;
+    padding:2px 6px;cursor:pointer;color:var(--sub);line-height:1.5;
+  }
+  .clinic-col-actions button:hover{background:#f0f2f6;}
+  .clinic-col-actions button.danger:hover{background:var(--off-bg);color:var(--off);border-color:#f3c9c9;}
+  .clinic-amount-cell{position:relative;}
+  .clinic-amount-cell .cur{
+    position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--sub);font-size:12px;pointer-events:none;
+  }
+  input.clinic-amount-input{
+    width:100%;text-align:right;font-family:inherit;font-size:13.5px;font-variant-numeric:tabular-nums;
+    padding:8px 9px 8px 20px;border-radius:8px;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);
+  }
+  input.clinic-amount-input:focus{border-color:var(--brand);background:#fff;outline:none;}
+  input.clinic-amount-input:hover{border-color:#c7cee0;}
+  #clinicGridTable td.date-cell{white-space:nowrap;}
+  .add-col-row{
+    display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);
+    align-items:center;
+  }
 </style>
 </head>
 <body>
@@ -324,17 +356,17 @@
   <div class="panel" id="panel-history">
     <div class="card">
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;">លុយធ្វើការគ្លីនិកសរុប</div>
-      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">វាយបញ្ចូល/កែ/លុបចំនួន $ ដោយផ្ទាល់ក្នុងតារាង — រក្សាទុកភ្លាមៗ</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">វាយបញ្ចូល/កែ/លុបចំនួន $ ដោយផ្ទាល់ក្នុងតារាង — កែឈ្មោះក្បាលជួរឈរបានដោយវាយផ្ទាល់ក្នុងប្រអប់ខាងលើតារាង — រក្សាទុកភ្លាមៗ</div>
       <div id="clinicStatsWrap" style="margin-bottom:14px;"></div>
       <div style="overflow-x:auto;">
         <table class="sched" id="clinicGridTable"></table>
       </div>
       <div id="archivedClinicsWrap"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);">
+      <div class="add-col-row">
         <input type="month" id="newClinicMonth" class="ledger-input" style="border:1px solid var(--line);width:150px;">
         <button type="button" id="addClinicMonthBtn" class="today-btn" style="cursor:pointer;">+ ខែថ្មី</button>
         <input type="text" id="newClinicName" placeholder="ឈ្មោះគ្លីនិកថ្មី" class="ledger-input" style="border:1px solid var(--line);flex:1;min-width:150px;">
-        <button type="button" id="addClinicColBtn" class="today-btn" style="cursor:pointer;">+ គ្លីនិកថ្មី</button>
+        <button type="button" id="addClinicColBtn" class="today-btn" style="cursor:pointer;">+ គ្លីនិកថ្មី (ជួរឈរថ្មី)</button>
       </div>
     </div>
   </div>
@@ -1482,6 +1514,33 @@ function deleteClinicMonthRow(monthKeyVal) {
 }
 window.deleteClinicMonthRow = deleteClinicMonthRow;
 
+// Rename a clinic COLUMN — renames it in the active list AND moves its
+// stored amount across every month so past numbers stay attached to it
+// under the new name. Refuses to collide with an existing (active or
+// archived) name.
+function renameClinicColumn(oldName, newNameRaw) {
+  var newName = (newNameRaw || '').trim();
+  if (!newName || newName === oldName) { renderClinicLedger(); return; }
+  if (STATE.clinicNames.indexOf(newName) !== -1 || STATE.archivedClinics.indexOf(newName) !== -1) {
+    showToast('ឈ្មោះនេះមានរួចហើយ');
+    renderClinicLedger();
+    return;
+  }
+  var idx = STATE.clinicNames.indexOf(oldName);
+  if (idx !== -1) STATE.clinicNames[idx] = newName;
+  Object.keys(STATE.clinicTotals).forEach(function (mk) {
+    var vals = STATE.clinicTotals[mk];
+    if (vals && Object.prototype.hasOwnProperty.call(vals, oldName)) {
+      vals[newName] = vals[oldName];
+      delete vals[oldName];
+    }
+  });
+  persistIncomeState();
+  renderClinicLedger();
+  showToast('ប្តូរឈ្មោះគ្លីនិករួចរាល់ ✓');
+}
+window.renameClinicColumn = renameClinicColumn;
+
 // Archiving keeps all historical data intact — it just removes the clinic
 // from the editable grid's columns and stops asking for new monthly amounts.
 function archiveClinic(clinicName) {
@@ -1500,6 +1559,22 @@ function unarchiveClinic(clinicName) {
   renderClinicLedger();
 }
 window.unarchiveClinic = unarchiveClinic;
+
+// Permanently removes a clinic column AND all of its stored monthly amounts
+// (unlike archive, which only hides it). Used for both active and archived
+// columns — asks for confirmation since this one can't be undone.
+function deleteClinicColumn(clinicName) {
+  if (!confirm('លុបជួរឈរគ្លីនិក "' + clinicName + '" និងទិន្នន័យប្រចាំខែទាំងអស់របស់វាជាអចិន្ត្រៃយ៍មែនទេ?')) return;
+  STATE.clinicNames = STATE.clinicNames.filter(function (c) { return c !== clinicName; });
+  STATE.archivedClinics = STATE.archivedClinics.filter(function (c) { return c !== clinicName; });
+  Object.keys(STATE.clinicTotals).forEach(function (mk) {
+    if (STATE.clinicTotals[mk]) delete STATE.clinicTotals[mk][clinicName];
+  });
+  persistIncomeState();
+  renderClinicLedger();
+  showToast('លុបជួរឈរគ្លីនិករួចរាល់ ✓');
+}
+window.deleteClinicColumn = deleteClinicColumn;
 
 function archivedClinicTotal(clinicName) {
   var total = 0;
@@ -1532,10 +1607,19 @@ function renderClinicLedger() {
   if (monthKeys.indexOf(curKey) === -1) monthKeys.unshift(curKey);
   if (monthKeys.indexOf(prevKey) === -1) monthKeys.splice(1, 0, prevKey);
 
+  // Each header cell: an editable name field (renames the column across all
+  // months) plus a small archive/delete action row underneath.
   var head = '<thead><tr><th style="text-align:left;">ខែ</th>' +
     clinicNames.map(function (c) {
-      return '<th style="text-align:right;">' + escapeHtml(c) +
-        ' <button class="ledger-del" style="font-size:11px;" title="ឈប់ធ្វើ (លាក់ចេញពីតារាង)" onclick="archiveClinic(\'' + escapeAttr(c) + '\')">✕</button></th>';
+      return '<th style="text-align:right;">' +
+        '<div class="clinic-col-head">' +
+        '<input type="text" class="col-name-input" value="' + escapeAttr(c) + '" ' +
+        'onchange="renameClinicColumn(\'' + escapeAttr(c) + '\', this.value)" ' +
+        'title="ចុចដើម្បីប្តូរឈ្មោះជួរឈរនេះ">' +
+        '<div class="clinic-col-actions">' +
+        '<button type="button" title="ឈប់ធ្វើ (លាក់ចេញពីតារាង — ទិន្នន័យរក្សាទុក)" onclick="archiveClinic(\'' + escapeAttr(c) + '\')">📥 លាក់</button>' +
+        '<button type="button" class="danger" title="លុបជួរឈរនេះជាអចិន្ត្រៃយ៍" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">🗑</button>' +
+        '</div></div></th>';
     }).join('') +
     '<th style="text-align:right;">សរុប</th><th></th></tr></thead>';
 
@@ -1546,7 +1630,7 @@ function renderClinicLedger() {
       var v = rowVals[c] || 0;
       rowTotal += v;
       clinicColTotals[c] += v;
-      return '<td><input type="number" min="0" step="0.01" class="ledger-input" style="text-align:right;" value="' + v +
+      return '<td class="clinic-amount-cell"><span class="cur">$</span><input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v +
         '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>';
     }).join('');
     grandTotal += rowTotal;
@@ -1574,7 +1658,8 @@ function renderClinicLedger() {
 }
 
 // Clinics you've stopped working at: shown as a single lifetime total each,
-// no longer editable per month, with an option to bring one back if needed.
+// no longer editable per month, with options to bring one back or delete it
+// (and its data) for good.
 function renderArchivedClinics() {
   var wrap = document.getElementById('archivedClinicsWrap');
   if (!STATE.archivedClinics.length) { wrap.innerHTML = ''; return; }
@@ -1583,7 +1668,10 @@ function renderArchivedClinics() {
     '<div class="stat-row">' +
     STATE.archivedClinics.map(function (c) {
       return '<div class="stat"><div class="n">' + fmtUsd(archivedClinicTotal(c)) + '</div>' +
-        '<div class="l">' + escapeHtml(c) + ' <span style="cursor:pointer;color:var(--brand);text-decoration:underline;" onclick="unarchiveClinic(\'' + escapeAttr(c) + '\')">↺ ត្រឡប់</span></div></div>';
+        '<div class="l">' + escapeHtml(c) +
+        ' <span style="cursor:pointer;color:var(--brand);text-decoration:underline;" onclick="unarchiveClinic(\'' + escapeAttr(c) + '\')">↺ ត្រឡប់</span>' +
+        ' <span style="cursor:pointer;color:var(--off);text-decoration:underline;margin-left:6px;" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">🗑 លុប</span>' +
+        '</div></div>';
     }).join('') +
     '</div>';
 }
