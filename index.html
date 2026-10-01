@@ -249,16 +249,8 @@
   input.clinic-amount-input:hover{border-color:#c7cee0;}
   #clinicGridTable td.date-cell{white-space:nowrap;}
 
-  .clinic-tabs-row{
-    display:inline-flex;gap:6px;background:var(--card);padding:5px;border-radius:12px;
-    box-shadow:var(--shadow);margin-bottom:14px;flex-wrap:wrap;
-  }
-  .clinic-tab{
-    padding:7px 14px;border-radius:9px;cursor:pointer;font-weight:600;color:var(--sub);
-    font-size:13px;user-select:none;white-space:nowrap;background:none;border:none;font-family:inherit;
-  }
-  .clinic-tab.active{background:var(--brand);color:var(--brand-ink);}
-  #clinicToolbar input.col-name-input{width:150px;max-width:220px;text-align:left;}
+  .clinic-card-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+  .clinic-card-head input.col-name-input{width:130px;max-width:160px;text-align:left;font-size:14px;}
   .add-col-row{
     display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);
     align-items:center;
@@ -272,11 +264,6 @@
     border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 5px;
   }
   .sched-col-head input.col-name-input:focus{border-color:var(--brand);outline:none;}
-  .sched-col-head input.col-rate-input{
-    width:76px;max-width:76px;text-align:center;font-size:10.5px;color:var(--sub);
-    border:1px solid var(--line);background:#fbfcfe;border-radius:6px;padding:3px 4px;
-  }
-  .sched-col-head input.col-rate-input:focus{border-color:var(--brand);outline:none;color:var(--ink);}
   .sched-col-head .clinic-col-actions{display:flex;gap:3px;justify-content:center;}
 </style>
 </head>
@@ -330,7 +317,6 @@
           <option value="NIGHT">វេនយប់</option>
         </select>
         <input type="text" id="newSlotLabel" placeholder="ឈ្មោះជួរឈរ ឧ. SPV ៤" class="ledger-input" style="border:1px solid var(--line);min-width:140px;">
-        <input type="number" id="newSlotRate" placeholder="អត្រា $" min="0" step="0.5" class="ledger-input" style="border:1px solid var(--line);width:90px;">
         <button type="button" id="addSlotColBtn" class="today-btn" style="cursor:pointer;">+ បន្ថែមជួរឈរវេន</button>
       </div>
     </div>
@@ -409,17 +395,13 @@
   <div class="panel" id="panel-history">
     <div class="card">
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;">លុយធ្វើការគ្លីនិកសរុប</div>
-      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">ជ្រើសគ្លីនិកខាងក្រោម រួចវាយបញ្ចូល/កែ/លុបចំនួន $ ប្រចាំខែសម្រាប់គ្លីនិកនោះដោយឡែកៗ — រក្សាទុកភ្លាមៗ</div>
-      <div class="clinic-tabs-row" id="clinicTabs"></div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">គ្លីនិកនីមួយៗបង្ហាញជាតារាងដោយឡែក — វាយបញ្ចូល/កែ/លុបចំនួន $ ប្រចាំខែដោយឡែកពីគ្នា តែមើលឃើញទាំងអស់ក្នុងទំព័រតែមួយ</div>
       <div id="clinicStatsWrap" style="margin-bottom:14px;"></div>
-      <div id="clinicToolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;"></div>
-      <div style="overflow-x:auto;">
-        <table class="sched" id="clinicGridTable"></table>
-      </div>
+      <div class="pay-grid" id="clinicCardsWrap"></div>
       <div id="archivedClinicsWrap"></div>
       <div class="add-col-row">
         <input type="month" id="newClinicMonth" class="ledger-input" style="border:1px solid var(--line);width:150px;">
-        <button type="button" id="addClinicMonthBtn" class="today-btn" style="cursor:pointer;">+ ខែថ្មី</button>
+        <button type="button" id="addClinicMonthBtn" class="today-btn" style="cursor:pointer;">+ ខែថ្មី (គ្រប់គ្លីនិក)</button>
         <input type="text" id="newClinicName" placeholder="ឈ្មោះគ្លីនិកថ្មី" class="ledger-input" style="border:1px solid var(--line);flex:1;min-width:150px;">
         <button type="button" id="addClinicColBtn" class="today-btn" style="cursor:pointer;">+ គ្លីនិកថ្មី</button>
       </div>
@@ -484,8 +466,7 @@ var STATE = {
   pastIncomeEntries: [],   // legacy — kept only so an old Firestore doc doesn't crash on load
   clinicTotals: {},        // { 'YYYY-MM': { clinicName: amountUsd } } — the editable grid's data
   clinicNames: ['SPV', 'HMV'],  // active columns shown in the grid; extend via "+ គ្លីនិកថ្មី"
-  archivedClinics: [],          // clinics you no longer work at — data kept, just hidden from the grid
-  selectedClinic: null          // which clinic tab is showing in the clinic-total ledger
+  archivedClinics: []           // clinics you no longer work at — data kept, just hidden from the grid
 };
 
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
@@ -511,14 +492,16 @@ function seedDefaultDoctors() {
 // Default schedule duty columns — matches the app's original fixed fields,
 // but now stored as data so labels/rates can be edited and columns can be
 // added or deleted from the Schedule tab without touching any code.
+// activeFrom/activeUntil are month-keys ('YYYY-MM') or null (= no bound) —
+// null/null means "always active", matching the app's original behavior.
 function defaultSlotColumns() {
   return [
-    { field: 'SPV_Day1', clinic: 'SPV', period: 'DAY', label: 'SPV ១', rate: RATES.SPV_Day1 },
-    { field: 'SPV_Day2', clinic: 'SPV', period: 'DAY', label: 'SPV ២', rate: RATES.SPV_Day2 },
-    { field: 'SPV_Day3', clinic: 'SPV', period: 'DAY', label: 'SPV ៣', rate: RATES.SPV_Day3 },
-    { field: 'SPV_Night', clinic: 'SPV', period: 'NIGHT', label: 'SPV យប់', rate: RATES.SPV_Night },
-    { field: 'HMV_Day', clinic: 'HMV', period: 'DAY', label: 'HMV ថ្ងៃ', rate: RATES.HMV_Day },
-    { field: 'HMV_Night', clinic: 'HMV', period: 'NIGHT', label: 'HMV យប់', rate: RATES.HMV_Night }
+    { field: 'SPV_Day1', clinic: 'SPV', period: 'DAY', label: 'SPV ១', rate: RATES.SPV_Day1, activeFrom: null, activeUntil: null },
+    { field: 'SPV_Day2', clinic: 'SPV', period: 'DAY', label: 'SPV ២', rate: RATES.SPV_Day2, activeFrom: null, activeUntil: null },
+    { field: 'SPV_Day3', clinic: 'SPV', period: 'DAY', label: 'SPV ៣', rate: RATES.SPV_Day3, activeFrom: null, activeUntil: null },
+    { field: 'SPV_Night', clinic: 'SPV', period: 'NIGHT', label: 'SPV យប់', rate: RATES.SPV_Night, activeFrom: null, activeUntil: null },
+    { field: 'HMV_Day', clinic: 'HMV', period: 'DAY', label: 'HMV ថ្ងៃ', rate: RATES.HMV_Day, activeFrom: null, activeUntil: null },
+    { field: 'HMV_Night', clinic: 'HMV', period: 'NIGHT', label: 'HMV យប់', rate: RATES.HMV_Night, activeFrom: null, activeUntil: null }
   ];
 }
 
@@ -529,12 +512,40 @@ function slotColumnByField(field) {
   return null;
 }
 
+// A column counts as active for a given 'YYYY-MM' month-key when that month
+// falls within [activeFrom, activeUntil] (either bound may be null = open).
+function columnActiveInMonth(col, mk) {
+  if (col.activeFrom && mk < col.activeFrom) return false;
+  if (col.activeUntil && mk > col.activeUntil) return false;
+  return true;
+}
+
+function monthKeyFromDate(dateStr) { return String(dateStr).slice(0, 7); }
+
+// Every slot column active for a given schedule-row date — this is what
+// decides which columns actually render/count for that specific day, so a
+// column added or dropped only affects the months it was meant to.
+function visibleColumnsForDate(dateStr) {
+  if (!dateStr) return STATE.slotColumns;
+  var mk = monthKeyFromDate(dateStr);
+  return STATE.slotColumns.filter(function (c) { return columnActiveInMonth(c, mk); });
+}
+
+function monthBeforeKey(mk) {
+  var parts = mk.split('-');
+  var y = Number(parts[0]), m = Number(parts[1]) - 1;
+  if (m < 1) { m = 12; y--; }
+  return y + '-' + pad2(m);
+}
+
 // Groups slot columns by (clinic + period) — the paid 12-hour unit. Several
 // columns in the same clinic+period (e.g. SPV Day1/2/3) collapse into one
-// paid period, same as the app's original behavior.
-function buildPeriodGroups() {
+// paid period, same as the app's original behavior. Pass a specific column
+// list (e.g. only the ones active for one month) — defaults to every column.
+function buildPeriodGroups(cols) {
+  var list = cols || STATE.slotColumns;
   var map = {};
-  STATE.slotColumns.forEach(function (c) {
+  list.forEach(function (c) {
     var key = c.clinic + '_' + c.period;
     if (!map[key]) map[key] = { key: key, fields: [], clinic: c.clinic };
     map[key].fields.push(c.field);
@@ -597,6 +608,12 @@ document.addEventListener('DOMContentLoaded', function () {
       // backward-compat: an older doc may not have slotColumns/offLabel yet —
       // fall back to the original fixed columns so nothing breaks.
       STATE.slotColumns = (data.slotColumns && data.slotColumns.length) ? data.slotColumns : defaultSlotColumns();
+      // backward-compat: columns saved before month-scoping existed have no
+      // activeFrom/activeUntil — treat them as always-active, same as before.
+      STATE.slotColumns.forEach(function (c) {
+        if (!('activeFrom' in c)) c.activeFrom = null;
+        if (!('activeUntil' in c)) c.activeUntil = null;
+      });
       STATE.offLabel = data.offLabel || 'ឈប់សម្រាក';
     } else if (!firstSnapshotHandled) {
       // Brand new Firestore doc — seed default doctors + schedule columns once.
@@ -813,13 +830,15 @@ function lindaDoctor() {
 function rowIsMyDuty(rowObj) {
   var linda = lindaDoctor();
   if (!linda || !rowObj) return false;
-  var names = STATE.slotColumns.map(function (c) { return rowObj[c.field]; }).filter(Boolean);
+  var cols = visibleColumnsForDate(rowObj.Date);
+  var names = cols.map(function (c) { return rowObj[c.field]; }).filter(Boolean);
   return names.some(function (n) { return n === linda.NameSPV || n === linda.NameHMV; });
 }
 
 function rowIsAutoOff(rowObj) {
   if (!rowObj) return true;
-  return !STATE.slotColumns.some(function (c) { return !!rowObj[c.field]; });
+  var cols = visibleColumnsForDate(rowObj.Date);
+  return !cols.some(function (c) { return !!rowObj[c.field]; });
 }
 
 // A clash = the same name assigned to slots in MORE THAN ONE CLINIC within
@@ -827,8 +846,9 @@ function rowIsAutoOff(rowObj) {
 // however many columns each clinic/period has.
 function detectClashesLocal(rowObj) {
   if (!rowObj) return [];
+  var cols = visibleColumnsForDate(rowObj.Date);
   var byPeriod = {};
-  STATE.slotColumns.forEach(function (c) {
+  cols.forEach(function (c) {
     var name = rowObj[c.field];
     if (!name) return;
     byPeriod[c.period] = byPeriod[c.period] || {};
@@ -854,8 +874,12 @@ function renderSchedule() {
 
   var allClashDays = [];
   var myDutyDayCount = 0;
-  var spvCols = STATE.slotColumns.filter(function (c) { return c.clinic === 'SPV'; });
-  var otherCols = STATE.slotColumns.filter(function (c) { return c.clinic !== 'SPV'; });
+  var dayDutyCount = 0;
+  var nightDutyCount = 0;
+  var curMonthKey = monthKey(y, m);
+  var visibleCols = STATE.slotColumns.filter(function (c) { return columnActiveInMonth(c, curMonthKey); });
+  var spvCols = visibleCols.filter(function (c) { return c.clinic === 'SPV'; });
+  var otherCols = visibleCols.filter(function (c) { return c.clinic !== 'SPV'; });
 
   var html = '<div style="overflow-x:auto;"><table class="sched"><thead><tr>' +
     '<th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
@@ -875,7 +899,14 @@ function renderSchedule() {
     var isMyDuty = rowIsMyDuty(row);
     var isAutoOff = rowIsAutoOff(row);
     var isMyPersonalOff = !isMyDuty && !isAutoOff; // clinic still running, just not you
-    if (isMyDuty) myDutyDayCount++;
+    if (isMyDuty) {
+      myDutyDayCount++;
+      var dutyInfo = getMyDutyPayForDate(dateStr);
+      if (dutyInfo) {
+        if (dutyInfo.periods.some(function (p) { return p.indexOf('DAY') !== -1; })) dayDutyCount++;
+        if (dutyInfo.periods.some(function (p) { return p.indexOf('NIGHT') !== -1; })) nightDutyCount++;
+      }
+    }
 
     var trClasses = [];
     if (isWeekend) trClasses.push('weekend');
@@ -902,7 +933,8 @@ function renderSchedule() {
   html += '</tbody></table></div>';
   document.getElementById('scheduleWrap').innerHTML = html;
 
-  document.getElementById('dutyDayCount').textContent = '★ ថ្ងៃយាមខែនេះ: ' + myDutyDayCount + '/' + nDays + ' ថ្ងៃ';
+  document.getElementById('dutyDayCount').textContent =
+    '★ ថ្ងៃយាមខែនេះ: ' + myDutyDayCount + '/' + nDays + ' (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')';
 
   var banner = document.getElementById('clashBanner');
   if (allClashDays.length) {
@@ -983,10 +1015,8 @@ function slotHeaderCellHtml(col) {
   return '<div class="sched-col-head">' +
     '<input type="text" class="col-name-input" value="' + escapeAttr(col.label) + '" ' +
     'onchange="renameSlotColumn(\'' + col.field + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះជួរឈរនេះ">' +
-    '<input type="number" min="0" step="0.5" class="col-rate-input" value="' + (col.rate || 0) + '" ' +
-    'onchange="updateSlotColumnRate(\'' + col.field + '\', this.value)" title="អត្រាកម្រៃ/វេន ($)">' +
     '<div class="clinic-col-actions">' +
-    '<button type="button" class="danger" title="លុបជួរឈរនេះជាអចិន្ត្រៃយ៍" onclick="deleteSlotColumn(\'' + col.field + '\')">🗑</button>' +
+    '<button type="button" class="danger" title="បញ្ឈប់/លុបជួរឈរនេះ" onclick="deleteSlotColumn(\'' + col.field + '\')">🗑</button>' +
     '</div></div>';
 }
 
@@ -1009,16 +1039,6 @@ function renameSlotColumn(field, newLabelRaw) {
 }
 window.renameSlotColumn = renameSlotColumn;
 
-function updateSlotColumnRate(field, value) {
-  var col = slotColumnByField(field);
-  if (!col) return;
-  col.rate = Math.max(0, Number(value) || 0);
-  persistRemoteState();
-  showToast('កំណត់អត្រារួចរាល់ ✓');
-  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
-}
-window.updateSlotColumnRate = updateSlotColumnRate;
-
 function renameOffColumn(newLabelRaw) {
   STATE.offLabel = (newLabelRaw || '').trim() || 'ឈប់សម្រាក';
   persistRemoteState();
@@ -1028,28 +1048,44 @@ window.renameOffColumn = renameOffColumn;
 
 // Adds a new duty column (e.g. a 4th SPV daytime slot, or a new HMV night
 // slot) — a fresh internal field key is generated so it never collides with
-// existing data.
+// existing data. It only applies from the month you're currently viewing
+// onward; earlier months are unaffected.
 function addSlotColumn(label, clinic, period, rate) {
   var field = makeSlotFieldKey(clinic, period);
-  STATE.slotColumns.push({ field: field, clinic: clinic, period: period, label: label, rate: Math.max(0, Number(rate) || 0) });
+  STATE.slotColumns.push({
+    field: field, clinic: clinic, period: period, label: label, rate: Math.max(0, Number(rate) || 0),
+    activeFrom: monthKey(STATE.year, STATE.month), activeUntil: null
+  });
   persistRemoteState();
   renderSchedule();
-  showToast('បន្ថែមជួរឈរវេនរួចរាល់ ✓');
+  showToast('បន្ថែមជួរឈរវេនរួចរាល់ ✓ (ចាប់ពីខែនេះតទៅ)');
 }
 
-// Permanently removes a duty column AND clears its values from every
-// schedule row (unlike the clinic-total grid, there's no "archive" step
-// here since a schedule slot isn't meant to keep running once dropped).
+// Removing a column only affects the month you're viewing and onward —
+// earlier months that already used this column keep showing it, exactly as
+// they were. If the column has no history before the viewed month at all
+// (e.g. it was added and immediately removed in the same month), there's
+// nothing to preserve, so it's dropped outright instead.
 function deleteSlotColumn(field) {
   var col = slotColumnByField(field);
   if (!col) return;
-  if (!confirm('លុបជួរឈរ "' + col.label + '" ជាអចិន្ត្រៃយ៍មែនទេ? វេនទាំងអស់ដែលធ្លាប់បញ្ចូលក្នុងជួរនេះនឹងបាត់។')) return;
-  STATE.slotColumns = STATE.slotColumns.filter(function (c) { return c.field !== field; });
-  STATE.scheduleAll.forEach(function (row) { delete row[field]; });
+  var cutoffKey = monthKey(STATE.year, STATE.month);
+  var hasEarlierData = STATE.scheduleAll.some(function (row) {
+    return row[field] && monthKeyFromDate(row.Date) < cutoffKey;
+  });
+  if (hasEarlierData || (col.activeFrom && col.activeFrom < cutoffKey)) {
+    if (!confirm('បញ្ឈប់ជួរឈរ "' + col.label + '" ចាប់ពីខែនេះតទៅមែនទេ? (ខែមុនៗនឹងនៅបង្ហាញដដែល)')) return;
+    col.activeUntil = monthBeforeKey(cutoffKey);
+    showToast('បញ្ឈប់ជួរឈររួចរាល់ ✓ (ខែមុនៗនៅរក្សាទុក)');
+  } else {
+    if (!confirm('លុបជួរឈរ "' + col.label + '" ជាអចិន្ត្រៃយ៍មែនទេ?')) return;
+    STATE.slotColumns = STATE.slotColumns.filter(function (c) { return c.field !== field; });
+    STATE.scheduleAll.forEach(function (row) { delete row[field]; });
+    showToast('លុបជួរឈររួចរាល់ ✓');
+  }
   persistRemoteState();
   renderSchedule();
   if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
-  showToast('លុបជួរឈររួចរាល់ ✓');
 }
 window.deleteSlotColumn = deleteSlotColumn;
 
@@ -1058,11 +1094,9 @@ function bindSlotColumnControls() {
     var clinic = document.getElementById('newSlotClinic').value;
     var period = document.getElementById('newSlotPeriod').value;
     var label = document.getElementById('newSlotLabel').value.trim();
-    var rate = document.getElementById('newSlotRate').value;
     if (!label) { showToast('សូមវាយបញ្ចូលឈ្មោះជួរឈរ'); return; }
-    addSlotColumn(label, clinic, period, rate);
+    addSlotColumn(label, clinic, period, 0);
     document.getElementById('newSlotLabel').value = '';
-    document.getElementById('newSlotRate').value = '';
   });
 }
 
@@ -1323,7 +1357,8 @@ function bindDoctorForm() {
 // columns added/removed/renamed on the Schedule tab are reflected automatically.
 function capDailyEarningsClient(rowObj) {
   var buckets = {}; // key: docKey|periodKey
-  buildPeriodGroups().forEach(function (group) {
+  var cols = visibleColumnsForDate(rowObj && rowObj.Date);
+  buildPeriodGroups(cols).forEach(function (group) {
     group.fields.forEach(function (f) {
       var name = rowObj[f];
       if (!name) return;
@@ -1476,11 +1511,12 @@ function incomeRowForDate(dateStr) {
 function lindaClinicsForRow(row) {
   var linda = lindaDoctor();
   if (!linda || !row) return [];
+  var cols = visibleColumnsForDate(row.Date);
   var out = [];
-  var spvHit = STATE.slotColumns.some(function (c) {
+  var spvHit = cols.some(function (c) {
     return c.clinic === 'SPV' && row[c.field] && (row[c.field] === linda.NameSPV || row[c.field] === linda.NameHMV);
   });
-  var hmvHit = STATE.slotColumns.some(function (c) {
+  var hmvHit = cols.some(function (c) {
     return c.clinic === 'HMV' && row[c.field] && (row[c.field] === linda.NameSPV || row[c.field] === linda.NameHMV);
   });
   if (spvHit) out.push('SPV');
@@ -1766,7 +1802,6 @@ function bindClinicGridControls() {
     if (!name) { showToast('សូមវាយបញ្ចូលឈ្មោះគ្លីនិក'); return; }
     if (STATE.clinicNames.indexOf(name) !== -1) { showToast('គ្លីនិកនេះមានរួចហើយ'); return; }
     STATE.clinicNames.push(name);
-    STATE.selectedClinic = name;
     persistIncomeState();
     document.getElementById('newClinicName').value = '';
     renderClinicLedger();
@@ -1799,13 +1834,6 @@ function clearClinicMonthValue(monthKeyVal, clinicName) {
   showToast('សម្អាតចំនួនខែនេះរួចរាល់ ✓');
 }
 window.clearClinicMonthValue = clearClinicMonthValue;
-
-// Switches which clinic's ledger is showing.
-function selectClinicTab(name) {
-  STATE.selectedClinic = name;
-  renderClinicLedger();
-}
-window.selectClinicTab = selectClinicTab;
 
 // Rename a clinic COLUMN — renames it in the active list AND moves its
 // stored amount across every month so past numbers stay attached to it
@@ -1848,7 +1876,6 @@ window.archiveClinic = archiveClinic;
 function unarchiveClinic(clinicName) {
   STATE.archivedClinics = STATE.archivedClinics.filter(function (c) { return c !== clinicName; });
   if (STATE.clinicNames.indexOf(clinicName) === -1) STATE.clinicNames.push(clinicName);
-  STATE.selectedClinic = clinicName;
   persistIncomeState();
   renderClinicLedger();
 }
@@ -1888,61 +1915,47 @@ function renderClinicLedger() {
   var prevKey = monthKey(prevYear, prevM);
   var clinicNames = STATE.clinicNames;
 
-  // Keep the selection valid — default to the first active clinic, and
-  // fall back automatically if the one showing got renamed/archived/deleted.
-  if (!STATE.selectedClinic || clinicNames.indexOf(STATE.selectedClinic) === -1) {
-    STATE.selectedClinic = clinicNames[0] || null;
-  }
-  var selected = STATE.selectedClinic;
-
-  // ---- clinic tabs ----
-  document.getElementById('clinicTabs').innerHTML = clinicNames.length
-    ? clinicNames.map(function (c) {
-        return '<button type="button" class="clinic-tab' + (c === selected ? ' active' : '') + '" onclick="selectClinicTab(\'' + escapeAttr(c) + '\')">' + escapeHtml(c) + '</button>';
-      }).join('')
-    : '<span style="font-size:12.5px;color:var(--sub);padding:6px 4px;">មិនទាន់មានគ្លីនិកទេ — បន្ថែមមួយខាងក្រោម</span>';
-
-  // ---- rename / archive / delete the SELECTED clinic ----
-  document.getElementById('clinicToolbar').innerHTML = selected
-    ? '<input type="text" class="col-name-input" value="' + escapeAttr(selected) + '" ' +
-      'onchange="renameClinicColumn(\'' + escapeAttr(selected) + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះគ្លីនិកនេះ">' +
-      '<button type="button" class="today-btn" style="cursor:pointer;" title="ឈប់ធ្វើ (លាក់ចេញ — ទិន្នន័យរក្សាទុក)" onclick="archiveClinic(\'' + escapeAttr(selected) + '\')">📥 ឈប់ធ្វើ</button>' +
-      '<button type="button" class="today-btn" style="cursor:pointer;color:var(--off);border-color:#f3c9c9;" title="លុបជាអចិន្ត្រៃយ៍" onclick="deleteClinicColumn(\'' + escapeAttr(selected) + '\')">🗑 លុបគ្លីនិកនេះ</button>'
-    : '';
-
-  // ---- table: months down, one $ column for the selected clinic only ----
+  // Shared month list across every clinic card — "+ ខែថ្មី" adds a month
+  // here once, and it shows up in every clinic's table.
   var monthKeys = Object.keys(STATE.clinicTotals).sort().reverse();
   if (monthKeys.indexOf(curKey) === -1) monthKeys.unshift(curKey);
   if (monthKeys.indexOf(prevKey) === -1) monthKeys.splice(1, 0, prevKey);
 
-  var head = '<thead><tr><th style="text-align:left;">ខែ</th><th style="text-align:right;">ចំនួន ($)</th><th></th></tr></thead>';
-  var selectedTotal = 0;
-  var body;
-  if (selected) {
-    body = monthKeys.map(function (mk) {
-      var v = (STATE.clinicTotals[mk] && STATE.clinicTotals[mk][selected]) || 0;
-      selectedTotal += v;
-      return '<tr><td class="date-cell">' + monthOptionLabel(mk) + '</td>' +
-        '<td class="clinic-amount-cell"><span class="cur">$</span><input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v +
-        '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(selected) + '\',this.value)"></td>' +
-        '<td><button class="ledger-del" title="សម្អាតខែនេះ (គ្លីនិកនេះតែប៉ុណ្ណោះ)" onclick="clearClinicMonthValue(\'' + mk + '\',\'' + escapeAttr(selected) + '\')">✕</button></td></tr>';
-    }).join('');
+  var cardsWrap = document.getElementById('clinicCardsWrap');
+  if (!clinicNames.length) {
+    cardsWrap.innerHTML = '<div class="empty-state">មិនទាន់មានគ្លីនិកទេ — បន្ថែមមួយខាងក្រោម</div>';
   } else {
-    body = '<tr><td colspan="3" class="empty-state">សូមបន្ថែមគ្លីនិកមួយខាងក្រោមសិន</td></tr>';
+    cardsWrap.innerHTML = clinicNames.map(function (c) {
+      var clinicTotal = 0;
+      var rows = monthKeys.map(function (mk) {
+        var v = (STATE.clinicTotals[mk] && STATE.clinicTotals[mk][c]) || 0;
+        clinicTotal += v;
+        return '<tr><td class="date-cell">' + monthOptionLabel(mk) + '</td>' +
+          '<td class="clinic-amount-cell"><span class="cur">$</span><input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v +
+          '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>' +
+          '<td><button class="ledger-del" title="សម្អាតខែនេះ (គ្លីនិកនេះតែប៉ុណ្ណោះ)" onclick="clearClinicMonthValue(\'' + mk + '\',\'' + escapeAttr(c) + '\')">✕</button></td></tr>';
+      }).join('');
+      return '<div class="pay-col">' +
+        '<div class="clinic-card-head">' +
+        '<input type="text" class="col-name-input" value="' + escapeAttr(c) + '" ' +
+        'onchange="renameClinicColumn(\'' + escapeAttr(c) + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះគ្លីនិកនេះ">' +
+        '<button type="button" class="today-btn" style="cursor:pointer;" title="ឈប់ធ្វើ (លាក់ចេញ — ទិន្នន័យរក្សាទុក)" onclick="archiveClinic(\'' + escapeAttr(c) + '\')">📥</button>' +
+        '<button type="button" class="today-btn" style="cursor:pointer;color:var(--off);border-color:#f3c9c9;" title="លុបជាអចិន្ត្រៃយ៍" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">🗑</button>' +
+        '</div>' +
+        '<table class="sched"><thead><tr><th style="text-align:left;">ខែ</th><th style="text-align:right;">ចំនួន ($)</th><th></th></tr></thead><tbody>' +
+        rows +
+        '<tr style="background:#f7f8fb;font-weight:700;"><td class="date-cell">សរុប ' + escapeHtml(c) + '</td>' +
+        '<td style="text-align:right;">' + fmtUsd(clinicTotal) + '</td><td></td></tr>' +
+        '</tbody></table></div>';
+    }).join('');
   }
-  var footer = selected
-    ? '<tr style="background:#f7f8fb;font-weight:700;"><td class="date-cell">សរុប</td><td style="text-align:right;">' + fmtUsd(selectedTotal) + '</td><td></td></tr>'
-    : '';
 
-  document.getElementById('clinicGridTable').innerHTML = head + '<tbody>' + body + footer + '</tbody>';
-
-  // ---- stats: selected clinic's lifetime total, plus overall across every clinic ----
+  // ---- stats: overall total across every clinic (active + archived) ----
   var overallTotal = 0;
   clinicNames.concat(STATE.archivedClinics).forEach(function (c) { overallTotal += clinicLifetimeTotal(c); });
 
   document.getElementById('clinicStatsWrap').innerHTML =
     '<div class="stat-row">' +
-    (selected ? '<div class="stat"><div class="n">' + fmtUsd(clinicLifetimeTotal(selected)) + '</div><div class="l">សរុប ' + escapeHtml(selected) + '</div></div>' : '') +
     '<div class="stat"><div class="n">' + fmtUsd(overallTotal) + '</div><div class="l">ចំណូលសរុបគ្រប់គ្លីនិក</div></div>' +
     '<div class="stat"><div class="n">' + fmtKhr(overallTotal * STATE.khrPerUsd) + '</div><div class="l">= ជាប្រាក់រៀល</div></div>' +
     '</div>';
