@@ -297,14 +297,16 @@
           <button class="today-btn" id="todayBtn">ខែនេះ</button>
           <select class="today-btn" id="monthPicker" style="cursor:pointer;"></select>
           <span id="dutyDayCount" class="today-btn" style="background:var(--spv-bg);color:var(--spv);border-color:transparent;font-weight:700;"></span>
+          <button type="button" class="today-btn" id="copyMonthBtn" style="cursor:pointer;" title="ចម្លងកាលវិភាគទាំងមូលនៃខែនេះ">📋 ចម្លងខែ</button>
+          <button type="button" class="today-btn" id="pasteMonthBtn" style="cursor:pointer;" title="បិទភ្ជាប់កាលវិភាគដែលបានចម្លងមកខែនេះ">📥 បិទភ្ជាប់ខែ</button>
         </div>
       </div>
       <div class="add-col-row" style="margin-top:0;padding-top:0;border-top:none;margin-bottom:12px;">
-        <select id="newSlotKind" class="today-btn" style="cursor:pointer;">
-          <option value="SPV_DAY">SPV ថ្ងៃ</option>
-          <option value="SPV_NIGHT">SPV យប់</option>
-          <option value="HMV_DAY">HMV ថ្ងៃ</option>
-          <option value="HMV_NIGHT">HMV យប់</option>
+        <input type="text" id="newSlotClinic" placeholder="ឈ្មោះគ្លីនិក (ឧ. SPV, HMV, ឬគ្លីនិកថ្មី)" class="ledger-input" style="border:1px solid var(--line);min-width:170px;" list="clinicNameOptions">
+        <datalist id="clinicNameOptions"></datalist>
+        <select id="newSlotPeriod" class="today-btn" style="cursor:pointer;">
+          <option value="DAY">ថ្ងៃ</option>
+          <option value="NIGHT">យប់</option>
         </select>
         <input type="text" id="newSlotLabel" placeholder="ឈ្មោះជួរឈរ ឧ. SPV ៤" class="ledger-input" style="border:1px solid var(--line);min-width:140px;">
         <button type="button" id="addSlotColBtn" class="today-btn" style="cursor:pointer;">+ បន្ថែមជួរឈរវេន</button>
@@ -452,6 +454,7 @@ var STATE = {
   payMonth: null,
   editing: null,
   copiedDay: null,      // { sourceDate, fields } — one day's duty slots, copied and ready to paste elsewhere
+  copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
   incomeRatesByMonth: {},   // { 'YYYY-MM': { SPV:{consult,ipd}, HMV:{consult,ipd} } }
   incomeExtraByMonth: {},   // { 'YYYY-MM': { SPV_Consult, SPV_IPD, HMV_Consult, HMV_IPD } } — not tied to a specific day
   incomeEntries: [],
@@ -587,6 +590,7 @@ document.addEventListener('DOMContentLoaded', function () {
   bindIncomeMonthNav();
   bindClinicGridControls();
   bindSlotColumnControls();
+  bindMonthCopyPaste();
 
   document.getElementById('scheduleWrap').innerHTML =
     '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
@@ -875,11 +879,15 @@ function renderSchedule() {
   var spvCols = visibleCols.filter(function (c) { return c.clinic === 'SPV'; });
   var otherCols = visibleCols.filter(function (c) { return c.clinic !== 'SPV'; });
 
-  var html = '<div style="overflow-x:auto;"><table class="sched"><thead><tr>' +
+  updateClinicNameOptions();
+
+  var html = '<div style="overflow-x:auto;"><table class="sched"><thead>' +
+    clinicGroupHeaderRow(spvCols, otherCols) +
+    '<tr>' +
     '<th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
     spvCols.map(function (c) { return '<th class="group-spv">' + slotHeaderCellHtml(c) + '</th>'; }).join('') +
     '<th>' + offHeaderCellHtml() + '</th>' +
-    otherCols.map(function (c) { return '<th class="group-' + c.clinic.toLowerCase() + '">' + slotHeaderCellHtml(c) + '</th>'; }).join('') +
+    otherCols.map(function (c) { return '<th' + (c.clinic === 'HMV' ? ' class="group-hmv"' : '') + '>' + slotHeaderCellHtml(c) + '</th>'; }).join('') +
     '</tr></thead><tbody>';
 
   for (var d = 1; d <= nDays; d++) {
@@ -938,6 +946,18 @@ function renderSchedule() {
     banner.classList.remove('show');
   }
 
+  renderCopiedBanner();
+
+  bindCellClicks();
+}
+
+// Shows whichever copy is currently active — a single day (📋 per-row) or a
+// whole month (📋 ចម្លងខែ) — with a link to clear it. A day-copy takes
+// display priority if somehow both are set, since it's the more specific
+// action most recently taken in that case is ambiguous; in practice only
+// one is ever set at a time (starting a new copy of either kind clears the
+// other, see copyDutyDay / copyWholeMonth).
+function renderCopiedBanner() {
   var copiedBanner = document.getElementById('copiedBanner');
   if (STATE.copiedDay) {
     var src = STATE.copiedDay.sourceDate;
@@ -945,11 +965,14 @@ function renderSchedule() {
       ' — ចុច 📥 លើថ្ងៃផ្សេងទៀតដើម្បីបិទភ្ជាប់វេននេះ' +
       '<span class="clear-copy-link" onclick="clearCopiedDay()">✕ សម្អាត</span>';
     copiedBanner.classList.add('show');
+  } else if (STATE.copiedMonth) {
+    copiedBanner.innerHTML = '📋 បានចម្លងកាលវិភាគខែ ' + MONTH_NAMES_KM[STATE.copiedMonth.month - 1] + ' ' + STATE.copiedMonth.year +
+      ' — ប្តូរទៅខែផ្សេងទៀត រួចចុច "📥 បិទភ្ជាប់ខែ" ខាងលើ' +
+      '<span class="clear-copy-link" onclick="clearCopiedMonth()">✕ សម្អាត</span>';
+    copiedBanner.classList.add('show');
   } else {
     copiedBanner.classList.remove('show');
   }
-
-  bindCellClicks();
 }
 
 // Same per-doctor colors as her original Google Sheet (matched by doctor ID,
@@ -1012,6 +1035,51 @@ function styleFor(name) {
   var s = 'color:' + c.text + ';';
   if (c.bg) s += 'background:' + c.bg + ';';
   return s;
+}
+
+// Light background + readable text color for a clinic's group header. SPV
+// and HMV keep their existing theme colors; any other clinic name gets a
+// deterministic color from this palette, so every clinic you add stays
+// visually distinct and consistent every time the schedule re-renders.
+var CLINIC_HEADER_PALETTE = [
+  { bg: '#f1e9ff', text: '#6b3fd1' },
+  { bg: '#fff3e0', text: '#b35c00' },
+  { bg: '#e0f7fa', text: '#00838f' },
+  { bg: '#fde7f3', text: '#ad1457' },
+  { bg: '#eef7e0', text: '#4a7a1f' },
+  { bg: '#e8eaf6', text: '#3949ab' }
+];
+function clinicHeaderColors(clinic) {
+  if (clinic === 'SPV') return { bg: 'var(--spv-bg)', text: 'var(--spv)' };
+  if (clinic === 'HMV') return { bg: 'var(--hmv-bg)', text: 'var(--hmv)' };
+  return CLINIC_HEADER_PALETTE[hashString(clinic) % CLINIC_HEADER_PALETTE.length];
+}
+
+// One header row that sits ABOVE the per-column header row, showing each
+// clinic's name spanning its own group of columns — so a clinic you add is
+// clearly labeled "on top" of its columns, not just colored per-column.
+// Column order in the row below stays: [SPV columns] [ថ្ងៃឈប់] [every other
+// clinic's columns, grouped together] — this row mirrors that grouping with
+// colspans; the ថ្ងៃឈប់ column gets a blank cell here since it isn't a clinic.
+function clinicGroupHeaderRow(spvCols, otherCols) {
+  var groups = [];
+  if (spvCols.length) groups.push({ clinic: 'SPV', span: spvCols.length });
+  groups.push({ clinic: null, span: 1 }); // the ថ្ងៃឈប់ column
+  var i = 0;
+  while (i < otherCols.length) {
+    var clinic = otherCols[i].clinic;
+    var span = 1;
+    while (i + span < otherCols.length && otherCols[i + span].clinic === clinic) span++;
+    groups.push({ clinic: clinic, span: span });
+    i += span;
+  }
+  var cells = groups.map(function (g) {
+    if (!g.clinic) return '<th colspan="' + g.span + '"></th>';
+    var c = clinicHeaderColors(g.clinic);
+    return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text +
+      ';font-weight:700;font-size:12.5px;">' + escapeHtml(g.clinic) + '</th>';
+  }).join('');
+  return '<tr><th style="text-align:left;"></th>' + cells + '</tr>';
 }
 
 // Editable header for one duty column: rename label, set its $ rate, delete it.
@@ -1095,14 +1163,30 @@ window.deleteSlotColumn = deleteSlotColumn;
 
 function bindSlotColumnControls() {
   document.getElementById('addSlotColBtn').addEventListener('click', function () {
-    var kind = document.getElementById('newSlotKind').value; // e.g. 'SPV_DAY'
-    var parts = kind.split('_');
-    var clinic = parts[0], period = parts[1];
+    var clinic = document.getElementById('newSlotClinic').value.trim();
+    var period = document.getElementById('newSlotPeriod').value;
     var label = document.getElementById('newSlotLabel').value.trim();
+    if (!clinic) { showToast('សូមវាយបញ្ចូលឈ្មោះគ្លីនិក'); return; }
     if (!label) { showToast('សូមវាយបញ្ចូលឈ្មោះជួរឈរ'); return; }
     addSlotColumn(label, clinic, period, 0);
+    document.getElementById('newSlotClinic').value = '';
     document.getElementById('newSlotLabel').value = '';
   });
+}
+
+// Every distinct clinic name currently used by any slot column — feeds the
+// "ឈ្មោះគ្លីនិក" datalist so picking an existing clinic (SPV, HMV, or any
+// custom one already added) is one click, while typing a brand-new name
+// still works freely to create another clinic.
+function updateClinicNameOptions() {
+  var dl = document.getElementById('clinicNameOptions');
+  if (!dl) return;
+  var names = [];
+  var seen = {};
+  STATE.slotColumns.forEach(function (c) {
+    if (c.clinic && !seen[c.clinic]) { seen[c.clinic] = true; names.push(c.clinic); }
+  });
+  dl.innerHTML = names.map(function (n) { return '<option value="' + escapeAttr(n) + '"></option>'; }).join('');
 }
 
 function renderSlotCell(dateStr, field, value, clashes) {
@@ -1265,11 +1349,14 @@ function saveCellValue(date, field, value) {
 
 // Copies one date's duty-slot assignments (not the day-off note, which is
 // recomputed automatically) so they can be pasted onto another date.
+// Starting a day-copy clears any whole-month copy in progress, so the
+// "copied" banner always reflects exactly one pending copy at a time.
 function copyDutyDay(dateStr) {
   var row = rowForDate(dateStr) || {};
   var fields = {};
   STATE.slotColumns.forEach(function (c) { fields[c.field] = row[c.field] || ''; });
   STATE.copiedDay = { sourceDate: dateStr, fields: fields };
+  STATE.copiedMonth = null;
   renderSchedule();
   showToast('បានចម្លងវេនថ្ងៃទី ' + dateStr.slice(8) + '/' + dateStr.slice(5, 7) + ' ✓ — ចុច 📥 លើថ្ងៃណាមួយដើម្បីបិទភ្ជាប់');
 }
@@ -1310,6 +1397,87 @@ function clearCopiedDay() {
   renderSchedule();
 }
 window.clearCopiedDay = clearCopiedDay;
+
+// ---- Whole-month copy/paste ----
+// Copies every day's duty-slot assignments (all slotColumns fields, plus the
+// day-off/SPV_Off note) for the currently viewed month, keyed by day-of-month
+// rather than absolute date, so it can be pasted onto any other month.
+// Starting a month-copy clears any single-day copy in progress.
+function copyWholeMonth() {
+  var y = STATE.year, m = STATE.month;
+  var nDays = daysInMonth(y, m);
+  var days = [];
+  for (var d = 1; d <= nDays; d++) {
+    var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
+    var row = rowForDate(dateStr) || {};
+    var fields = {};
+    STATE.slotColumns.forEach(function (c) { fields[c.field] = row[c.field] || ''; });
+    fields.SPV_Off = row.SPV_Off || '';
+    days.push({ day: d, fields: fields });
+  }
+  STATE.copiedMonth = { year: y, month: m, days: days };
+  STATE.copiedDay = null;
+  renderSchedule();
+  showToast('បានចម្លងកាលវិភាគខែ ' + MONTH_NAMES_KM[m - 1] + ' ' + y + ' ✓ — ប្តូរទៅខែផ្សេងទៀតរួចចុច "📥 បិទភ្ជាប់ខែ"');
+}
+window.copyWholeMonth = copyWholeMonth;
+
+// Pastes the copied month onto the currently viewed month, day-of-month for
+// day-of-month — overwrites whatever is already there for each day that
+// exists in both months (a target month with fewer days just drops the
+// extra trailing days from the source). Recomputes auto-off for every
+// touched day, same as a normal single-cell edit would.
+function pasteWholeMonth() {
+  if (!STATE.copiedMonth) { showToast('មិនទាន់មានខែដែលបានចម្លងទេ — ចុច "📋 ចម្លងខែ" លើខែណាមួយសិន'); return; }
+  var y = STATE.year, m = STATE.month;
+  if (y === STATE.copiedMonth.year && m === STATE.copiedMonth.month) {
+    showToast('នេះជាខែដែលបានចម្លងរួចហើយ — សូមប្តូរទៅខែផ្សេង');
+    return;
+  }
+  var srcLabel = MONTH_NAMES_KM[STATE.copiedMonth.month - 1] + ' ' + STATE.copiedMonth.year;
+  var dstLabel = MONTH_NAMES_KM[m - 1] + ' ' + y;
+  if (!confirm('បិទភ្ជាប់កាលវិភាគពីខែ ' + srcLabel + ' មកខែ ' + dstLabel + ' មែនទេ? (នេះនឹងសរសេរជាន់លើទិន្នន័យណាមួយដែលមានស្រាប់ក្នុងខែ ' + dstLabel + ')')) return;
+
+  var nDaysTarget = daysInMonth(y, m);
+  STATE.copiedMonth.days.forEach(function (dayData) {
+    if (dayData.day > nDaysTarget) return;
+    var dateStr = y + '-' + pad2(m) + '-' + pad2(dayData.day);
+    var row = rowForDate(dateStr);
+    if (!row) { row = { Date: dateStr }; STATE.scheduleAll.push(row); }
+    Object.keys(dayData.fields).forEach(function (f) { row[f] = dayData.fields[f]; });
+    applyAutoOff(row);
+  });
+
+  renderSchedule();
+  showToast('បិទភ្ជាប់កាលវិភាគទាំងមូលមកខែ ' + dstLabel + ' រួចរាល់ ✓');
+
+  STATE.historyAll.unshift({
+    'ពេលវេលា': new Date().toISOString().slice(0, 16).replace('T', ' '),
+    'កាលបរិច្ឆេទ': y + '-' + pad2(m),
+    'វេន (Field)': 'COPY_PASTE_MONTH',
+    'ឈ្មោះចាស់': '',
+    'ឈ្មោះថ្មី': 'ចម្លងកាលវិភាគទាំងមូលពីខែ ' + STATE.copiedMonth.year + '-' + pad2(STATE.copiedMonth.month),
+    'អ្នកប្រើ': 'you'
+  });
+  if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
+  if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
+
+  persistRemoteState();
+  scheduleBackup();
+}
+window.pasteWholeMonth = pasteWholeMonth;
+
+function clearCopiedMonth() {
+  STATE.copiedMonth = null;
+  renderSchedule();
+}
+window.clearCopiedMonth = clearCopiedMonth;
+
+function bindMonthCopyPaste() {
+  document.getElementById('copyMonthBtn').addEventListener('click', copyWholeMonth);
+  document.getElementById('pasteMonthBtn').addEventListener('click', pasteWholeMonth);
+}
+
 function renderDoctors() {
   var grid = document.getElementById('docGrid');
   if (!STATE.doctors.length) {
@@ -1443,14 +1611,26 @@ function capDailyEarningsClient(rowObj) {
   return Object.keys(buckets).map(function (k) { return buckets[k]; });
 }
 
+// Builds payroll for EVERY clinic that exists, not just SPV/HMV — a clinic
+// column you add on the Schedule tab shows up here automatically, with its
+// own doctor list, shift counts, USD and KHR, exactly like SPV/HMV always
+// have. A clinic is "seeded" (shown, even with $0) for a month if it has at
+// least one slot column active that month, so the layout doesn't jump
+// around just because nobody's been assigned there yet.
 function computePayrollClient(year, month) {
   var prefix = year + '-' + pad2(month);
+  var monthKeyVal = monthKey(year, month);
   var rows = STATE.scheduleAll.filter(function (r) { return String(r.Date).indexOf(prefix) === 0; });
-  var spvCounts = {}, hmvCounts = {};
+  var byClinic = {};
+
+  STATE.slotColumns.forEach(function (c) {
+    if (columnActiveInMonth(c, monthKeyVal) && !byClinic[c.clinic]) byClinic[c.clinic] = {};
+  });
 
   rows.forEach(function (r) {
     capDailyEarningsClient(r).forEach(function (e) {
-      var bucket = e.clinic === 'SPV' ? spvCounts : hmvCounts;
+      if (!byClinic[e.clinic]) byClinic[e.clinic] = {};
+      var bucket = byClinic[e.clinic];
       if (!bucket[e.docKey]) bucket[e.docKey] = { name: e.displayName, shifts: 0, usd: 0 };
       bucket[e.docKey].shifts++;
       bucket[e.docKey].usd += e.rate;
@@ -1465,18 +1645,24 @@ function computePayrollClient(year, month) {
     }).sort(function (a, b) { return b.usd - a.usd; });
   }
 
+  var clinics = {};
+  Object.keys(byClinic).forEach(function (clinicName) { clinics[clinicName] = toList(byClinic[clinicName]); });
+
   var lindaDoc = lindaDoctor();
-  var linda = { usd: 0, khr: 0, spvShifts: 0, hmvShifts: 0, shifts: 0 };
+  var linda = { usd: 0, khr: 0, shifts: 0, byClinic: {} };
   if (lindaDoc) {
-    var spvEntry = spvCounts[lindaDoc.ID];
-    var hmvEntry = hmvCounts[lindaDoc.ID];
-    if (spvEntry) { linda.usd += spvEntry.usd; linda.spvShifts = spvEntry.shifts; }
-    if (hmvEntry) { linda.usd += hmvEntry.usd; linda.hmvShifts = hmvEntry.shifts; }
-    linda.shifts = linda.spvShifts + linda.hmvShifts;
+    Object.keys(byClinic).forEach(function (clinicName) {
+      var entry = byClinic[clinicName][lindaDoc.ID];
+      if (entry) {
+        linda.byClinic[clinicName] = { shifts: entry.shifts, usd: entry.usd };
+        linda.usd += entry.usd;
+        linda.shifts += entry.shifts;
+      }
+    });
     linda.khr = linda.usd * STATE.khrPerUsd;
   }
 
-  return { spv: toList(spvCounts), hmv: toList(hmvCounts), linda: linda };
+  return { clinics: clinics, linda: linda };
 }
 
 // Your (Linda's) duty/shift pay for ONE date — same capped-per-period rule as
@@ -1520,22 +1706,36 @@ function renderPayroll(summary, incomeSummary) {
       '<th style="text-align:right;">USD</th><th style="text-align:right;">KHR</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
+  // SPV and HMV always lead (in that order, when present); any other
+  // clinic follows, alphabetically, so a newly added clinic simply appends
+  // a new card here without disturbing the familiar SPV/HMV layout.
+  var clinicNames = Object.keys(summary.clinics);
+  var orderedClinics = ['SPV', 'HMV'].filter(function (c) { return clinicNames.indexOf(c) !== -1; })
+    .concat(clinicNames.filter(function (c) { return c !== 'SPV' && c !== 'HMV'; }).sort());
+
   var html = '<div class="pay-grid">' +
-    '<div class="pay-col"><h3 class="spv">SPV</h3>' + table(summary.spv) + '</div>' +
-    '<div class="pay-col"><h3 class="hmv">HMV</h3>' + table(summary.hmv) + '</div>' +
+    orderedClinics.map(function (c) {
+      var isKnown = c === 'SPV' || c === 'HMV';
+      var cls = c === 'SPV' ? 'spv' : (c === 'HMV' ? 'hmv' : '');
+      var style = isKnown ? '' : ' style="color:' + clinicHeaderColors(c).text + ';"';
+      return '<div class="pay-col"><h3 class="' + cls + '"' + style + '>' + escapeHtml(c) + '</h3>' + table(summary.clinics[c]) + '</div>';
+    }).join('') +
     '</div>';
 
-  // ---- one grand total for Linda alone, both clinics combined ----
+  // ---- one grand total for Linda alone, every clinic combined ----
   var spvIncomeTotal = incomeSummary ? incomeSummary.SPV.usd : 0;
   var hmvIncomeTotal = incomeSummary ? incomeSummary.HMV.usd : 0;
-  if (summary.linda && (summary.linda.shifts || spvIncomeTotal || hmvIncomeTotal)) {
-    var incomeBothTotal = spvIncomeTotal + hmvIncomeTotal;
+  var incomeBothTotal = spvIncomeTotal + hmvIncomeTotal;
+  if (summary.linda && (summary.linda.shifts || incomeBothTotal)) {
     var lindaGrandTotal = summary.linda.usd + incomeBothTotal;
+    var byClinicLine = Object.keys(summary.linda.byClinic).map(function (c) {
+      return escapeHtml(c) + ': ' + summary.linda.byClinic[c].shifts + ' វេន';
+    }).join(' &nbsp;|&nbsp; ');
     html += '<div class="linda-box">' +
-      '<b>ប្រាក់ខែពីវេនរបស់អ្នក ⭐</b> — SPV: ' + summary.linda.spvShifts + ' វេន &nbsp;|&nbsp; HMV: ' + summary.linda.hmvShifts + ' វេន &nbsp;|&nbsp; ' +
+      '<b>ប្រាក់ខែពីវេនរបស់អ្នក ⭐</b> — ' + (byClinicLine || 'មិនមានវេនខែនេះ') + ' &nbsp;|&nbsp; ' +
       'សរុបវេន: ' + fmtUsd(summary.linda.usd) + '<br>' +
       'ចំណូល Consult/IPD (SPV+HMV): ' + fmtUsd(incomeBothTotal) + '<br>' +
-      '<b style="font-size:15.5px;">សរុបប្រចាំខែទាំងអស់សម្រាប់អ្នក (ទាំង២គ្លីនិក): ' + fmtUsd(lindaGrandTotal) + ' (' + fmtKhr(lindaGrandTotal * STATE.khrPerUsd) + ')</b>' +
+      '<b style="font-size:15.5px;">សរុបប្រចាំខែទាំងអស់សម្រាប់អ្នក: ' + fmtUsd(lindaGrandTotal) + ' (' + fmtKhr(lindaGrandTotal * STATE.khrPerUsd) + ')</b>' +
       '</div>';
   }
 
