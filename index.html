@@ -146,6 +146,9 @@
   .doc-item .pool.spv{background:var(--spv-bg);color:var(--spv);}
   .doc-item .pool.hmv{background:var(--hmv-bg);color:var(--hmv);}
   .doc-item .pool.both{background:#f1e9ff;color:#6b3fd1;}
+  .doc-color-input{width:34px;height:34px;padding:2px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:#fff;flex:none;}
+  .doc-name-input{flex:1;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid var(--line);font-family:inherit;font-size:12.8px;background:#fff;}
+  .doc-pool-select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);font-family:inherit;font-size:12px;background:#fff;}
 
   form.add-doc{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);}
   form.add-doc input, form.add-doc select{
@@ -295,30 +298,21 @@
           <select class="today-btn" id="monthPicker" style="cursor:pointer;"></select>
           <span id="dutyDayCount" class="today-btn" style="background:var(--spv-bg);color:var(--spv);border-color:transparent;font-weight:700;"></span>
         </div>
-        <div class="legend">
-          <span><span class="dot" style="background:var(--spv)"></span> SPV</span>
-          <span><span class="dot" style="background:var(--hmv)"></span> HMV</span>
-          <span><span class="dot" style="background:var(--off)"></span> DAY OFF</span>
-          <span><span class="dot" style="background:var(--warn)"></span> ប៉ះទង្គិចវេន</span>
-          <span><span class="dot" style="background:var(--brand)"></span> ★ ថ្ងៃយាមអ្នក</span>
-        </div>
       </div>
-      <div class="clash-banner" id="clashBanner"></div>
-      <div class="copied-banner" id="copiedBanner"></div>
-      <div id="scheduleWrap"></div>
-      <div style="font-size:11px;color:var(--sub);margin-top:10px;">កែឈ្មោះ/អត្រា $ ក្នុងក្បាលជួរឈរដោយវាយផ្ទាល់ខាងលើ — ចុច 🗑 ដើម្បីលុបជួរឈរនោះ</div>
-      <div class="add-col-row">
-        <select id="newSlotClinic" class="today-btn" style="cursor:pointer;">
-          <option value="SPV">SPV</option>
-          <option value="HMV">HMV</option>
-        </select>
-        <select id="newSlotPeriod" class="today-btn" style="cursor:pointer;">
-          <option value="DAY">វេនថ្ងៃ</option>
-          <option value="NIGHT">វេនយប់</option>
+      <div class="add-col-row" style="margin-top:0;padding-top:0;border-top:none;margin-bottom:12px;">
+        <select id="newSlotKind" class="today-btn" style="cursor:pointer;">
+          <option value="SPV_DAY">SPV ថ្ងៃ</option>
+          <option value="SPV_NIGHT">SPV យប់</option>
+          <option value="HMV_DAY">HMV ថ្ងៃ</option>
+          <option value="HMV_NIGHT">HMV យប់</option>
         </select>
         <input type="text" id="newSlotLabel" placeholder="ឈ្មោះជួរឈរ ឧ. SPV ៤" class="ledger-input" style="border:1px solid var(--line);min-width:140px;">
         <button type="button" id="addSlotColBtn" class="today-btn" style="cursor:pointer;">+ បន្ថែមជួរឈរវេន</button>
       </div>
+      <div class="clash-banner" id="clashBanner"></div>
+      <div class="copied-banner" id="copiedBanner"></div>
+      <div id="scheduleWrap"></div>
+      <div style="font-size:11px;color:var(--sub);margin-top:10px;">កែឈ្មោះក្នុងក្បាលជួរឈរដោយវាយផ្ទាល់ខាងលើ — ចុច 🗑 ដើម្បីបញ្ឈប់/លុបជួរឈរនោះ</div>
     </div>
   </div>
 
@@ -995,9 +989,19 @@ function hashString(str) {
 // first (matched via doctor ID so aliases share one color), then falls back
 // to a deterministic hash-based SOLID badge color — every doctor gets a
 // filled color pill, not just the manually mapped ones.
+function contrastTextColor(hexBg) {
+  var hex = String(hexBg || '').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(function (c) { return c + c; }).join('');
+  if (hex.length !== 6) return '#ffffff';
+  var r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
+  var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? '#1c2430' : '#ffffff';
+}
+
 function getNameColors(name) {
   if (!name) return { bg: null, text: '#1c2430' };
   var doc = STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0];
+  if (doc && doc.Color) return { bg: doc.Color, text: contrastTextColor(doc.Color) };
   var key = doc ? doc.ID : name;
   if (MANUAL_DOCTOR_COLORS[key]) return MANUAL_DOCTOR_COLORS[key];
   return NAME_COLOR_PALETTE[hashString(key) % NAME_COLOR_PALETTE.length];
@@ -1091,8 +1095,9 @@ window.deleteSlotColumn = deleteSlotColumn;
 
 function bindSlotColumnControls() {
   document.getElementById('addSlotColBtn').addEventListener('click', function () {
-    var clinic = document.getElementById('newSlotClinic').value;
-    var period = document.getElementById('newSlotPeriod').value;
+    var kind = document.getElementById('newSlotKind').value; // e.g. 'SPV_DAY'
+    var parts = kind.split('_');
+    var clinic = parts[0], period = parts[1];
     var label = document.getElementById('newSlotLabel').value.trim();
     if (!label) { showToast('សូមវាយបញ្ចូលឈ្មោះជួរឈរ'); return; }
     addSlotColumn(label, clinic, period, 0);
@@ -1312,14 +1317,29 @@ function renderDoctors() {
     return;
   }
   grid.innerHTML = STATE.doctors.map(function (d) {
-    var poolClass = d.ClinicPool === 'SPV' ? 'spv' : d.ClinicPool === 'HMV' ? 'hmv' : 'both';
     var name = d.NameSPV || d.NameHMV;
-    var altName = (d.NameSPV && d.NameHMV && d.NameSPV !== d.NameHMV) ? d.NameHMV : null;
+    var colorVal = d.Color || getNameColors(name).bg || '#5B9BD5';
     return '<div class="doc-item">' +
-      '<div class="name" style="' + styleFor(name) + (getNameColors(name).bg ? 'padding:2px 8px;border-radius:6px;display:inline-block;' : '') + '">' + escapeHtml(name) + (d.isLinda ? ' ⭐' : '') + '</div>' +
-      (altName ? '<div style="color:var(--sub);font-size:11.5px;margin-top:2px;">' + escapeHtml(altName) + '</div>' : '') +
-      '<span class="pool ' + poolClass + '">' + escapeHtml(d.ClinicPool) + '</span>' +
-      '</div>';
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
+      '<input type="color" class="doc-color-input" value="' + colorVal + '" title="ជ្រើសពណ៌" ' +
+      'onchange="updateDoctorColor(\'' + d.ID + '\', this.value)">' +
+      '<input type="text" class="doc-name-input" value="' + escapeAttr(d.NameSPV) + '" placeholder="ឈ្មោះ (SPV)" ' +
+      'onchange="updateDoctorField(\'' + d.ID + '\',\'NameSPV\',this.value)">' +
+      '</div>' +
+      '<input type="text" class="doc-name-input" style="width:100%;margin-bottom:8px;" value="' + escapeAttr(d.NameHMV) + '" placeholder="ឈ្មោះ (HMV)" ' +
+      'onchange="updateDoctorField(\'' + d.ID + '\',\'NameHMV\',this.value)">' +
+      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+      '<select class="doc-pool-select" onchange="updateDoctorField(\'' + d.ID + '\',\'ClinicPool\',this.value)">' +
+      '<option value="SPV"' + (d.ClinicPool === 'SPV' ? ' selected' : '') + '>SPV</option>' +
+      '<option value="HMV"' + (d.ClinicPool === 'HMV' ? ' selected' : '') + '>HMV</option>' +
+      '<option value="Both"' + (d.ClinicPool === 'Both' ? ' selected' : '') + '>ទាំងពីរ (Both)</option>' +
+      '</select>' +
+      '<label style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--sub);">' +
+      '<input type="checkbox" style="width:15px;height:15px;" ' + (d.isLinda ? 'checked' : '') + ' ' +
+      'onchange="updateDoctorField(\'' + d.ID + '\',\'isLinda\',this.checked)"> Linda?' +
+      '</label>' +
+      '<button type="button" class="ledger-del" title="លុបគ្រូពេទ្យនេះ" onclick="deleteDoctor(\'' + d.ID + '\')">🗑</button>' +
+      '</div></div>';
   }).join('');
 }
 
@@ -1334,6 +1354,7 @@ function bindDoctorForm() {
 
     var id = (clinicPool === 'HMV' ? 'H' : clinicPool === 'SPV' ? 'S' : 'B') + Date.now();
     var doctor = { ID: id, NameSPV: nameSPV, NameHMV: nameHMV, ClinicPool: clinicPool, isLinda: isLinda, Active: true };
+    if (isLinda) { STATE.doctors.forEach(function (dd) { dd.isLinda = false; }); }
     STATE.doctors.push(doctor);
     persistRemoteState();
     renderDoctors();
@@ -1342,6 +1363,52 @@ function bindDoctorForm() {
     scheduleBackup();
   });
 }
+
+// Edits one field of an existing doctor directly from the Doctors tab.
+// isLinda is a singleton — checking it for one doctor automatically clears
+// it from everyone else.
+function updateDoctorField(id, field, value) {
+  var doc = STATE.doctors.filter(function (d) { return d.ID === id; })[0];
+  if (!doc) return;
+  if (field === 'isLinda') {
+    if (value) { STATE.doctors.forEach(function (d) { d.isLinda = false; }); }
+    doc.isLinda = !!value;
+  } else {
+    doc[field] = typeof value === 'string' ? value.trim() : value;
+  }
+  persistRemoteState();
+  renderDoctors();
+  renderSchedule();
+  showToast('កែព័ត៌មានគ្រូពេទ្យរួចរាល់ ✓');
+}
+window.updateDoctorField = updateDoctorField;
+
+// A doctor's own chosen color — takes priority over the manual/auto palette
+// everywhere their name appears (schedule cells, doctor list).
+function updateDoctorColor(id, hex) {
+  var doc = STATE.doctors.filter(function (d) { return d.ID === id; })[0];
+  if (!doc) return;
+  doc.Color = hex;
+  persistRemoteState();
+  renderDoctors();
+  renderSchedule();
+}
+window.updateDoctorColor = updateDoctorColor;
+
+// Removes a doctor from the active list/autocomplete — past schedule
+// entries keep showing their name as plain text, they just won't be
+// offered as a suggestion going forward.
+function deleteDoctor(id) {
+  var doc = STATE.doctors.filter(function (d) { return d.ID === id; })[0];
+  if (!doc) return;
+  var name = doc.NameSPV || doc.NameHMV;
+  if (!confirm('លុបគ្រូពេទ្យ "' + name + '" ចេញពីបញ្ជីមែនទេ? (វេនចាស់ៗនៅតែបង្ហាញឈ្មោះដដែល គ្រាន់តែលែងមាននៅក្នុងបញ្ជីជ្រើសរើសទៀតហើយ)')) return;
+  STATE.doctors = STATE.doctors.filter(function (d) { return d.ID !== id; });
+  persistRemoteState();
+  renderDoctors();
+  showToast('លុបគ្រូពេទ្យរួចរាល់ ✓');
+}
+window.deleteDoctor = deleteDoctor;
 
 /* ---------------- PAYROLL (computed entirely client-side from embedded schedule) ---------------- */
 // The four distinct 12-hour periods in a day. SPV_Day1/2/3 are three concurrent
@@ -1926,8 +1993,14 @@ function renderClinicLedger() {
     cardsWrap.innerHTML = '<div class="empty-state">មិនទាន់មានគ្លីនិកទេ — បន្ថែមមួយខាងក្រោម</div>';
   } else {
     cardsWrap.innerHTML = clinicNames.map(function (c) {
+      // Only show months that already have a number, plus the current month
+      // (and any later one) even while still $0, since it hasn't "arrived" yet.
+      var visibleMonths = monthKeys.filter(function (mk) {
+        var v = (STATE.clinicTotals[mk] && STATE.clinicTotals[mk][c]) || 0;
+        return v > 0 || mk >= curKey;
+      });
       var clinicTotal = 0;
-      var rows = monthKeys.map(function (mk) {
+      var rows = visibleMonths.map(function (mk) {
         var v = (STATE.clinicTotals[mk] && STATE.clinicTotals[mk][c]) || 0;
         clinicTotal += v;
         return '<tr><td class="date-cell">' + monthOptionLabel(mk) + '</td>' +
@@ -1935,6 +2008,9 @@ function renderClinicLedger() {
           '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>' +
           '<td><button class="ledger-del" title="សម្អាតខែនេះ (គ្លីនិកនេះតែប៉ុណ្ណោះ)" onclick="clearClinicMonthValue(\'' + mk + '\',\'' + escapeAttr(c) + '\')">✕</button></td></tr>';
       }).join('');
+      if (!visibleMonths.length) {
+        rows = '<tr><td colspan="3" class="empty-state">មិនទាន់មានទិន្នន័យទេ</td></tr>';
+      }
       return '<div class="pay-col">' +
         '<div class="clinic-card-head">' +
         '<input type="text" class="col-name-input" value="' + escapeAttr(c) + '" ' +
