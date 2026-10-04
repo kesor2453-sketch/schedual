@@ -996,9 +996,7 @@ function renderSchedule() {
       '<button type="button" title="ចម្លងវេនថ្ងៃនេះ" onclick="copyDutyDay(\'' + dateStr + '\')">📋</button>' +
       '<button type="button" title="បិទភ្ជាប់វេនមកថ្ងៃនេះ" onclick="pasteDutyDay(\'' + dateStr + '\')"' + (STATE.copiedDay ? '' : ' disabled') + '>📥</button>' +
       '</span>' +
-      '<span class="dow">' + DOW_KM[dowName] +
-      (isAutoOff ? '<span class="auto-off-badge">🚫 ថ្ងៃឈប់</span>' : '') +
-      '</span></td>';
+      '<span class="dow">' + DOW_KM[dowName] + '</span></td>';
 
     spvCols.forEach(function (c) { html += renderSlotCell(dateStr, c.field, row[c.field], clashes); });
     html += renderOffCell(dateStr, row['SPV_Off'], isMyPersonalOff);
