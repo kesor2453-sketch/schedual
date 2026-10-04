@@ -116,6 +116,12 @@
     width:100%;font-size:12px;padding:5px;border-radius:7px;border:1px solid var(--brand);
     font-family:inherit;
   }
+  .cell-edit-actions{display:flex;gap:3px;justify-content:center;margin-top:3px;}
+  .cell-edit-actions button{
+    border:none;background:#eef1f6;cursor:pointer;font-size:10.5px;padding:2px 5px;border-radius:5px;color:var(--ink);
+  }
+  .cell-edit-actions button:hover{background:#dde3ee;}
+  .cell-edit-actions button:disabled{opacity:.35;cursor:not-allowed;}
 
   .clash-banner{
     display:none;background:var(--warn-bg);border:1px solid #f2d19b;color:#8a5300;
@@ -452,6 +458,7 @@ var STATE = {
   editing: null,
   copiedDay: null,      // { sourceDate, fields } — one day's duty slots, copied and ready to paste elsewhere
   copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
+  copiedCellValue: null, // a single cell's value (any field, any day) — copy from one cell, paste into any other
   incomeRatesByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — any clinic, not just SPV/HMV
   incomeExtraByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — not tied to a specific day
   incomeEntries: [],        // [{ Date, byClinic: { clinicName:{consult,ipd}, ... } }]
@@ -980,18 +987,13 @@ function renderSchedule() {
 
   // Per-clinic duty-day counts pick up any clinic automatically — a newly
   // added clinic just appears here as soon as a duty day is recorded there.
-  var incomeSummary = computeIncomeSummary(y, m);
-  var totalIncomeUsd = incomeSummary.SPV.usd + incomeSummary.HMV.usd;
-  var monthGrandTotal = totalDutyUsd + totalIncomeUsd;
-
   var clinicStatsHtml = Object.keys(dutyClinicCounts).sort().map(function (c) {
     return '<div class="stat"><div class="n">' + dutyClinicCounts[c] + ' ថ្ងៃ</div><div class="l">' + escapeHtml(c) + '</div></div>';
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
     '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')</div></div>' +
-    clinicStatsHtml +
-    '<div class="stat"><div class="n">' + fmtUsd(monthGrandTotal) + '</div><div class="l">សរុបខែនេះ (វេន + ចំណូល)</div></div>';
+    clinicStatsHtml;
 
   var banner = document.getElementById('clashBanner');
   if (allClashDays.length) {
@@ -1334,6 +1336,37 @@ function openEditor(cell) {
   cell.innerHTML = '';
   cell.appendChild(input);
   cell.appendChild(datalist);
+
+  // Copy/paste this ONE cell's value — works between any two cells anywhere
+  // in the table (any column, any day), not just whole-day or whole-month.
+  var actionsDiv = document.createElement('div');
+  actionsDiv.className = 'cell-edit-actions';
+  var copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.title = 'ចម្លងតម្លៃនេះ';
+  copyBtn.textContent = '📋';
+  var pasteBtn = document.createElement('button');
+  pasteBtn.type = 'button';
+  pasteBtn.title = 'បិទភ្ជាប់តម្លៃដែលបានចម្លង';
+  pasteBtn.textContent = '📥';
+  if (!STATE.copiedCellValue) pasteBtn.disabled = true;
+  // mousedown preventDefault keeps focus on the input so clicking these
+  // buttons doesn't blur-and-commit the editor first.
+  copyBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  pasteBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  copyBtn.addEventListener('click', function () {
+    STATE.copiedCellValue = input.value || '';
+    showToast(input.value ? ('បានចម្លង «' + input.value + '» ✓') : 'បានចម្លងប្រអប់ទទេ ✓');
+    pasteBtn.disabled = false;
+  });
+  pasteBtn.addEventListener('click', function () {
+    input.value = STATE.copiedCellValue || '';
+    input.focus();
+  });
+  actionsDiv.appendChild(copyBtn);
+  actionsDiv.appendChild(pasteBtn);
+  cell.appendChild(actionsDiv);
+
   input.focus();
   input.select();
 
