@@ -85,7 +85,12 @@
   }
   table.sched tbody tr:hover{background:#fafbfd;}
   table.sched tbody tr.weekend td.date-cell{color:var(--off);}
-  table.sched tbody tr.today{background:#fff8e9;}
+  table.sched tbody tr.today{background:#fff3c4;}
+  table.sched tbody tr.today td{border-top:1.5px solid #f0c33c;border-bottom:1.5px solid #f0c33c;}
+  .today-badge{
+    display:inline-block;background:var(--warn);color:#fff;font-weight:700;
+    font-size:10px;padding:2px 7px;border-radius:20px;margin-left:6px;
+  }
   table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
   table.sched tbody tr.auto-off{background:#fdf4f4;}
   td.date-cell{font-weight:700;white-space:nowrap;text-align:left;padding-left:10px !important;}
@@ -953,10 +958,27 @@ function renderSchedule() {
       myDutyDayCount++;
       var dutyInfo = getMyDutyPayForDate(dateStr);
       if (dutyInfo) {
-        if (dutyInfo.periods.some(function (p) { return p.indexOf('DAY') !== -1; })) dayDutyCount++;
-        if (dutyInfo.periods.some(function (p) { return p.indexOf('NIGHT') !== -1; })) nightDutyCount++;
-        dutyInfo.clinics.forEach(function (c) { dutyClinicCounts[c] = (dutyClinicCounts[c] || 0) + 1; });
+        var hitDay = dutyInfo.periods.some(function (p) { return p.indexOf('DAY') !== -1; });
+        var hitNight = dutyInfo.periods.some(function (p) { return p.indexOf('NIGHT') !== -1; });
+        if (hitDay) dayDutyCount++;
+        if (hitNight) nightDutyCount++;
         totalDutyUsd += dutyInfo.usd;
+
+        // Per-clinic day/night breakdown: figure out, for THIS day, whether
+        // each clinic Linda worked was a day shift, a night shift, or both.
+        var lindaEntriesToday = capDailyEarningsClient(row).filter(function (e) { return e.docKey === lindaDoctor().ID; });
+        var clinicHitToday = {};
+        lindaEntriesToday.forEach(function (e) {
+          if (!clinicHitToday[e.clinic]) clinicHitToday[e.clinic] = { day: false, night: false };
+          if (e.period.indexOf('NIGHT') !== -1) clinicHitToday[e.clinic].night = true;
+          else clinicHitToday[e.clinic].day = true;
+        });
+        Object.keys(clinicHitToday).forEach(function (c) {
+          if (!dutyClinicCounts[c]) dutyClinicCounts[c] = { total: 0, day: 0, night: 0 };
+          dutyClinicCounts[c].total++;
+          if (clinicHitToday[c].day) dutyClinicCounts[c].day++;
+          if (clinicHitToday[c].night) dutyClinicCounts[c].night++;
+        });
       }
     }
 
@@ -969,6 +991,7 @@ function renderSchedule() {
     html += '<tr class="' + trClasses.join(' ') + '">';
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
       (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
+      (dateStr === todayStr ? '<span class="today-badge">ថ្ងៃនេះ</span>' : '') +
       '<span class="date-actions">' +
       '<button type="button" title="ចម្លងវេនថ្ងៃនេះ" onclick="copyDutyDay(\'' + dateStr + '\')">📋</button>' +
       '<button type="button" title="បិទភ្ជាប់វេនមកថ្ងៃនេះ" onclick="pasteDutyDay(\'' + dateStr + '\')"' + (STATE.copiedDay ? '' : ' disabled') + '>📥</button>' +
@@ -988,7 +1011,9 @@ function renderSchedule() {
   // Per-clinic duty-day counts pick up any clinic automatically — a newly
   // added clinic just appears here as soon as a duty day is recorded there.
   var clinicStatsHtml = Object.keys(dutyClinicCounts).sort().map(function (c) {
-    return '<div class="stat"><div class="n">' + dutyClinicCounts[c] + ' ថ្ងៃ</div><div class="l">' + escapeHtml(c) + '</div></div>';
+    var cc = dutyClinicCounts[c];
+    return '<div class="stat"><div class="n">' + cc.total + ' ថ្ងៃ</div><div class="l">' + escapeHtml(c) +
+      ' (ព្រឹក ' + cc.day + ' | យប់ ' + cc.night + ')</div></div>';
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
