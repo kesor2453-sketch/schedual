@@ -58,7 +58,7 @@
   .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px;}
 
   .month-nav{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;justify-content:space-between;}
-  .month-nav .left{display:flex;align-items:center;gap:8px;}
+  .month-nav .left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .month-nav button.nav-btn{
     border:1px solid var(--line);background:#fff;border-radius:9px;width:34px;height:34px;
     cursor:pointer;font-size:16px;color:var(--ink);
@@ -296,11 +296,11 @@
           <button class="nav-btn" id="nextMonth">›</button>
           <button class="today-btn" id="todayBtn">ខែនេះ</button>
           <select class="today-btn" id="monthPicker" style="cursor:pointer;"></select>
-          <span id="dutyDayCount" class="today-btn" style="background:var(--spv-bg);color:var(--spv);border-color:transparent;font-weight:700;"></span>
           <button type="button" class="today-btn" id="copyMonthBtn" style="cursor:pointer;" title="ចម្លងកាលវិភាគទាំងមូលនៃខែនេះ">📋 ចម្លងខែ</button>
           <button type="button" class="today-btn" id="pasteMonthBtn" style="cursor:pointer;" title="បិទភ្ជាប់កាលវិភាគដែលបានចម្លងមកខែនេះ">📥 បិទភ្ជាប់ខែ</button>
         </div>
       </div>
+      <div class="stat-row" id="scheduleStatsWrap" style="margin-bottom:12px;"></div>
       <div class="add-col-row" style="margin-top:0;padding-top:0;border-top:none;margin-bottom:12px;">
         <input type="text" id="newSlotClinic" placeholder="ឈ្មោះគ្លីនិក (ឧ. SPV, HMV, ឬគ្លីនិកថ្មី)" class="ledger-input" style="border:1px solid var(--line);min-width:170px;" list="clinicNameOptions">
         <datalist id="clinicNameOptions"></datalist>
@@ -378,11 +378,8 @@
 
     <div class="card" style="overflow-x:auto;">
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;">កំណត់ត្រាចំណូល — ថ្ងៃដែលអ្នកធ្វើការតែប៉ុណ្ណោះ</div>
-      <div style="font-size:11.5px;color:var(--sub);margin-bottom:6px;">បង្ហាញស្វ័យប្រវត្តិសម្រាប់តែថ្ងៃដែលអ្នកនៅវេន (SPV ឬ HMV) ទាំង២គ្លីនិក — វាយបញ្ចូលចំនួនផ្ទាល់ក្នុងតារាង រក្សាទុកភ្លាមៗ</div>
-      <div style="font-size:11px;color:var(--sub);margin-bottom:10px;display:flex;gap:12px;">
-        <span><span style="display:inline-block;background:var(--spv-bg);color:var(--spv);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;">SPV</span> = ថ្ងៃធ្វើវេននៅ SPV</span>
-        <span><span style="display:inline-block;background:var(--hmv-bg);color:var(--hmv);font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;">HMV</span> = ថ្ងៃធ្វើវេននៅ HMV</span>
-      </div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:6px;" id="incomeHelpLine">បង្ហាញស្វ័យប្រវត្តិសម្រាប់តែថ្ងៃដែលអ្នកនៅវេន គ្រប់គ្លីនិក — វាយបញ្ចូលចំនួនផ្ទាល់ក្នុងតារាង រក្សាទុកភ្លាមៗ</div>
+      <div style="font-size:11px;color:var(--sub);margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap;" id="incomeLegendLine"></div>
       <table class="sched" id="incomeEntriesTable"></table>
     </div>
   </div>
@@ -455,9 +452,9 @@ var STATE = {
   editing: null,
   copiedDay: null,      // { sourceDate, fields } — one day's duty slots, copied and ready to paste elsewhere
   copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
-  incomeRatesByMonth: {},   // { 'YYYY-MM': { SPV:{consult,ipd}, HMV:{consult,ipd} } }
-  incomeExtraByMonth: {},   // { 'YYYY-MM': { SPV_Consult, SPV_IPD, HMV_Consult, HMV_IPD } } — not tied to a specific day
-  incomeEntries: [],
+  incomeRatesByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — any clinic, not just SPV/HMV
+  incomeExtraByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — not tied to a specific day
+  incomeEntries: [],        // [{ Date, byClinic: { clinicName:{consult,ipd}, ... } }]
   incomeYear: null,
   incomeMonth: null,
   pastIncomeEntries: [],   // legacy — kept only so an old Firestore doc doesn't crash on load
@@ -556,6 +553,20 @@ function makeSlotFieldKey(clinic, period) {
   return clinic + '_' + period + '_' + Date.now() + Math.floor(Math.random() * 1000);
 }
 
+// Every distinct clinic name currently active for a given month, SPV/HMV
+// first (in that order, when present), then any other clinic alphabetically.
+// Used everywhere a tab needs to iterate "every clinic" generically — so a
+// clinic added on the Schedule tab is immediately picked up by Payroll and
+// Income too, with no separate setup step.
+function activeClinicsForMonth(y, m) {
+  var mk = monthKey(y, m);
+  var set = {};
+  STATE.slotColumns.forEach(function (c) { if (columnActiveInMonth(c, mk)) set[c.clinic] = true; });
+  var list = Object.keys(set);
+  return ['SPV', 'HMV'].filter(function (c) { return list.indexOf(c) !== -1; })
+    .concat(list.filter(function (c) { return c !== 'SPV' && c !== 'HMV'; }).sort());
+}
+
 // Writes the full state to Firestore. Every open tab/device gets this update
 // within moments via the onSnapshot listener below (including this one).
 function persistRemoteState() {
@@ -636,8 +647,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (snap.exists()) {
       var d = snap.data();
       STATE.incomeRatesByMonth = d.ratesByMonth || {};
-      STATE.incomeEntries = d.entries || [];
-      STATE.incomeExtraByMonth = d.extraByMonth || {};
+      STATE.incomeEntries = (d.entries || []).map(normalizeIncomeEntry);
+      STATE.incomeExtraByMonth = normalizeExtraByMonth(d.extraByMonth || {});
       STATE.clinicTotals = d.clinicTotals || {};
       STATE.clinicNames = d.clinicNames && d.clinicNames.length ? d.clinicNames : ['SPV', 'HMV'];
       STATE.archivedClinics = d.archivedClinics || [];
@@ -660,6 +671,34 @@ document.addEventListener('DOMContentLoaded', function () {
     showToast('⚠ មិនអាចភ្ជាប់ Firestore (ចំណូល) បានទេ៖ ' + err.message);
   });
 });
+
+// Migrates an old flat income entry ({Date, SPV_Consult, SPV_IPD, HMV_Consult,
+// HMV_IPD}) into the generic {Date, byClinic:{clinicName:{consult,ipd}}}
+// shape used everywhere now — so saved history from before multi-clinic
+// income still shows up correctly, and every write going forward uses the
+// one unified shape.
+function normalizeIncomeEntry(e) {
+  if (!e.byClinic) {
+    e.byClinic = {};
+    if (e.SPV_Consult || e.SPV_IPD) e.byClinic.SPV = { consult: e.SPV_Consult || 0, ipd: e.SPV_IPD || 0 };
+    if (e.HMV_Consult || e.HMV_IPD) e.byClinic.HMV = { consult: e.HMV_Consult || 0, ipd: e.HMV_IPD || 0 };
+  }
+  return e;
+}
+
+// Same migration, for the one-row-per-month "extra" adjustment entries.
+function normalizeExtraByMonth(extraByMonth) {
+  var out = {};
+  Object.keys(extraByMonth).forEach(function (mk) {
+    var e = extraByMonth[mk] || {};
+    if (e.byClinic) { out[mk] = e.byClinic; return; }
+    var byClinic = {};
+    if (e.SPV_Consult || e.SPV_IPD) byClinic.SPV = { consult: e.SPV_Consult || 0, ipd: e.SPV_IPD || 0 };
+    if (e.HMV_Consult || e.HMV_IPD) byClinic.HMV = { consult: e.HMV_Consult || 0, ipd: e.HMV_IPD || 0 };
+    out[mk] = byClinic;
+  });
+  return out;
+}
 
 function bindManualBackup() {
   var btn = document.getElementById('manualBackupBtn');
@@ -874,6 +913,8 @@ function renderSchedule() {
   var myDutyDayCount = 0;
   var dayDutyCount = 0;
   var nightDutyCount = 0;
+  var dutyClinicCounts = {};
+  var totalDutyUsd = 0;
   var curMonthKey = monthKey(y, m);
   var visibleCols = STATE.slotColumns.filter(function (c) { return columnActiveInMonth(c, curMonthKey); });
   var spvCols = visibleCols.filter(function (c) { return c.clinic === 'SPV'; });
@@ -907,6 +948,8 @@ function renderSchedule() {
       if (dutyInfo) {
         if (dutyInfo.periods.some(function (p) { return p.indexOf('DAY') !== -1; })) dayDutyCount++;
         if (dutyInfo.periods.some(function (p) { return p.indexOf('NIGHT') !== -1; })) nightDutyCount++;
+        dutyInfo.clinics.forEach(function (c) { dutyClinicCounts[c] = (dutyClinicCounts[c] || 0) + 1; });
+        totalDutyUsd += dutyInfo.usd;
       }
     }
 
@@ -935,8 +978,20 @@ function renderSchedule() {
   html += '</tbody></table></div>';
   document.getElementById('scheduleWrap').innerHTML = html;
 
-  document.getElementById('dutyDayCount').textContent =
-    '★ ថ្ងៃយាមខែនេះ: ' + myDutyDayCount + '/' + nDays + ' (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')';
+  // Per-clinic duty-day counts pick up any clinic automatically — a newly
+  // added clinic just appears here as soon as a duty day is recorded there.
+  var incomeSummary = computeIncomeSummary(y, m);
+  var totalIncomeUsd = incomeSummary.SPV.usd + incomeSummary.HMV.usd;
+  var monthGrandTotal = totalDutyUsd + totalIncomeUsd;
+
+  var clinicStatsHtml = Object.keys(dutyClinicCounts).sort().map(function (c) {
+    return '<div class="stat"><div class="n">' + dutyClinicCounts[c] + ' ថ្ងៃ</div><div class="l">' + escapeHtml(c) + '</div></div>';
+  }).join('');
+
+  document.getElementById('scheduleStatsWrap').innerHTML =
+    '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')</div></div>' +
+    clinicStatsHtml +
+    '<div class="stat"><div class="n">' + fmtUsd(monthGrandTotal) + '</div><div class="l">សរុបខែនេះ (វេន + ចំណូល)</div></div>';
 
   var banner = document.getElementById('clashBanner');
   if (allClashDays.length) {
@@ -1579,12 +1634,6 @@ function deleteDoctor(id) {
 window.deleteDoctor = deleteDoctor;
 
 /* ---------------- PAYROLL (computed entirely client-side from embedded schedule) ---------------- */
-// The four distinct 12-hour periods in a day. SPV_Day1/2/3 are three concurrent
-// positions covering the SAME 12-hour daytime period, so they collapse into one
-// paid period. SPV Night is a separate 12-hour period from SPV Day. Same idea
-// for HMV Day vs HMV Night. A doctor covering more than one PERIOD the same day
-// (SPV day+night, or SPV+HMV) is legitimately working extra hours and gets
-// paid for each period.
 // For ONE schedule row (one day), returns a capped list of paid shifts: at most
 // ONE shift per doctor per 12-HOUR PERIOD per day. Filling several slots within
 // the SAME period (e.g. SPV Day1 + SPV Day2, both the same daytime period) is
@@ -1723,9 +1772,8 @@ function renderPayroll(summary, incomeSummary) {
     '</div>';
 
   // ---- one grand total for Linda alone, every clinic combined ----
-  var spvIncomeTotal = incomeSummary ? incomeSummary.SPV.usd : 0;
-  var hmvIncomeTotal = incomeSummary ? incomeSummary.HMV.usd : 0;
-  var incomeBothTotal = spvIncomeTotal + hmvIncomeTotal;
+  var incomeBothTotal = 0;
+  Object.keys(incomeSummary || {}).forEach(function (c) { incomeBothTotal += incomeSummary[c].usd; });
   if (summary.linda && (summary.linda.shifts || incomeBothTotal)) {
     var lindaGrandTotal = summary.linda.usd + incomeBothTotal;
     var byClinicLine = Object.keys(summary.linda.byClinic).map(function (c) {
@@ -1734,7 +1782,7 @@ function renderPayroll(summary, incomeSummary) {
     html += '<div class="linda-box">' +
       '<b>ប្រាក់ខែពីវេនរបស់អ្នក ⭐</b> — ' + (byClinicLine || 'មិនមានវេនខែនេះ') + ' &nbsp;|&nbsp; ' +
       'សរុបវេន: ' + fmtUsd(summary.linda.usd) + '<br>' +
-      'ចំណូល Consult/IPD (SPV+HMV): ' + fmtUsd(incomeBothTotal) + '<br>' +
+      'ចំណូល Consult/IPD (គ្រប់គ្លីនិក): ' + fmtUsd(incomeBothTotal) + '<br>' +
       '<b style="font-size:15.5px;">សរុបប្រចាំខែទាំងអស់សម្រាប់អ្នក: ' + fmtUsd(lindaGrandTotal) + ' (' + fmtKhr(lindaGrandTotal * STATE.khrPerUsd) + ')</b>' +
       '</div>';
   }
@@ -1742,7 +1790,7 @@ function renderPayroll(summary, incomeSummary) {
   document.getElementById('payWrap').innerHTML = html;
 }
 
-/* ---------------- INCOME (Consult + IPD, per clinic, rate-based) ---------------- */
+/* ---------------- INCOME (Consult + IPD, per clinic, rate-based — dynamic over every clinic) ---------------- */
 function bindIncomeMonthNav() {
   document.getElementById('prevMonthIncome').addEventListener('click', function () { shiftIncomeMonth(-1); });
   document.getElementById('nextMonthIncome').addEventListener('click', function () { shiftIncomeMonth(1); });
@@ -1773,40 +1821,44 @@ function incomeRowForDate(dateStr) {
 }
 
 // Which clinic(s) Linda worked on this date — for a colored badge in the
-// income table (a day can be SPV only, HMV only, or both if she pulled a
-// shift in each clinic on the same day).
+// income table. Generalized to every clinic (not just SPV/HMV), so a new
+// clinic added on the Schedule tab is picked up here automatically.
 function lindaClinicsForRow(row) {
   var linda = lindaDoctor();
   if (!linda || !row) return [];
   var cols = visibleColumnsForDate(row.Date);
   var out = [];
-  var spvHit = cols.some(function (c) {
-    return c.clinic === 'SPV' && row[c.field] && (row[c.field] === linda.NameSPV || row[c.field] === linda.NameHMV);
+  var seen = {};
+  cols.forEach(function (c) {
+    if (seen[c.clinic]) return;
+    if (row[c.field] && (row[c.field] === linda.NameSPV || row[c.field] === linda.NameHMV)) {
+      out.push(c.clinic);
+      seen[c.clinic] = true;
+    }
   });
-  var hmvHit = cols.some(function (c) {
-    return c.clinic === 'HMV' && row[c.field] && (row[c.field] === linda.NameSPV || row[c.field] === linda.NameHMV);
-  });
-  if (spvHit) out.push('SPV');
-  if (hmvHit) out.push('HMV');
   return out;
 }
 
-// A "working day" = Linda herself is on duty that date, in either clinic
-// (SPV or HMV). Days she isn't on shift are skipped — no need to log
-// Consult/IPD for a day she didn't personally work.
+// A "working day" = Linda herself is on duty that date, in any clinic.
+// Days she isn't on shift are skipped — no need to log Consult/IPD for a
+// day she didn't personally work.
 function isWorkingDay(dateStr) {
   var row = rowForDate(dateStr);
   if (!row) return false;
   return rowIsMyDuty(row);
 }
 
-function updateIncomeCell(dateStr, field, value) {
+// Sets one clinic's Consult or IPD count for one day. Entries are stored as
+// {Date, byClinic:{clinicName:{consult,ipd}}} — generic, so any clinic works.
+function updateIncomeCell(dateStr, clinic, type, value) {
   var row = incomeRowForDate(dateStr);
   if (!row) {
-    row = { Date: dateStr, SPV_Consult: 0, SPV_IPD: 0, HMV_Consult: 0, HMV_IPD: 0 };
+    row = { Date: dateStr, byClinic: {} };
     STATE.incomeEntries.push(row);
   }
-  row[field] = Math.max(0, Number(value) || 0);
+  if (!row.byClinic) row.byClinic = {};
+  if (!row.byClinic[clinic]) row.byClinic[clinic] = { consult: 0, ipd: 0 };
+  row.byClinic[clinic][type] = Math.max(0, Number(value) || 0);
   persistIncomeState();
   renderIncome();
 }
@@ -1826,14 +1878,21 @@ function getRatesForMonth(year, month) {
   return INCOME_RATES_DEFAULT;
 }
 
-function getExtraForMonth(year, month) {
-  var key = monthKey(year, month);
-  return STATE.incomeExtraByMonth[key] || { SPV_Consult: 0, SPV_IPD: 0, HMV_Consult: 0, HMV_IPD: 0 };
+// A single clinic's {consult, ipd} rate for a month — falls back to the
+// shared default rate (same number for every clinic) the first time a new
+// clinic shows up with no rate set of its own yet.
+function getClinicRate(rates, clinic) {
+  return rates[clinic] || { consult: INCOME_RATES_DEFAULT.SPV.consult, ipd: INCOME_RATES_DEFAULT.SPV.ipd };
 }
 
-// Edits the CURRENTLY VIEWED income month's rate only — writes a fresh
-// per-month entry (cloned from whatever it was showing) so past months keep
-// their original numbers even if this month's rate changes later.
+function getExtraForMonth(year, month) {
+  var key = monthKey(year, month);
+  return STATE.incomeExtraByMonth[key] || {};
+}
+
+// Edits the CURRENTLY VIEWED income month's rate for ONE clinic only —
+// writes a fresh per-month entry (cloned from whatever it was showing) so
+// past months keep their original numbers even if this month's rate changes.
 function updateIncomeRate(clinic, type, value) {
   var key = monthKey(STATE.incomeYear, STATE.incomeMonth);
   var current = getRatesForMonth(STATE.incomeYear, STATE.incomeMonth);
@@ -1846,13 +1905,15 @@ function updateIncomeRate(clinic, type, value) {
 }
 window.updateIncomeRate = updateIncomeRate;
 
-// The extra/adjustment line for the currently viewed month — Consult/IPD
-// counts not tied to a specific day, added into that month's total only.
-function updateIncomeExtra(field, value) {
+// The extra/adjustment line for the currently viewed month, ONE clinic —
+// Consult/IPD counts not tied to a specific day, added into that month's
+// total only.
+function updateIncomeExtra(clinic, type, value) {
   var key = monthKey(STATE.incomeYear, STATE.incomeMonth);
   var current = getExtraForMonth(STATE.incomeYear, STATE.incomeMonth);
-  var updated = Object.assign({}, current);
-  updated[field] = Math.max(0, Number(value) || 0);
+  var updated = JSON.parse(JSON.stringify(current));
+  if (!updated[clinic]) updated[clinic] = { consult: 0, ipd: 0 };
+  updated[clinic][type] = Math.max(0, Number(value) || 0);
   STATE.incomeExtraByMonth[key] = updated;
   persistIncomeState();
   renderIncome();
@@ -1860,47 +1921,61 @@ function updateIncomeExtra(field, value) {
 window.updateIncomeExtra = updateIncomeExtra;
 
 function renderIncomeRates() {
-  var clinics = ['SPV', 'HMV'];
+  var clinics = activeClinicsForMonth(STATE.incomeYear, STATE.incomeMonth);
   var rates = getRatesForMonth(STATE.incomeYear, STATE.incomeMonth);
+  if (!clinics.length) {
+    document.getElementById('incomeRatesWrap').innerHTML = '<div class="empty-state">មិនទាន់មានគ្លីនិកទេ</div>';
+    return;
+  }
   var html = clinics.map(function (c) {
-    var r = rates[c] || { consult: 0, ipd: 0 };
-    var cls = c === 'SPV' ? 'spv' : 'hmv';
-    return '<div class="pay-col"><h3 class="' + cls + '">' + c + '</h3>' +
+    var r = getClinicRate(rates, c);
+    var isKnown = c === 'SPV' || c === 'HMV';
+    var cls = c === 'SPV' ? 'spv' : (c === 'HMV' ? 'hmv' : '');
+    var style = isKnown ? '' : ' style="color:' + clinicHeaderColors(c).text + ';"';
+    return '<div class="pay-col"><h3 class="' + cls + '"' + style + '>' + escapeHtml(c) + '</h3>' +
       '<div class="field" style="margin-bottom:10px;"><label>អត្រា Consult ($/នាក់)</label>' +
-      '<input type="number" min="0" step="0.5" value="' + r.consult + '" onchange="updateIncomeRate(\'' + c + '\',\'consult\',this.value)"></div>' +
+      '<input type="number" min="0" step="0.5" value="' + r.consult + '" onchange="updateIncomeRate(\'' + escapeAttr(c) + '\',\'consult\',this.value)"></div>' +
       '<div class="field"><label>អត្រា IPD ($/នាក់)</label>' +
-      '<input type="number" min="0" step="0.5" value="' + r.ipd + '" onchange="updateIncomeRate(\'' + c + '\',\'ipd\',this.value)"></div>' +
+      '<input type="number" min="0" step="0.5" value="' + r.ipd + '" onchange="updateIncomeRate(\'' + escapeAttr(c) + '\',\'ipd\',this.value)"></div>' +
       '</div>';
   }).join('');
   document.getElementById('incomeRatesWrap').innerHTML = html;
 }
 
+// Returns { clinicName: {consult, ipd, usd, khr} } for every active clinic
+// that month — built dynamically, so a clinic added on the Schedule tab
+// shows up here with no extra setup.
 function computeIncomeSummary(year, month) {
   var prefix = year + '-' + pad2(month);
   var entries = STATE.incomeEntries.filter(function (e) { return String(e.Date).indexOf(prefix) === 0; });
-  var byClinic = { SPV: { consult: 0, ipd: 0, usd: 0 }, HMV: { consult: 0, ipd: 0, usd: 0 } };
+  var clinics = activeClinicsForMonth(year, month);
   var rates = getRatesForMonth(year, month);
-  var rSpv = rates.SPV || { consult: 0, ipd: 0 };
-  var rHmv = rates.HMV || { consult: 0, ipd: 0 };
+  var byClinic = {};
+  clinics.forEach(function (c) { byClinic[c] = { consult: 0, ipd: 0, usd: 0 }; });
 
   entries.forEach(function (e) {
-    byClinic.SPV.consult += e.SPV_Consult || 0;
-    byClinic.SPV.ipd += e.SPV_IPD || 0;
-    byClinic.SPV.usd += (e.SPV_Consult || 0) * rSpv.consult + (e.SPV_IPD || 0) * rSpv.ipd;
-    byClinic.HMV.consult += e.HMV_Consult || 0;
-    byClinic.HMV.ipd += e.HMV_IPD || 0;
-    byClinic.HMV.usd += (e.HMV_Consult || 0) * rHmv.consult + (e.HMV_IPD || 0) * rHmv.ipd;
+    if (!e.byClinic) return;
+    Object.keys(e.byClinic).forEach(function (c) {
+      if (!byClinic[c]) byClinic[c] = { consult: 0, ipd: 0, usd: 0 };
+      var v = e.byClinic[c];
+      var r = getClinicRate(rates, c);
+      byClinic[c].consult += v.consult || 0;
+      byClinic[c].ipd += v.ipd || 0;
+      byClinic[c].usd += (v.consult || 0) * r.consult + (v.ipd || 0) * r.ipd;
+    });
   });
 
   // + extra/adjustment counts for the month, not tied to a specific day —
   // included in the total the same as any day's entry.
   var extra = getExtraForMonth(year, month);
-  byClinic.SPV.consult += extra.SPV_Consult || 0;
-  byClinic.SPV.ipd += extra.SPV_IPD || 0;
-  byClinic.SPV.usd += (extra.SPV_Consult || 0) * rSpv.consult + (extra.SPV_IPD || 0) * rSpv.ipd;
-  byClinic.HMV.consult += extra.HMV_Consult || 0;
-  byClinic.HMV.ipd += extra.HMV_IPD || 0;
-  byClinic.HMV.usd += (extra.HMV_Consult || 0) * rHmv.consult + (extra.HMV_IPD || 0) * rHmv.ipd;
+  Object.keys(extra).forEach(function (c) {
+    if (!byClinic[c]) byClinic[c] = { consult: 0, ipd: 0, usd: 0 };
+    var v = extra[c];
+    var r = getClinicRate(rates, c);
+    byClinic[c].consult += v.consult || 0;
+    byClinic[c].ipd += v.ipd || 0;
+    byClinic[c].usd += (v.consult || 0) * r.consult + (v.ipd || 0) * r.ipd;
+  });
 
   Object.keys(byClinic).forEach(function (c) { byClinic[c].khr = byClinic[c].usd * STATE.khrPerUsd; });
   return byClinic;
@@ -1913,9 +1988,12 @@ function renderIncome() {
   refreshIncomeMonthPicker();
 
   var byClinic = computeIncomeSummary(STATE.incomeYear, STATE.incomeMonth);
-  var totalUsd = byClinic.SPV.usd + byClinic.HMV.usd;
-  var totalConsult = byClinic.SPV.consult + byClinic.HMV.consult;
-  var totalIpd = byClinic.SPV.ipd + byClinic.HMV.ipd;
+  var clinicNamesForMonth = Object.keys(byClinic);
+  var orderedClinics = ['SPV', 'HMV'].filter(function (c) { return clinicNamesForMonth.indexOf(c) !== -1; })
+    .concat(clinicNamesForMonth.filter(function (c) { return c !== 'SPV' && c !== 'HMV'; }).sort());
+
+  var totalUsd = 0, totalConsult = 0, totalIpd = 0;
+  orderedClinics.forEach(function (c) { totalUsd += byClinic[c].usd; totalConsult += byClinic[c].consult; totalIpd += byClinic[c].ipd; });
 
   document.getElementById('incomeStats').innerHTML =
     '<div class="stat"><div class="n">' + fmtUsd(totalUsd) + '</div><div class="l">ចំណូលសរុប</div></div>' +
@@ -1923,8 +2001,11 @@ function renderIncome() {
     '<div class="stat"><div class="n">' + totalConsult + '</div><div class="l">Consult សរុប</div></div>' +
     '<div class="stat"><div class="n">' + totalIpd + '</div><div class="l">IPD សរុប</div></div>';
 
-  function clinicCard(name, cls, d) {
-    return '<div class="pay-col"><h3 class="' + cls + '">' + name + '</h3>' +
+  function clinicCard(name, d) {
+    var isKnown = name === 'SPV' || name === 'HMV';
+    var cls = name === 'SPV' ? 'spv' : (name === 'HMV' ? 'hmv' : '');
+    var style = isKnown ? '' : ' style="color:' + clinicHeaderColors(name).text + ';"';
+    return '<div class="pay-col"><h3 class="' + cls + '"' + style + '>' + escapeHtml(name) + '</h3>' +
       '<table class="pay"><tbody>' +
       '<tr><td>Consult</td><td class="num">' + d.consult + ' នាក់</td></tr>' +
       '<tr><td>IPD</td><td class="num">' + d.ipd + ' នាក់</td></tr>' +
@@ -1932,48 +2013,68 @@ function renderIncome() {
       '</tbody></table></div>';
   }
   document.getElementById('incomeSummaryWrap').innerHTML =
-    clinicCard('SPV', 'spv', byClinic.SPV) + clinicCard('HMV', 'hmv', byClinic.HMV);
+    orderedClinics.length ? orderedClinics.map(function (c) { return clinicCard(c, byClinic[c]); }).join('') : '<div class="empty-state">មិនទាន់មានគ្លីនិកទេ</div>';
+
+  var legendWrap = document.getElementById('incomeLegendLine');
+  if (legendWrap) {
+    legendWrap.innerHTML = orderedClinics.map(function (c) {
+      var isKnown = c === 'SPV' || c === 'HMV';
+      var bg = isKnown ? (c === 'SPV' ? 'var(--spv-bg)' : 'var(--hmv-bg)') : clinicHeaderColors(c).bg;
+      var color = isKnown ? (c === 'SPV' ? 'var(--spv)' : 'var(--hmv)') : clinicHeaderColors(c).text;
+      return '<span><span style="display:inline-block;background:' + bg + ';color:' + color +
+        ';font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;">' + escapeHtml(c) +
+        '</span> = ថ្ងៃធ្វើវេននៅ ' + escapeHtml(c) + '</span>';
+    }).join('');
+  }
 
   renderIncomeTable();
 }
 
 var DOW_NAMES_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function incomeNumberInput(dateStr, field, val) {
+function incomeNumberInput(dateStr, clinic, type, val) {
   return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
-    '" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + field + '\',this.value)">';
+    '" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
 }
 
-function extraNumberInput(field, val) {
+function extraNumberInput(clinic, type, val) {
   return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
-    '" onchange="updateIncomeExtra(\'' + field + '\',this.value)">';
+    '" onchange="updateIncomeExtra(\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
 }
 
 function renderIncomeTable() {
   var y = STATE.incomeYear, m = STATE.incomeMonth;
   var nDays = daysInMonth(y, m);
+  var clinics = activeClinicsForMonth(y, m);
+  var orderedClinics = ['SPV', 'HMV'].filter(function (c) { return clinics.indexOf(c) !== -1; })
+    .concat(clinics.filter(function (c) { return c !== 'SPV' && c !== 'HMV'; }).sort());
+
+  var colCount = 3 + orderedClinics.length * 2;
   var html = '<thead><tr><th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
-    '<th class="group-spv">SPV Consult</th><th class="group-spv">SPV IPD</th>' +
-    '<th class="group-hmv">HMV Consult</th><th class="group-hmv">HMV IPD</th>' +
+    orderedClinics.map(function (c) {
+      var cls = c === 'SPV' ? ' class="group-spv"' : (c === 'HMV' ? ' class="group-hmv"' : '');
+      return '<th' + cls + '>' + escapeHtml(c) + ' Consult</th><th' + cls + '>' + escapeHtml(c) + ' IPD</th>';
+    }).join('') +
     '<th>ចំណូល Consult+IPD</th>' +
     '<th>ចំណូលវេន</th><th>សរុបថ្ងៃ</th></tr></thead><tbody>';
   var anyRow = false;
   var rates = getRatesForMonth(y, m);
-  var rSpv = rates.SPV || { consult: 0, ipd: 0 };
-  var rHmv = rates.HMV || { consult: 0, ipd: 0 };
 
   for (var d = 1; d <= nDays; d++) {
     var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
     if (!isWorkingDay(dateStr)) continue;
     anyRow = true;
     var entry = incomeRowForDate(dateStr) || {};
+    var entryByClinic = entry.byClinic || {};
     var dow = new Date(y, m - 1, d).getDay();
-    var consultIpdUsd = (entry.SPV_Consult || 0) * rSpv.consult + (entry.SPV_IPD || 0) * rSpv.ipd +
-      (entry.HMV_Consult || 0) * rHmv.consult + (entry.HMV_IPD || 0) * rHmv.ipd;
+    var consultIpdUsd = 0;
+    orderedClinics.forEach(function (c) {
+      var v = entryByClinic[c] || { consult: 0, ipd: 0 };
+      var r = getClinicRate(rates, c);
+      consultIpdUsd += (v.consult || 0) * r.consult + (v.ipd || 0) * r.ipd;
+    });
 
-    var clinics = lindaClinicsForRow(rowForDate(dateStr));
-    var worksSpv = clinics.indexOf('SPV') !== -1;
-    var worksHmv = clinics.indexOf('HMV') !== -1;
+    var workedClinics = lindaClinicsForRow(rowForDate(dateStr));
     var dutyPay = getMyDutyPayForDate(dateStr);
     var dutyUsd = dutyPay ? dutyPay.usd : 0;
     var dayTotal = consultIpdUsd + dutyUsd;
@@ -1993,43 +2094,46 @@ function renderIncomeTable() {
       }
     }
 
-    var badges = clinics.map(function (c) {
-      var bg = c === 'SPV' ? 'var(--spv-bg)' : 'var(--hmv-bg)';
-      var color = c === 'SPV' ? 'var(--spv)' : 'var(--hmv)';
+    var badges = workedClinics.map(function (c) {
+      var isKnown = c === 'SPV' || c === 'HMV';
+      var bg = isKnown ? (c === 'SPV' ? 'var(--spv-bg)' : 'var(--hmv-bg)') : clinicHeaderColors(c).bg;
+      var color = isKnown ? (c === 'SPV' ? 'var(--spv)' : 'var(--hmv)') : clinicHeaderColors(c).text;
       return '<span style="display:inline-block;background:' + bg + ';color:' + color +
-        ';font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;">' + c + '</span>';
+        ';font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;">' + escapeHtml(c) + '</span>';
     }).join('');
 
     // Only show an editable box for the clinic(s) actually worked that day —
-    // the other clinic just shows a dash, since there's nothing to log there.
-    var spvConsultCell = worksSpv ? incomeNumberInput(dateStr, 'SPV_Consult', entry.SPV_Consult) : '<span style="color:#c3c9d3;">—</span>';
-    var spvIpdCell = worksSpv ? incomeNumberInput(dateStr, 'SPV_IPD', entry.SPV_IPD) : '<span style="color:#c3c9d3;">—</span>';
-    var hmvConsultCell = worksHmv ? incomeNumberInput(dateStr, 'HMV_Consult', entry.HMV_Consult) : '<span style="color:#c3c9d3;">—</span>';
-    var hmvIpdCell = worksHmv ? incomeNumberInput(dateStr, 'HMV_IPD', entry.HMV_IPD) : '<span style="color:#c3c9d3;">—</span>';
+    // the other clinic(s) just show a dash, since there's nothing to log there.
+    var cells = orderedClinics.map(function (c) {
+      var works = workedClinics.indexOf(c) !== -1;
+      var v = entryByClinic[c] || { consult: 0, ipd: 0 };
+      var consultCell = works ? incomeNumberInput(dateStr, c, 'consult', v.consult) : '<span style="color:#c3c9d3;">—</span>';
+      var ipdCell = works ? incomeNumberInput(dateStr, c, 'ipd', v.ipd) : '<span style="color:#c3c9d3;">—</span>';
+      return '<td>' + consultCell + '</td><td>' + ipdCell + '</td>';
+    }).join('');
 
     html += '<tr><td class="date-cell">' + d + '/' + pad2(m) + badges + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
-      '<td>' + spvConsultCell + '</td>' +
-      '<td>' + spvIpdCell + '</td>' +
-      '<td>' + hmvConsultCell + '</td>' +
-      '<td>' + hmvIpdCell + '</td>' +
+      cells +
       '<td style="font-weight:600;">' + fmtUsd(consultIpdUsd) + '</td>' +
       '<td style="font-weight:600;' + dutyStyle + '">' + fmtUsd(dutyUsd) + '</td>' +
       '<td style="font-weight:700;">' + fmtUsd(dayTotal) + '</td></tr>';
   }
-  if (!anyRow) html += '<tr><td colspan="8" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
+  if (!anyRow) html += '<tr><td colspan="' + colCount + '" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
 
   // Extra/adjustment row, after the last day of the month — Consult/IPD
-  // counts for both clinics not tied to any specific day, folded into the
-  // month's total the same as any day's entry.
+  // counts not tied to any specific day, folded into the month's total the
+  // same as any day's entry.
   var extra = getExtraForMonth(y, m);
-  var extraUsd = (extra.SPV_Consult || 0) * rSpv.consult + (extra.SPV_IPD || 0) * rSpv.ipd +
-    (extra.HMV_Consult || 0) * rHmv.consult + (extra.HMV_IPD || 0) * rHmv.ipd;
+  var extraUsd = 0;
+  var extraCells = orderedClinics.map(function (c) {
+    var v = extra[c] || { consult: 0, ipd: 0 };
+    var r = getClinicRate(rates, c);
+    extraUsd += (v.consult || 0) * r.consult + (v.ipd || 0) * r.ipd;
+    return '<td>' + extraNumberInput(c, 'consult', v.consult) + '</td><td>' + extraNumberInput(c, 'ipd', v.ipd) + '</td>';
+  }).join('');
   html += '<tr style="background:#f7f8fb;">' +
     '<td class="date-cell" style="font-style:italic;color:var(--sub);">+ បន្ថែម (ក្រៅតារាងថ្ងៃ)</td>' +
-    '<td>' + extraNumberInput('SPV_Consult', extra.SPV_Consult) + '</td>' +
-    '<td>' + extraNumberInput('SPV_IPD', extra.SPV_IPD) + '</td>' +
-    '<td>' + extraNumberInput('HMV_Consult', extra.HMV_Consult) + '</td>' +
-    '<td>' + extraNumberInput('HMV_IPD', extra.HMV_IPD) + '</td>' +
+    extraCells +
     '<td style="font-weight:600;">' + fmtUsd(extraUsd) + '</td>' +
     '<td style="color:#c3c9d3;">—</td>' +
     '<td style="font-weight:700;">' + fmtUsd(extraUsd) + '</td></tr>';
