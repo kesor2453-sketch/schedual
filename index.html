@@ -458,8 +458,6 @@ var STATE = {
   khrPerUsd: KHR_PER_USD,
   year: new Date().getFullYear(),
   month: new Date().getMonth() + 1,
-  payYear: null,
-  payMonth: null,
   editing: null,
   copiedDay: null,      // { sourceDate, fields } — one day's duty slots, copied and ready to paste elsewhere
   copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
@@ -467,8 +465,6 @@ var STATE = {
   incomeRatesByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — any clinic, not just SPV/HMV
   incomeExtraByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — not tied to a specific day
   incomeEntries: [],        // [{ Date, byClinic: { clinicName:{consult,ipd}, ... } }]
-  incomeYear: null,
-  incomeMonth: null,
   pastIncomeEntries: [],   // legacy — kept only so an old Firestore doc doesn't crash on load
   clinicTotals: {},        // { 'YYYY-MM': { clinicName: amountUsd } } — the editable grid's data
   clinicNames: ['SPV', 'HMV'],  // active columns shown in the grid; extend via "+ គ្លីនិកថ្មី"
@@ -644,7 +640,6 @@ document.addEventListener('DOMContentLoaded', function () {
       persistRemoteState();
     }
     firstSnapshotHandled = true;
-    if (!STATE.payYear) { STATE.payYear = STATE.year; STATE.payMonth = STATE.month; }
     loadSchedule();
     renderDoctors();
     if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
@@ -676,7 +671,6 @@ document.addEventListener('DOMContentLoaded', function () {
       persistIncomeState();
     }
     incomeFirstSnapshotHandled = true;
-    if (!STATE.incomeYear) { STATE.incomeYear = STATE.year; STATE.incomeMonth = STATE.month; }
     if (document.getElementById('panel-income').classList.contains('active')) renderIncome();
     if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
   }, function (err) {
@@ -787,20 +781,20 @@ function bindMonthNav() {
   document.getElementById('todayBtn').addEventListener('click', function () {
     var now = new Date();
     STATE.year = now.getFullYear(); STATE.month = now.getMonth() + 1;
-    loadSchedule();
+    refreshAllMonthViews();
   });
-  document.getElementById('prevMonthPay').addEventListener('click', function () { shiftPayMonth(-1); });
-  document.getElementById('nextMonthPay').addEventListener('click', function () { shiftPayMonth(1); });
+  document.getElementById('prevMonthPay').addEventListener('click', function () { shiftMonth(-1); });
+  document.getElementById('nextMonthPay').addEventListener('click', function () { shiftMonth(1); });
 
   document.getElementById('monthPicker').addEventListener('change', function (e) {
     var parts = e.target.value.split('-');
     STATE.year = Number(parts[0]); STATE.month = Number(parts[1]);
-    loadSchedule();
+    refreshAllMonthViews();
   });
   document.getElementById('monthPickerPay').addEventListener('change', function (e) {
     var parts = e.target.value.split('-');
-    STATE.payYear = Number(parts[0]); STATE.payMonth = Number(parts[1]);
-    loadPayroll();
+    STATE.year = Number(parts[0]); STATE.month = Number(parts[1]);
+    refreshAllMonthViews();
   });
 }
 
@@ -825,28 +819,29 @@ function monthOptionLabel(ym) {
 function refreshMonthPickers() {
   var months = getAvailableMonths();
   var cur = STATE.year + '-' + pad2(STATE.month);
-  var curPay = STATE.payYear + '-' + pad2(STATE.payMonth);
-  var picker = document.getElementById('monthPicker');
-  var pickerPay = document.getElementById('monthPickerPay');
-  picker.innerHTML = months.map(function (ym) {
+  var optionsHtml = months.map(function (ym) {
     return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
   }).join('');
-  pickerPay.innerHTML = months.map(function (ym) {
-    return '<option value="' + ym + '"' + (ym === curPay ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
-  }).join('');
+  ['monthPicker', 'monthPickerPay', 'monthPickerIncome'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = optionsHtml;
+  });
+}
+
+// One shared month (STATE.year/STATE.month) now drives the Schedule,
+// Payroll, and Income tabs together — changing the month on any one of
+// them moves all three, so they always stay in sync with each other.
+function refreshAllMonthViews() {
+  loadSchedule();
+  loadPayroll();
+  renderIncome();
 }
 
 function shiftMonth(delta) {
   var m = STATE.month + delta, y = STATE.year;
   if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
   STATE.year = y; STATE.month = m;
-  loadSchedule();
-}
-function shiftPayMonth(delta) {
-  var m = STATE.payMonth + delta, y = STATE.payYear;
-  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
-  STATE.payYear = y; STATE.payMonth = m;
-  loadPayroll();
+  refreshAllMonthViews();
 }
 
 /* ---------------- SCHEDULE RENDER (fully from memory) ---------------- */
@@ -1787,10 +1782,9 @@ function getMyDutyPayForDate(dateStr) {
 }
 
 function loadPayroll() {
-  if (!STATE.payYear) { STATE.payYear = STATE.year; STATE.payMonth = STATE.month; }
-  document.getElementById('monthLabelPay').textContent = MONTH_NAMES_KM[STATE.payMonth - 1] + ' ' + STATE.payYear;
-  var summary = computePayrollClient(STATE.payYear, STATE.payMonth);
-  var incomeSummary = computeIncomeSummary(STATE.payYear, STATE.payMonth);
+  document.getElementById('monthLabelPay').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  var summary = computePayrollClient(STATE.year, STATE.month);
+  var incomeSummary = computeIncomeSummary(STATE.year, STATE.month);
   renderPayroll(summary, incomeSummary);
   refreshMonthPickers();
 }
@@ -1848,20 +1842,13 @@ function renderPayroll(summary, incomeSummary) {
 
 /* ---------------- INCOME (Consult + IPD, per clinic, rate-based — dynamic over every clinic) ---------------- */
 function bindIncomeMonthNav() {
-  document.getElementById('prevMonthIncome').addEventListener('click', function () { shiftIncomeMonth(-1); });
-  document.getElementById('nextMonthIncome').addEventListener('click', function () { shiftIncomeMonth(1); });
+  document.getElementById('prevMonthIncome').addEventListener('click', function () { shiftMonth(-1); });
+  document.getElementById('nextMonthIncome').addEventListener('click', function () { shiftMonth(1); });
   document.getElementById('monthPickerIncome').addEventListener('change', function (e) {
     var parts = e.target.value.split('-');
-    STATE.incomeYear = Number(parts[0]); STATE.incomeMonth = Number(parts[1]);
-    renderIncome();
+    STATE.year = Number(parts[0]); STATE.month = Number(parts[1]);
+    refreshAllMonthViews();
   });
-}
-
-function shiftIncomeMonth(delta) {
-  var m = STATE.incomeMonth + delta, y = STATE.incomeYear;
-  if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
-  STATE.incomeYear = y; STATE.incomeMonth = m;
-  renderIncome();
 }
 
 // bindIncomeForm is now a no-op (kept so the init call doesn't need editing) —
@@ -1950,8 +1937,8 @@ function getExtraForMonth(year, month) {
 // writes a fresh per-month entry (cloned from whatever it was showing) so
 // past months keep their original numbers even if this month's rate changes.
 function updateIncomeRate(clinic, type, value) {
-  var key = monthKey(STATE.incomeYear, STATE.incomeMonth);
-  var current = getRatesForMonth(STATE.incomeYear, STATE.incomeMonth);
+  var key = monthKey(STATE.year, STATE.month);
+  var current = getRatesForMonth(STATE.year, STATE.month);
   var updated = JSON.parse(JSON.stringify(current));
   if (!updated[clinic]) updated[clinic] = { consult: 0, ipd: 0 };
   updated[clinic][type] = Number(value) || 0;
@@ -1965,8 +1952,8 @@ window.updateIncomeRate = updateIncomeRate;
 // Consult/IPD counts not tied to a specific day, added into that month's
 // total only.
 function updateIncomeExtra(clinic, type, value) {
-  var key = monthKey(STATE.incomeYear, STATE.incomeMonth);
-  var current = getExtraForMonth(STATE.incomeYear, STATE.incomeMonth);
+  var key = monthKey(STATE.year, STATE.month);
+  var current = getExtraForMonth(STATE.year, STATE.month);
   var updated = JSON.parse(JSON.stringify(current));
   if (!updated[clinic]) updated[clinic] = { consult: 0, ipd: 0 };
   updated[clinic][type] = Math.max(0, Number(value) || 0);
@@ -1977,8 +1964,8 @@ function updateIncomeExtra(clinic, type, value) {
 window.updateIncomeExtra = updateIncomeExtra;
 
 function renderIncomeRates() {
-  var clinics = activeClinicsForMonth(STATE.incomeYear, STATE.incomeMonth);
-  var rates = getRatesForMonth(STATE.incomeYear, STATE.incomeMonth);
+  var clinics = activeClinicsForMonth(STATE.year, STATE.month);
+  var rates = getRatesForMonth(STATE.year, STATE.month);
   if (!clinics.length) {
     document.getElementById('incomeRatesWrap').innerHTML = '<div class="empty-state">មិនទាន់មានគ្លីនិកទេ</div>';
     return;
@@ -2038,12 +2025,11 @@ function computeIncomeSummary(year, month) {
 }
 
 function renderIncome() {
-  if (!STATE.incomeYear) { STATE.incomeYear = STATE.year; STATE.incomeMonth = STATE.month; }
   renderIncomeRates();
-  document.getElementById('monthLabelIncome').textContent = MONTH_NAMES_KM[STATE.incomeMonth - 1] + ' ' + STATE.incomeYear;
-  refreshIncomeMonthPicker();
+  document.getElementById('monthLabelIncome').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  refreshMonthPickers();
 
-  var byClinic = computeIncomeSummary(STATE.incomeYear, STATE.incomeMonth);
+  var byClinic = computeIncomeSummary(STATE.year, STATE.month);
   var clinicNamesForMonth = Object.keys(byClinic);
   var orderedClinics = ['SPV', 'HMV'].filter(function (c) { return clinicNamesForMonth.indexOf(c) !== -1; })
     .concat(clinicNamesForMonth.filter(function (c) { return c !== 'SPV' && c !== 'HMV'; }).sort());
@@ -2099,7 +2085,7 @@ function extraNumberInput(clinic, type, val) {
 }
 
 function renderIncomeTable() {
-  var y = STATE.incomeYear, m = STATE.incomeMonth;
+  var y = STATE.year, m = STATE.month;
   var nDays = daysInMonth(y, m);
   var clinics = activeClinicsForMonth(y, m);
   var orderedClinics = ['SPV', 'HMV'].filter(function (c) { return clinics.indexOf(c) !== -1; })
@@ -2207,7 +2193,7 @@ function refreshIncomeMonthPicker() {
   var now = new Date();
   set[now.getFullYear() + '-' + pad2(now.getMonth() + 1)] = true;
   var months = Object.keys(set).sort().reverse();
-  var cur = STATE.incomeYear + '-' + pad2(STATE.incomeMonth);
+  var cur = STATE.year + '-' + pad2(STATE.month);
   document.getElementById('monthPickerIncome').innerHTML = months.map(function (ym) {
     return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
   }).join('');
