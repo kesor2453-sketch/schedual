@@ -1151,8 +1151,13 @@ function clinicGroupHeaderRow(spvCols, otherCols) {
   var cells = groups.map(function (g) {
     if (!g.clinic) return '<th colspan="' + g.span + '"></th>';
     var c = clinicHeaderColors(g.clinic);
-    return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text +
-      ';font-weight:700;font-size:12.5px;">' + escapeHtml(g.clinic) + '</th>';
+    return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text + ';font-weight:700;font-size:12.5px;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
+      '<span>' + escapeHtml(g.clinic) + '</span>' +
+      '<button type="button" title="លុបជួរឈរទាំងអស់របស់ ' + escapeAttr(g.clinic) + '" ' +
+      'style="border:none;background:rgba(255,255,255,.55);color:inherit;border-radius:5px;font-size:10.5px;padding:2px 5px;cursor:pointer;" ' +
+      'onclick="deleteClinicColumns(\'' + escapeAttr(g.clinic) + '\')">🗑</button>' +
+      '</div></th>';
   }).join('');
   return '<tr><th style="text-align:left;"></th>' + cells + '</tr>';
 }
@@ -1212,8 +1217,10 @@ function addSlotColumn(label, clinic, period, rate) {
 // earlier months that already used this column keep showing it, exactly as
 // they were. If the column has no history before the viewed month at all
 // (e.g. it was added and immediately removed in the same month), there's
-// nothing to preserve, so it's dropped outright instead.
-function deleteSlotColumn(field) {
+// nothing to preserve, so it's dropped outright instead. No confirm, no
+// persist/render here — callers handle that (so a bulk delete can do both
+// just once for every column it touches).
+function deleteSlotColumnCore(field) {
   var col = slotColumnByField(field);
   if (!col) return;
   var cutoffKey = monthKey(STATE.year, STATE.month);
@@ -1221,20 +1228,46 @@ function deleteSlotColumn(field) {
     return row[field] && monthKeyFromDate(row.Date) < cutoffKey;
   });
   if (hasEarlierData || (col.activeFrom && col.activeFrom < cutoffKey)) {
-    if (!confirm('បញ្ឈប់ជួរឈរ "' + col.label + '" ចាប់ពីខែនេះតទៅមែនទេ? (ខែមុនៗនឹងនៅបង្ហាញដដែល)')) return;
     col.activeUntil = monthBeforeKey(cutoffKey);
-    showToast('បញ្ឈប់ជួរឈររួចរាល់ ✓ (ខែមុនៗនៅរក្សាទុក)');
   } else {
-    if (!confirm('លុបជួរឈរ "' + col.label + '" ជាអចិន្ត្រៃយ៍មែនទេ?')) return;
     STATE.slotColumns = STATE.slotColumns.filter(function (c) { return c.field !== field; });
     STATE.scheduleAll.forEach(function (row) { delete row[field]; });
-    showToast('លុបជួរឈររួចរាល់ ✓');
   }
+}
+
+function deleteSlotColumn(field) {
+  var col = slotColumnByField(field);
+  if (!col) return;
+  var cutoffKey = monthKey(STATE.year, STATE.month);
+  var hasEarlierData = STATE.scheduleAll.some(function (row) {
+    return row[field] && monthKeyFromDate(row.Date) < cutoffKey;
+  });
+  var willDeactivate = hasEarlierData || (col.activeFrom && col.activeFrom < cutoffKey);
+  var msg = willDeactivate
+    ? 'បញ្ឈប់ជួរឈរ "' + col.label + '" ចាប់ពីខែនេះតទៅមែនទេ? (ខែមុនៗនឹងនៅបង្ហាញដដែល)'
+    : 'លុបជួរឈរ "' + col.label + '" ជាអចិន្ត្រៃយ៍មែនទេ?';
+  if (!confirm(msg)) return;
+  deleteSlotColumnCore(field);
+  showToast(willDeactivate ? 'បញ្ឈប់ជួរឈររួចរាល់ ✓ (ខែមុនៗនៅរក្សាទុក)' : 'លុបជួរឈររួចរាល់ ✓');
   persistRemoteState();
   renderSchedule();
   if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
 }
 window.deleteSlotColumn = deleteSlotColumn;
+
+// Removes every column belonging to one clinic in a single click — one
+// confirm covers the whole group, instead of clicking 🗑 on each column.
+function deleteClinicColumns(clinicName) {
+  var cols = STATE.slotColumns.filter(function (c) { return c.clinic === clinicName; });
+  if (!cols.length) return;
+  if (!confirm('លុបជួរឈរទាំងអស់របស់គ្លីនិក "' + clinicName + '" (សរុប ' + cols.length + ' ជួរ) មែនទេ?')) return;
+  cols.forEach(function (c) { deleteSlotColumnCore(c.field); });
+  persistRemoteState();
+  renderSchedule();
+  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+  showToast('លុបជួរឈរទាំងអស់របស់ ' + clinicName + ' រួចរាល់ ✓');
+}
+window.deleteClinicColumns = deleteClinicColumns;
 
 function bindSlotColumnControls() {
   document.getElementById('addSlotColBtn').addEventListener('click', function () {
