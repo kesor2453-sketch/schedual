@@ -1153,9 +1153,12 @@ function clinicGroupHeaderRow(spvCols, otherCols) {
     var c = clinicHeaderColors(g.clinic);
     return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text + ';font-weight:700;font-size:12.5px;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
-      '<span>' + escapeHtml(g.clinic) + '</span>' +
+      '<input type="text" value="' + escapeAttr(g.clinic) + '" title="ចុចដើម្បីប្តូរឈ្មោះគ្លីនិកនេះ (អនុវត្តលើគ្រប់ជួរឈររបស់វា)" ' +
+      'style="border:none;background:transparent;color:inherit;font-weight:700;font-size:12.5px;width:100%;min-width:40px;padding:2px 3px;border-radius:5px;" ' +
+      'onfocus="this.style.background=\'rgba(255,255,255,.55)\'" onblur="this.style.background=\'transparent\'" ' +
+      'onchange="renameScheduleClinic(\'' + escapeAttr(g.clinic) + '\', this.value)">' +
       '<button type="button" title="លុបជួរឈរទាំងអស់របស់ ' + escapeAttr(g.clinic) + '" ' +
-      'style="border:none;background:rgba(255,255,255,.55);color:inherit;border-radius:5px;font-size:10.5px;padding:2px 5px;cursor:pointer;" ' +
+      'style="border:none;background:rgba(255,255,255,.55);color:inherit;border-radius:5px;font-size:10.5px;padding:2px 5px;cursor:pointer;flex:none;" ' +
       'onclick="deleteClinicColumns(\'' + escapeAttr(g.clinic) + '\')">🗑</button>' +
       '</div></th>';
   }).join('');
@@ -1268,6 +1271,23 @@ function deleteClinicColumns(clinicName) {
   showToast('លុបជួរឈរទាំងអស់របស់ ' + clinicName + ' រួចរាល់ ✓');
 }
 window.deleteClinicColumns = deleteClinicColumns;
+
+// Renames a clinic across every column that belongs to it in one go — the
+// side-panel input above calls this, so editing the clinic name once
+// updates its whole group of columns (and anywhere else that reads
+// column.clinic, like payroll and the duty-day stats).
+function renameScheduleClinic(oldName, newNameRaw) {
+  var newName = (newNameRaw || '').trim();
+  if (!newName || newName === oldName) { renderSchedule(); return; }
+  var cols = STATE.slotColumns.filter(function (c) { return c.clinic === oldName; });
+  if (!cols.length) { renderSchedule(); return; }
+  cols.forEach(function (c) { c.clinic = newName; });
+  persistRemoteState();
+  renderSchedule();
+  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+  showToast('ប្តូរឈ្មោះគ្លីនិករួចរាល់ ✓ (អនុវត្តលើ ' + cols.length + ' ជួរឈរ)');
+}
+window.renameScheduleClinic = renameScheduleClinic;
 
 function bindSlotColumnControls() {
   document.getElementById('addSlotColBtn').addEventListener('click', function () {
@@ -1860,12 +1880,17 @@ function renderPayroll(summary, incomeSummary) {
   if (summary.linda && (summary.linda.shifts || incomeBothTotal)) {
     var lindaGrandTotal = summary.linda.usd + incomeBothTotal;
     var byClinicLine = Object.keys(summary.linda.byClinic).map(function (c) {
-      return escapeHtml(c) + ': ' + summary.linda.byClinic[c].shifts + ' វេន';
+      var cc = summary.linda.byClinic[c];
+      return escapeHtml(c) + ': ' + cc.shifts + ' វេន (' + fmtUsd(cc.usd) + ')';
     }).join(' &nbsp;|&nbsp; ');
+    var incomeByClinicLine = Object.keys(incomeSummary || {})
+      .filter(function (c) { return incomeSummary[c].usd > 0; })
+      .map(function (c) { return escapeHtml(c) + ': ' + fmtUsd(incomeSummary[c].usd); })
+      .join(' &nbsp;|&nbsp; ');
     html += '<div class="linda-box">' +
       '<b>ប្រាក់ខែពីវេនរបស់អ្នក ⭐</b> — ' + (byClinicLine || 'មិនមានវេនខែនេះ') + ' &nbsp;|&nbsp; ' +
       'សរុបវេន: ' + fmtUsd(summary.linda.usd) + '<br>' +
-      'ចំណូល Consult/IPD (គ្រប់គ្លីនិក): ' + fmtUsd(incomeBothTotal) + '<br>' +
+      'ចំណូល Consult/IPD — ' + (incomeByClinicLine || 'មិនមានខែនេះ') + ' &nbsp;|&nbsp; សរុប: ' + fmtUsd(incomeBothTotal) + '<br>' +
       '<b style="font-size:15.5px;">សរុបប្រចាំខែទាំងអស់សម្រាប់អ្នក: ' + fmtUsd(lindaGrandTotal) + ' (' + fmtKhr(lindaGrandTotal * STATE.khrPerUsd) + ')</b>' +
       '</div>';
   }
