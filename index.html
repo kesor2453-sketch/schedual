@@ -1887,10 +1887,22 @@ function renderPayroll(summary, incomeSummary) {
       .filter(function (c) { return incomeSummary[c].usd > 0; })
       .map(function (c) { return escapeHtml(c) + ': ' + fmtUsd(incomeSummary[c].usd); })
       .join(' &nbsp;|&nbsp; ');
+
+    // Grand total per clinic = that clinic's duty pay + that clinic's income.
+    var allClinicNames = {};
+    Object.keys(summary.linda.byClinic).forEach(function (c) { allClinicNames[c] = true; });
+    Object.keys(incomeSummary || {}).forEach(function (c) { allClinicNames[c] = true; });
+    var grandByClinicLine = Object.keys(allClinicNames).sort().map(function (c) {
+      var dutyUsd = (summary.linda.byClinic[c] && summary.linda.byClinic[c].usd) || 0;
+      var incUsd = (incomeSummary[c] && incomeSummary[c].usd) || 0;
+      return escapeHtml(c) + ': ' + fmtUsd(dutyUsd + incUsd);
+    }).join(' &nbsp;|&nbsp; ');
+
     html += '<div class="linda-box">' +
       '<b>ប្រាក់ខែពីវេនរបស់អ្នក ⭐</b> — ' + (byClinicLine || 'មិនមានវេនខែនេះ') + ' &nbsp;|&nbsp; ' +
       'សរុបវេន: ' + fmtUsd(summary.linda.usd) + '<br>' +
       'ចំណូល Consult/IPD — ' + (incomeByClinicLine || 'មិនមានខែនេះ') + ' &nbsp;|&nbsp; សរុប: ' + fmtUsd(incomeBothTotal) + '<br>' +
+      (grandByClinicLine ? ('សរុបតាមគ្លីនិក — ' + grandByClinicLine + '<br>') : '') +
       '<b style="font-size:15.5px;">សរុបប្រចាំខែទាំងអស់សម្រាប់អ្នក: ' + fmtUsd(lindaGrandTotal) + ' (' + fmtKhr(lindaGrandTotal * STATE.khrPerUsd) + ')</b>' +
       '</div>';
   }
