@@ -399,7 +399,7 @@
   <div class="panel" id="panel-history">
     <div class="card">
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;">លុយធ្វើការគ្លីនិកសរុប</div>
-      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">គ្លីនិកនីមួយៗបង្ហាញជាតារាងដោយឡែក — វាយបញ្ចូល/កែ/លុបចំនួន $ ប្រចាំខែដោយឡែកពីគ្នា តែមើលឃើញទាំងអស់ក្នុងទំព័រតែមួយ</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">គ្លីនិកនីមួយៗបង្ហាញជាតារាងដោយឡែក — លេខដើមបញ្ចូលអូតូពី "ប្រាក់ខែ" (វេន) បូក "ចំណូល" (Consult/IPD) របស់អ្នកក្នុងគ្លីនិកនោះ — អាចកែ/លុប/បន្ថែមដោយដៃបានគ្រប់ពេល ហើយលេខដែលកែផ្ទាល់នឹងមិនត្រូវជាន់ជាមួយលេខអូតូទៀតទេ</div>
       <div id="clinicStatsWrap" style="margin-bottom:14px;"></div>
       <div class="pay-grid" id="clinicCardsWrap"></div>
       <div id="archivedClinicsWrap"></div>
@@ -2376,6 +2376,40 @@ function clinicLifetimeTotal(clinicName) {
   return total;
 }
 
+// Linda's own total money from one clinic in one month — her duty-shift pay
+// (from Payroll) plus her Consult/IPD income (from Income), for that clinic.
+// This is the number the Clinic Total ledger auto-fills with.
+function computeLindaClinicTotal(year, month, clinicName) {
+  var payrollSummary = computePayrollClient(year, month);
+  var dutyUsd = (payrollSummary.linda.byClinic[clinicName] && payrollSummary.linda.byClinic[clinicName].usd) || 0;
+  var incomeSummary = computeIncomeSummary(year, month);
+  var incomeUsd = (incomeSummary[clinicName] && incomeSummary[clinicName].usd) || 0;
+  return dutyUsd + incomeUsd;
+}
+
+// Every month-key where Linda actually had duty shifts, Consult/IPD income,
+// or an extra-income adjustment recorded for this clinic — so a month with
+// real activity surfaces in the ledger even if nobody ever added it by hand.
+function monthsWithClinicActivity(clinicName) {
+  var linda = lindaDoctor();
+  var set = {};
+  if (linda) {
+    STATE.scheduleAll.forEach(function (row) {
+      var mine = capDailyEarningsClient(row).filter(function (e) { return e.docKey === linda.ID && e.clinic === clinicName; });
+      if (mine.length) set[monthKeyFromDate(row.Date)] = true;
+    });
+  }
+  STATE.incomeEntries.forEach(function (e) {
+    var v = e.byClinic && e.byClinic[clinicName];
+    if (v && ((v.consult || 0) > 0 || (v.ipd || 0) > 0)) set[monthKeyFromDate(e.Date)] = true;
+  });
+  Object.keys(STATE.incomeExtraByMonth || {}).forEach(function (mk) {
+    var v = STATE.incomeExtraByMonth[mk][clinicName];
+    if (v && ((v.consult || 0) > 0 || (v.ipd || 0) > 0)) set[mk] = true;
+  });
+  return Object.keys(set);
+}
+
 function renderClinicLedger() {
   var now = new Date();
   var curKey = monthKey(now.getFullYear(), now.getMonth() + 1);
@@ -2393,13 +2427,40 @@ function renderClinicLedger() {
   if (monthKeys.indexOf(prevKey) === -1) monthKeys.splice(1, 0, prevKey);
 
   var cardsWrap = document.getElementById('clinicCardsWrap');
+  var autoFilledAny = false;
   if (!clinicNames.length) {
     cardsWrap.innerHTML = '<div class="empty-state">មិនទាន់មានគ្លីនិកទេ — បន្ថែមមួយខាងក្រោម</div>';
   } else {
     cardsWrap.innerHTML = clinicNames.map(function (c) {
+      // This clinic's own month list: the shared base (current/previous
+      // month, any manually-added month) plus every month it actually had
+      // duty or income activity in — so real months surface even if nobody
+      // ever added them by hand.
+      var clinicMonthKeys = monthKeys.slice();
+      monthsWithClinicActivity(c).forEach(function (mk) {
+        if (clinicMonthKeys.indexOf(mk) === -1) clinicMonthKeys.push(mk);
+      });
+      clinicMonthKeys.sort().reverse();
+
+      // Auto-fill from Payroll + Income wherever this clinic/month hasn't
+      // been touched manually yet (deleting a value clears it back to
+      // "unset", so it gets auto-filled again next time; typing an explicit
+      // number, including 0, always wins and is never overwritten).
+      clinicMonthKeys.forEach(function (mk) {
+        if (!STATE.clinicTotals[mk]) STATE.clinicTotals[mk] = {};
+        if (!(c in STATE.clinicTotals[mk])) {
+          var parts = mk.split('-');
+          var autoVal = computeLindaClinicTotal(Number(parts[0]), Number(parts[1]), c);
+          if (autoVal > 0) {
+            STATE.clinicTotals[mk][c] = Math.round(autoVal * 100) / 100;
+            autoFilledAny = true;
+          }
+        }
+      });
+
       // Only show months that already have a number, plus the current month
       // (and any later one) even while still $0, since it hasn't "arrived" yet.
-      var visibleMonths = monthKeys.filter(function (mk) {
+      var visibleMonths = clinicMonthKeys.filter(function (mk) {
         var v = (STATE.clinicTotals[mk] && STATE.clinicTotals[mk][c]) || 0;
         return v > 0 || mk >= curKey;
       });
@@ -2429,6 +2490,8 @@ function renderClinicLedger() {
         '</tbody></table></div>';
     }).join('');
   }
+
+  if (autoFilledAny) persistIncomeState();
 
   // ---- stats: overall total across every clinic (active + archived) ----
   var overallTotal = 0;
