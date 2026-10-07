@@ -401,7 +401,7 @@
       <div style="font-weight:700;font-size:15px;margin-bottom:4px;">លុយធ្វើការគ្លីនិកសរុប</div>
       <div style="font-size:11.5px;color:var(--sub);margin-bottom:12px;">គ្លីនិកនីមួយៗបង្ហាញជាតារាងដោយឡែក — លេខដើមបញ្ចូលអូតូពី "ប្រាក់ខែ" (វេន) បូក "ចំណូល" (Consult/IPD) របស់អ្នកក្នុងគ្លីនិកនោះ — អាចកែ/លុប/បន្ថែមដោយដៃបានគ្រប់ពេល ហើយលេខដែលកែផ្ទាល់នឹងមិនត្រូវជាន់ជាមួយលេខអូតូទៀតទេ</div>
       <div id="clinicStatsWrap" style="margin-bottom:14px;"></div>
-      <div class="pay-grid" id="clinicCardsWrap"></div>
+      <div style="overflow-x:auto;" id="clinicCardsWrap"></div>
       <div id="archivedClinicsWrap"></div>
       <div class="add-col-row">
         <input type="month" id="newClinicMonth" class="ledger-input" style="border:1px solid var(--line);width:150px;">
@@ -2307,6 +2307,28 @@ function deleteClinicMonthRow(monthKeyVal) {
 }
 window.deleteClinicMonthRow = deleteClinicMonthRow;
 
+// Moves an entire month COLUMN (every clinic's amount under it) to a
+// different month — e.g. to fix a month picked by mistake. If the target
+// month already has numbers, asks to merge (sum) rather than silently
+// overwriting them.
+function renameClinicMonthColumn(oldMk, newMkRaw) {
+  var newMk = (newMkRaw || '').trim();
+  if (!newMk || newMk === oldMk) { renderClinicLedger(); return; }
+  var moving = STATE.clinicTotals[oldMk] || {};
+  var existing = STATE.clinicTotals[newMk];
+  if (existing && Object.keys(existing).length) {
+    if (!confirm('ខែ ' + monthOptionLabel(newMk) + ' មានទិន្នន័យរួចហើយ — បូកបញ្ចូលគ្នាមែនទេ?')) { renderClinicLedger(); return; }
+    Object.keys(moving).forEach(function (c) { existing[c] = (existing[c] || 0) + moving[c]; });
+  } else {
+    STATE.clinicTotals[newMk] = moving;
+  }
+  delete STATE.clinicTotals[oldMk];
+  persistIncomeState();
+  renderClinicLedger();
+  showToast('ប្តូរខែរួចរាល់ ✓');
+}
+window.renameClinicMonthColumn = renameClinicMonthColumn;
+
 // Clears just ONE clinic's amount for one month (used by the per-clinic
 // table's row action) — unlike deleteClinicMonthRow, this never touches
 // other clinics' numbers for that same month.
@@ -2443,21 +2465,16 @@ function renderClinicLedger() {
   if (!clinicNames.length) {
     cardsWrap.innerHTML = '<div class="empty-state">មិនទាន់មានគ្លីនិកទេ — បន្ថែមមួយខាងក្រោម</div>';
   } else {
-    cardsWrap.innerHTML = clinicNames.map(function (c) {
-      // This clinic's own month list: the shared base (current/previous
-      // month, any manually-added month) plus every month it actually had
-      // duty or income activity in — so real months surface even if nobody
-      // ever added them by hand.
+    // Auto-fill (Payroll + Income) every clinic/month that hasn't been
+    // touched manually yet, and collect each clinic's own relevant months
+    // along the way — same rule as before, just gathered up front now that
+    // months are shared table columns instead of per-card rows.
+    var perClinicVisibleMonths = {};
+    clinicNames.forEach(function (c) {
       var clinicMonthKeys = monthKeys.slice();
       monthsWithClinicActivity(c).forEach(function (mk) {
         if (clinicMonthKeys.indexOf(mk) === -1) clinicMonthKeys.push(mk);
       });
-      clinicMonthKeys.sort().reverse();
-
-      // Auto-fill from Payroll + Income wherever this clinic/month hasn't
-      // been touched manually yet (deleting a value clears it back to
-      // "unset", so it gets auto-filled again next time; typing an explicit
-      // number, including 0, always wins and is never overwritten).
       clinicMonthKeys.forEach(function (mk) {
         if (!STATE.clinicTotals[mk]) STATE.clinicTotals[mk] = {};
         if (!(c in STATE.clinicTotals[mk])) {
@@ -2469,38 +2486,63 @@ function renderClinicLedger() {
           }
         }
       });
-
-      // Only show months that already have a number, plus the current month
-      // (and any later one) even while still $0, since it hasn't "arrived" yet.
-      var visibleMonths = clinicMonthKeys.filter(function (mk) {
+      perClinicVisibleMonths[c] = clinicMonthKeys.filter(function (mk) {
         var v = (STATE.clinicTotals[mk] && STATE.clinicTotals[mk][c]) || 0;
         return v > 0 || mk >= curKey;
       });
-      var clinicTotal = 0;
-      var rows = visibleMonths.map(function (mk) {
+    });
+
+    // Table columns = every month any clinic needs shown, oldest → newest
+    // left to right (a calendar-style layout).
+    var masterMonthsSet = {};
+    Object.keys(perClinicVisibleMonths).forEach(function (c) {
+      perClinicVisibleMonths[c].forEach(function (mk) { masterMonthsSet[mk] = true; });
+    });
+    var masterMonths = Object.keys(masterMonthsSet).sort();
+
+    var head = '<thead><tr><th style="text-align:left;">គ្លីនិក</th>' +
+      masterMonths.map(function (mk) {
+        return '<th style="text-align:right;"><div class="clinic-col-head">' +
+          '<input type="month" class="col-name-input" style="font-size:11px;padding:3px 4px;" value="' + mk + '" ' +
+          'onchange="renameClinicMonthColumn(\'' + mk + '\', this.value)" title="ប្តូរខែនេះ (អនុវត្តលើគ្រប់គ្លីនិក)">' +
+          '<div class="clinic-col-actions">' +
+          '<button class="danger" title="លុបខែនេះ (គ្រប់គ្លីនិក)" onclick="deleteClinicMonthRow(\'' + mk + '\')">🗑</button>' +
+          '</div></div></th>';
+      }).join('') +
+      '<th style="text-align:right;">សរុប</th></tr></thead>';
+
+    var monthColumnTotals = {};
+    masterMonths.forEach(function (mk) { monthColumnTotals[mk] = 0; });
+    var grandTotal = 0;
+
+    var body = clinicNames.map(function (c) {
+      var rowTotal = 0;
+      var cells = masterMonths.map(function (mk) {
         var v = (STATE.clinicTotals[mk] && STATE.clinicTotals[mk][c]) || 0;
-        clinicTotal += v;
-        return '<tr><td class="date-cell">' + monthOptionLabel(mk) + '</td>' +
-          '<td class="clinic-amount-cell"><span class="cur">$</span><input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v +
-          '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>' +
-          '<td><button class="ledger-del" title="សម្អាតខែនេះ (គ្លីនិកនេះតែប៉ុណ្ណោះ)" onclick="clearClinicMonthValue(\'' + mk + '\',\'' + escapeAttr(c) + '\')">✕</button></td></tr>';
+        rowTotal += v;
+        monthColumnTotals[mk] += v;
+        return '<td class="clinic-amount-cell"><span class="cur">$</span><input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v +
+          '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>';
       }).join('');
-      if (!visibleMonths.length) {
-        rows = '<tr><td colspan="3" class="empty-state">មិនទាន់មានទិន្នន័យទេ</td></tr>';
-      }
-      return '<div class="pay-col">' +
-        '<div class="clinic-card-head">' +
+      grandTotal += rowTotal;
+      return '<tr><td class="date-cell">' +
+        '<div class="clinic-card-head" style="margin-bottom:0;">' +
         '<input type="text" class="col-name-input" value="' + escapeAttr(c) + '" ' +
         'onchange="renameClinicColumn(\'' + escapeAttr(c) + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះគ្លីនិកនេះ">' +
         '<button type="button" class="today-btn" style="cursor:pointer;" title="ឈប់ធ្វើ (លាក់ចេញ — ទិន្នន័យរក្សាទុក)" onclick="archiveClinic(\'' + escapeAttr(c) + '\')">📥</button>' +
         '<button type="button" class="today-btn" style="cursor:pointer;color:var(--off);border-color:#f3c9c9;" title="លុបជាអចិន្ត្រៃយ៍" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">🗑</button>' +
-        '</div>' +
-        '<table class="sched"><thead><tr><th style="text-align:left;">ខែ</th><th style="text-align:right;">ចំនួន ($)</th><th></th></tr></thead><tbody>' +
-        rows +
-        '<tr style="background:#f7f8fb;font-weight:700;"><td class="date-cell">សរុប ' + escapeHtml(c) + '</td>' +
-        '<td style="text-align:right;">' + fmtUsd(clinicTotal) + '</td><td></td></tr>' +
-        '</tbody></table></div>';
+        '</div></td>' +
+        cells +
+        '<td style="text-align:right;font-weight:700;">' + fmtUsd(rowTotal) + '</td></tr>';
     }).join('');
+
+    var footer = '<tr style="background:#f7f8fb;font-weight:700;"><td class="date-cell">សរុប</td>' +
+      masterMonths.map(function (mk) { return '<td style="text-align:right;">' + fmtUsd(monthColumnTotals[mk]) + '</td>'; }).join('') +
+      '<td style="text-align:right;">' + fmtUsd(grandTotal) + '</td></tr>';
+
+    cardsWrap.innerHTML = masterMonths.length
+      ? '<table class="sched" id="clinicGridTable">' + head + '<tbody>' + body + footer + '</tbody></table>'
+      : '<div class="empty-state">មិនទាន់មានទិន្នន័យទេ</div>';
   }
 
   if (autoFilledAny) persistIncomeState();
