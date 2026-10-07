@@ -2003,6 +2003,19 @@ function getExtraForMonth(year, month) {
   return STATE.incomeExtraByMonth[key] || {};
 }
 
+// Reads one clinic's extra/adjustment as a flat $ number. Handles data
+// saved before this was simplified to a single box — back then each
+// clinic stored {consult, ipd} counts here, so that old shape is converted
+// using that month's rates instead of silently reading as $0.
+function extraDollarValue(raw, rates, clinic) {
+  if (raw == null) return 0;
+  if (typeof raw === 'object') {
+    var r = getClinicRate(rates, clinic);
+    return (raw.consult || 0) * r.consult + (raw.ipd || 0) * r.ipd;
+  }
+  return Number(raw) || 0;
+}
+
 // Edits the CURRENTLY VIEWED income month's rate for ONE clinic only —
 // writes a fresh per-month entry (cloned from whatever it was showing) so
 // past months keep their original numbers even if this month's rate changes.
@@ -2018,15 +2031,14 @@ function updateIncomeRate(clinic, type, value) {
 }
 window.updateIncomeRate = updateIncomeRate;
 
-// The extra/adjustment line for the currently viewed month, ONE clinic —
-// Consult/IPD counts not tied to a specific day, added into that month's
-// total only.
-function updateIncomeExtra(clinic, type, value) {
+// The extra/adjustment line for the currently viewed month, ONE clinic — a
+// single flat $ amount not tied to a specific day, added straight into that
+// month's total (no consult/ipd counts or rate math involved here).
+function updateIncomeExtra(clinic, value) {
   var key = monthKey(STATE.year, STATE.month);
   var current = getExtraForMonth(STATE.year, STATE.month);
   var updated = JSON.parse(JSON.stringify(current));
-  if (!updated[clinic]) updated[clinic] = { consult: 0, ipd: 0 };
-  updated[clinic][type] = Math.max(0, Number(value) || 0);
+  updated[clinic] = Math.max(0, Number(value) || 0);
   STATE.incomeExtraByMonth[key] = updated;
   persistIncomeState();
   renderIncome();
@@ -2078,16 +2090,12 @@ function computeIncomeSummary(year, month) {
     });
   });
 
-  // + extra/adjustment counts for the month, not tied to a specific day —
-  // included in the total the same as any day's entry.
+  // + a flat $ adjustment for the month, not tied to a specific day — added
+  // straight into that clinic's total the same as any day's entry.
   var extra = getExtraForMonth(year, month);
   Object.keys(extra).forEach(function (c) {
     if (!byClinic[c]) byClinic[c] = { consult: 0, ipd: 0, usd: 0 };
-    var v = extra[c];
-    var r = getClinicRate(rates, c);
-    byClinic[c].consult += v.consult || 0;
-    byClinic[c].ipd += v.ipd || 0;
-    byClinic[c].usd += (v.consult || 0) * r.consult + (v.ipd || 0) * r.ipd;
+    byClinic[c].usd += extraDollarValue(extra[c], rates, c);
   });
 
   Object.keys(byClinic).forEach(function (c) { byClinic[c].khr = byClinic[c].usd * STATE.khrPerUsd; });
@@ -2149,9 +2157,9 @@ function incomeNumberInput(dateStr, clinic, type, val) {
     '" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
 }
 
-function extraNumberInput(clinic, type, val) {
-  return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
-    '" onchange="updateIncomeExtra(\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
+function extraAmountInput(clinic, val) {
+  return '<input type="number" min="0" step="0.01" class="edit-select" style="width:100%;text-align:center;" placeholder="$0.00" value="' + (val || 0) +
+    '" onchange="updateIncomeExtra(\'' + escapeAttr(clinic) + '\',this.value)">';
 }
 
 function renderIncomeTable() {
@@ -2232,16 +2240,15 @@ function renderIncomeTable() {
   }
   if (!anyRow) html += '<tr><td colspan="' + colCount + '" class="empty-state">មិនមានថ្ងៃដែលអ្នកនៅវេននៅខែនេះទេ</td></tr>';
 
-  // Extra/adjustment row, after the last day of the month — Consult/IPD
-  // counts not tied to any specific day, folded into the month's total the
-  // same as any day's entry.
+  // Extra/adjustment row, after the last day of the month — one flat $
+  // amount per clinic, not tied to any specific day, folded straight into
+  // the month's total the same as any day's entry.
   var extra = getExtraForMonth(y, m);
   var extraUsd = 0;
   var extraCells = orderedClinics.map(function (c) {
-    var v = extra[c] || { consult: 0, ipd: 0 };
-    var r = getClinicRate(rates, c);
-    extraUsd += (v.consult || 0) * r.consult + (v.ipd || 0) * r.ipd;
-    return '<td>' + extraNumberInput(c, 'consult', v.consult) + '</td><td>' + extraNumberInput(c, 'ipd', v.ipd) + '</td>';
+    var v = extraDollarValue(extra[c], rates, c);
+    extraUsd += v;
+    return '<td colspan="2">' + extraAmountInput(c, v) + '</td>';
   }).join('');
   html += '<tr style="background:#f7f8fb;">' +
     '<td class="date-cell" style="font-style:italic;color:var(--sub);">+ បន្ថែម (ក្រៅតារាងថ្ងៃ)</td>' +
