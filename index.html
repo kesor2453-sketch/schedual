@@ -462,6 +462,7 @@ var STATE = {
   copiedDay: null,      // { sourceDate, fields } — one day's duty slots, copied and ready to paste elsewhere
   copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
   copiedCellValue: null, // a single cell's value (any field, any day) — copy from one cell, paste into any other
+  advanceTarget: null,   // { date, field } — set by Enter/↓ in a cell editor, opened right after this cell commits
   incomeRatesByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — any clinic, not just SPV/HMV
   incomeExtraByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — not tied to a specific day
   incomeEntries: [],        // [{ Date, byClinic: { clinicName:{consult,ipd}, ... } }]
@@ -1444,16 +1445,35 @@ function openEditor(cell) {
   function commit() {
     var newVal = input.value.trim();
     STATE.editing = null;
-    if (newVal === currentVal) { renderSchedule(); return; }
-    saveCellValue(date, field, newVal);
+    if (newVal === currentVal) { renderSchedule(); } else { saveCellValue(date, field, newVal); }
+    if (STATE.advanceTarget) {
+      var target = STATE.advanceTarget;
+      STATE.advanceTarget = null;
+      var nextCell = document.querySelector('.cell-slot[data-date="' + target.date + '"][data-field="' + target.field + '"]');
+      if (nextCell) openEditor(nextCell);
+    }
   }
   input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { input.blur(); }
-    if (e.key === 'Escape') { STATE.editing = null; renderSchedule(); }
+    // Enter or ↓ commits this cell AND opens the same column's next day,
+    // so a whole column can be filled in just by typing + pressing
+    // Enter/↓ repeatedly, spreadsheet-style.
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      STATE.advanceTarget = { date: addOneDay(date), field: field };
+      input.blur();
+    } else if (e.key === 'Escape') {
+      STATE.editing = null; renderSchedule();
+    }
   });
   input.addEventListener('blur', function () {
     setTimeout(commit, 80);
   });
+}
+
+function addOneDay(dateStr) {
+  var parts = dateStr.split('-').map(Number);
+  var dt = new Date(parts[0], parts[1] - 1, parts[2] + 1);
+  return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate());
 }
 
 var SLOT_FIELDS_ALL = ['SPV_Day1', 'SPV_Day2', 'SPV_Day3', 'SPV_Night', 'HMV_Day', 'HMV_Night'];
@@ -2154,12 +2174,12 @@ var DOW_NAMES_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 
 function incomeNumberInput(dateStr, clinic, type, val) {
   return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
-    '" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
+    '" onfocus="this.select()" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
 }
 
 function extraAmountInput(clinic, val) {
   return '<input type="number" min="0" step="0.01" class="edit-select" style="width:100%;text-align:center;" placeholder="$0.00" value="' + (val || 0) +
-    '" onchange="updateIncomeExtra(\'' + escapeAttr(clinic) + '\',this.value)">';
+    '" onfocus="this.select()" onchange="updateIncomeExtra(\'' + escapeAttr(clinic) + '\',this.value)">';
 }
 
 function renderIncomeTable() {
@@ -2529,7 +2549,7 @@ function renderClinicLedger() {
         rowTotal += v;
         monthColumnTotals[mk] += v;
         return '<td class="clinic-amount-cell"><span class="cur">$</span><input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v +
-          '" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>';
+          '" onfocus="this.select()" onchange="updateClinicTotal(\'' + mk + '\',\'' + escapeAttr(c) + '\',this.value)"></td>';
       }).join('');
       grandTotal += rowTotal;
       return '<tr><td class="date-cell">' +
