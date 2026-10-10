@@ -1152,28 +1152,27 @@ function clinicGroupHeaderRow(spvCols, otherCols) {
   var cells = groups.map(function (g) {
     if (!g.clinic) return '<th colspan="' + g.span + '"></th>';
     var c = clinicHeaderColors(g.clinic);
-    return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text + ';font-weight:700;font-size:12.5px;">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
+    return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text + ';font-weight:700;font-size:12.5px;position:relative;">' +
       '<input type="text" value="' + escapeAttr(g.clinic) + '" title="ចុចដើម្បីប្តូរឈ្មោះគ្លីនិកនេះ (អនុវត្តលើគ្រប់ជួរឈររបស់វា)" ' +
-      'style="border:none;background:transparent;color:inherit;font-weight:700;font-size:12.5px;width:100%;min-width:40px;padding:2px 3px;border-radius:5px;" ' +
+      'style="border:none;background:transparent;color:inherit;font-weight:700;font-size:12.5px;width:100%;text-align:center;padding:2px 24px;border-radius:5px;" ' +
       'onfocus="this.style.background=\'rgba(255,255,255,.55)\'" onblur="this.style.background=\'transparent\'" ' +
       'onchange="renameScheduleClinic(\'' + escapeAttr(g.clinic) + '\', this.value)">' +
-      '<button type="button" title="លុបជួរឈរទាំងអស់របស់ ' + escapeAttr(g.clinic) + '" ' +
-      'style="border:none;background:rgba(255,255,255,.55);color:inherit;border-radius:5px;font-size:10.5px;padding:2px 5px;cursor:pointer;flex:none;" ' +
+      '<button type="button" title="លុប/កែជួរឈរទាំងអស់របស់ ' + escapeAttr(g.clinic) + '" ' +
+      'style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:rgba(255,255,255,.55);color:inherit;border-radius:5px;font-size:10px;padding:2px 5px;cursor:pointer;" ' +
       'onclick="deleteClinicColumns(\'' + escapeAttr(g.clinic) + '\')">🗑</button>' +
-      '</div></th>';
+      '</th>';
   }).join('');
   return '<tr><th style="text-align:left;"></th>' + cells + '</tr>';
 }
 
-// Editable header for one duty column: rename label, set its $ rate, delete it.
+// Editable header for one duty column: rename label only — deleting is done
+// once at the clinic group header above (🗑 there removes every column for
+// that clinic in one click, instead of a separate trash icon per column).
 function slotHeaderCellHtml(col) {
   return '<div class="sched-col-head">' +
     '<input type="text" class="col-name-input" value="' + escapeAttr(col.label) + '" ' +
     'onchange="renameSlotColumn(\'' + col.field + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះជួរឈរនេះ">' +
-    '<div class="clinic-col-actions">' +
-    '<button type="button" class="danger" title="បញ្ឈប់/លុបជួរឈរនេះ" onclick="deleteSlotColumn(\'' + col.field + '\')">🗑</button>' +
-    '</div></div>';
+    '</div>';
 }
 
 function offHeaderCellHtml() {
