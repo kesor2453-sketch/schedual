@@ -469,6 +469,7 @@ var STATE = {
   copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
   copiedCellValue: null, // a single cell's value (any field, any day) — copy from one cell, paste into any other
   advanceTarget: null,   // { date, field } — set by Enter/↓ in a cell editor, opened right after this cell commits
+  pendingDeleteClinic: null, // clinic name marked for bulk-delete after one 🗑 click, awaiting a confirming second click
   incomeRatesByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — any clinic, not just SPV/HMV
   incomeExtraByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — not tied to a specific day
   incomeEntries: [],        // [{ Date, byClinic: { clinicName:{consult,ipd}, ... } }]
@@ -1167,25 +1168,35 @@ function clinicGroupHeaderRow(spvCols, otherCols) {
   var cells = groups.map(function (g) {
     if (!g.clinic) return '<th colspan="' + g.span + '"></th>';
     var c = clinicHeaderColors(g.clinic);
-    return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text + ';font-weight:700;font-size:12.5px;position:relative;">' +
+    var pending = STATE.pendingDeleteClinic === g.clinic;
+    var bg = pending ? 'var(--off-bg)' : c.bg;
+    var fg = pending ? 'var(--off)' : c.text;
+    return '<th colspan="' + g.span + '" style="background:' + bg + ';color:' + fg + ';font-weight:700;font-size:12.5px;position:relative;">' +
       '<input type="text" value="' + escapeAttr(g.clinic) + '" title="ចុចដើម្បីប្តូរឈ្មោះគ្លីនិកនេះ (អនុវត្តលើគ្រប់ជួរឈររបស់វា)" ' +
-      'style="border:none;background:transparent;color:inherit;font-weight:700;font-size:12.5px;width:100%;text-align:center;padding:2px 24px;border-radius:5px;" ' +
+      'style="border:none;background:transparent;color:inherit;font-weight:700;font-size:12.5px;width:100%;text-align:center;padding:2px 24px;border-radius:5px;' +
+      (pending ? 'text-decoration:line-through;' : '') + '" ' +
       'onfocus="this.style.background=\'rgba(255,255,255,.55)\'" onblur="this.style.background=\'transparent\'" ' +
       'onchange="renameScheduleClinic(\'' + escapeAttr(g.clinic) + '\', this.value)">' +
-      '<button type="button" title="លុប/កែជួរឈរទាំងអស់របស់ ' + escapeAttr(g.clinic) + '" ' +
-      'style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:rgba(255,255,255,.55);color:inherit;border-radius:5px;font-size:10px;padding:2px 5px;cursor:pointer;" ' +
-      'onclick="deleteClinicColumns(\'' + escapeAttr(g.clinic) + '\')">🗑</button>' +
+      '<button type="button" title="' + (pending ? 'ចុចដើម្បីបញ្ជាក់លុបគ្រប់ជួរឈររបស់ ' + escapeAttr(g.clinic) : 'លុប/កែជួរឈរទាំងអស់របស់ ' + escapeAttr(g.clinic)) + '" ' +
+      'style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;' +
+      (pending ? 'background:#fff;color:var(--off);font-weight:700;' : 'background:rgba(255,255,255,.55);color:inherit;') +
+      'border-radius:5px;font-size:10px;padding:2px 5px;cursor:pointer;" ' +
+      'onclick="toggleClinicDeleteConfirm(\'' + escapeAttr(g.clinic) + '\')">' + (pending ? '✓ លុប?' : '🗑') + '</button>' +
       '</th>';
   }).join('');
   return '<tr><th style="text-align:left;"></th>' + cells + '</tr>';
 }
 
 // Editable header for one duty column: rename label only — deleting is done
-// once at the clinic group header above (🗑 there removes every column for
-// that clinic in one click, instead of a separate trash icon per column).
+// once at the clinic group header above (🗑 there marks, then removes,
+// every column for that clinic at once, instead of a separate trash icon
+// per column). While that clinic is marked pending-delete, every one of
+// its column headers shows struck-through here too, so it's clear which
+// columns the pending delete will take.
 function slotHeaderCellHtml(col) {
+  var pending = STATE.pendingDeleteClinic === col.clinic;
   return '<div class="sched-col-head">' +
-    '<input type="text" class="col-name-input" value="' + escapeAttr(col.label) + '" ' +
+    '<input type="text" class="col-name-input" style="' + (pending ? 'text-decoration:line-through;color:var(--off);' : '') + '" value="' + escapeAttr(col.label) + '" ' +
     'onchange="renameSlotColumn(\'' + col.field + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះជួរឈរនេះ">' +
     '</div>';
 }
@@ -1273,19 +1284,35 @@ function deleteSlotColumn(field) {
 }
 window.deleteSlotColumn = deleteSlotColumn;
 
-// Removes every column belonging to one clinic in a single click — one
-// confirm covers the whole group, instead of clicking 🗑 on each column.
-function deleteClinicColumns(clinicName) {
+// Removes every column belonging to one clinic — two clicks instead of a
+// native confirm() popup: the first click marks every one of that clinic's
+// column headers (struck-through, in the clinic header's own 🗑) as pending
+// deletion; the second click on the SAME clinic's 🗑 actually deletes them
+// all. The mark clears itself after a few seconds, or instantly if you
+// instead click a DIFFERENT clinic's 🗑 (that one becomes pending instead).
+var pendingDeleteTimer = null;
+function toggleClinicDeleteConfirm(clinicName) {
   var cols = STATE.slotColumns.filter(function (c) { return c.clinic === clinicName; });
   if (!cols.length) return;
-  if (!confirm('លុបជួរឈរទាំងអស់របស់គ្លីនិក "' + clinicName + '" (សរុប ' + cols.length + ' ជួរ) មែនទេ?')) return;
-  cols.forEach(function (c) { deleteSlotColumnCore(c.field); });
-  persistRemoteState();
-  renderSchedule();
-  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
-  showToast('លុបជួរឈរទាំងអស់របស់ ' + clinicName + ' រួចរាល់ ✓');
+  if (STATE.pendingDeleteClinic === clinicName) {
+    clearTimeout(pendingDeleteTimer);
+    cols.forEach(function (c) { deleteSlotColumnCore(c.field); });
+    STATE.pendingDeleteClinic = null;
+    persistRemoteState();
+    renderSchedule();
+    if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+    showToast('លុបជួរឈរទាំងអស់របស់ ' + clinicName + ' រួចរាល់ ✓');
+  } else {
+    STATE.pendingDeleteClinic = clinicName;
+    renderSchedule();
+    showToast('ចុច 🗑 ម្តងទៀតលើ ' + clinicName + ' ដើម្បីបញ្ជាក់ការលុប');
+    clearTimeout(pendingDeleteTimer);
+    pendingDeleteTimer = setTimeout(function () {
+      if (STATE.pendingDeleteClinic === clinicName) { STATE.pendingDeleteClinic = null; renderSchedule(); }
+    }, 4000);
+  }
 }
-window.deleteClinicColumns = deleteClinicColumns;
+window.toggleClinicDeleteConfirm = toggleClinicDeleteConfirm;
 
 // Renames a clinic across every column that belongs to it in one go — the
 // side-panel input above calls this, so editing the clinic name once
