@@ -322,6 +322,15 @@
   .cl-total-top .lbl{font-size:12px;font-weight:700;}
   .cl-reset{border:none;background:none;color:var(--brand);font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:underline;}
   .cl-khr{text-align:right;font-size:12.5px;color:var(--sub);margin-top:6px;font-variant-numeric:tabular-nums;}
+  .ce-add{border-top:1px dashed var(--line);margin-top:14px;padding-top:4px;}
+  .ce-add-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+  .ce-add-row .ce-input{flex:1;min-width:120px;}
+  .ce-add-btn{border:none;background:var(--hmv);color:#fff;border-radius:9px;font-weight:600;font-size:12.5px;padding:9px 14px;cursor:pointer;font-family:inherit;}
+  .ce-sec{border:1px solid var(--line);border-radius:12px;padding:9px 10px 6px;margin-bottom:10px;}
+  .ce-sec-head{display:flex;align-items:center;gap:6px;border-radius:9px;padding:6px;margin-bottom:8px;}
+  .ce-sec-head .ce-input{flex:1;min-width:0;font-weight:700;}
+  .cl-name{flex:1;min-width:0;font-weight:700;font-size:14.5px;padding:5px 4px;}
+  .doc-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:7px;vertical-align:middle;border:1px solid rgba(0,0,0,.15);}
 </style>
 </head>
 <body>
@@ -355,16 +364,7 @@
         </div>
       </div>
       <div class="stat-row" id="scheduleStatsWrap" style="margin-bottom:12px;"></div>
-      <div class="add-col-row" style="margin-top:0;padding-top:0;border-top:none;margin-bottom:12px;">
-        <input type="text" id="newSlotClinic" placeholder="ឈ្មោះគ្លីនិក (ឧ. SPV, HMV, ឬគ្លីនិកថ្មី)" class="ledger-input" style="border:1px solid var(--line);min-width:170px;" list="clinicNameOptions">
-        <datalist id="clinicNameOptions"></datalist>
-        <select id="newSlotPeriod" class="today-btn" style="cursor:pointer;">
-          <option value="DAY">ថ្ងៃ</option>
-          <option value="NIGHT">យប់</option>
-        </select>
-        <input type="text" id="newSlotLabel" placeholder="ឈ្មោះជួរឈរ ឧ. SPV ៤" class="ledger-input" style="border:1px solid var(--line);min-width:140px;">
-        <button type="button" id="addSlotColBtn" class="today-btn" style="cursor:pointer;">+ បន្ថែមជួរឈរវេន</button>
-      </div>
+      <div style="margin-bottom:12px;"><button type="button" class="today-btn" style="cursor:pointer;" onclick="openClinicEditor()">✏️ កែប្រែ</button></div>
       <div class="clash-banner" id="clashBanner"></div>
       <div class="copied-banner" id="copiedBanner"></div>
       <div id="scheduleWrap"></div>
@@ -375,21 +375,8 @@
   <!-- DOCTORS -->
   <div class="panel" id="panel-doctors">
     <div class="card">
-      <div style="font-weight:700;font-size:15px;margin-bottom:10px;">បញ្ជីគ្រូពេទ្យ</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;"><div style="font-weight:700;font-size:15px;">បញ្ជីគ្រូពេទ្យ</div><button type="button" class="today-btn" style="cursor:pointer;" onclick="openDoctorEditor()">✏️ កែប្រែ</button></div>
       <div class="doc-grid" id="docGrid"></div>
-      <form class="add-doc" id="addDocForm">
-        <input type="text" id="newNameSPV" placeholder="ឈ្មោះ (SPV) — ឧ. Dr.Sok Dara">
-        <input type="text" id="newNameHMV" placeholder="ឈ្មោះ (HMV) — ឧ. វេជ្ជ.សុខ ដារា">
-        <select id="newPool">
-          <option value="SPV">SPV</option>
-          <option value="HMV">HMV</option>
-          <option value="Both">ទាំងពីរ (Both)</option>
-        </select>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--sub);">
-          <input type="checkbox" id="newIsLinda" style="width:16px;height:16px;"> Linda?
-        </label>
-        <button type="submit" id="addDocBtn">+ បន្ថែមគ្រូពេទ្យ</button>
-      </form>
     </div>
   </div>
 
@@ -449,6 +436,7 @@
           <div class="month-label" id="monthLabelHistory">—</div>
           <button class="nav-btn" id="nextMonthHistory">›</button>
           <select class="today-btn" id="monthPickerHistory" style="cursor:pointer;"></select>
+          <button type="button" class="today-btn" style="cursor:pointer;" onclick="openLedgerEditor()">✏️ កែប្រែ</button>
         </div>
       </div>
       <div id="clinicStatsWrap" style="margin-bottom:14px;"></div>
@@ -513,7 +501,7 @@ var STATE = {
   copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
   copiedCellValue: null, // a single cell's value (any field, any day) — copy from one cell, paste into any other
   advanceTarget: null,   // { date, field } — set by Enter/↓ in a cell editor, opened right after this cell commits
-  pendingDeleteClinic: null, // clinic name marked for bulk-delete after one 🗑 click, awaiting a confirming second click
+  pendingDeleteClinic: null, // clinic name marked for bulk-delete after one ✕ click, awaiting a confirming second click
   incomeRatesByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — any clinic, not just SPV/HMV
   incomeExtraByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — not tied to a specific day
   incomeEntries: [],        // [{ Date, byClinic: { clinicName:{consult,ipd}, ... } }]
@@ -1213,15 +1201,13 @@ function clinicGroupHeaderRow(spvCols, otherCols) {
     if (!g.clinic) return '<th colspan="' + g.span + '"></th>';
     var c = clinicHeaderColors(g.clinic);
     return '<th colspan="' + g.span + '" style="background:' + c.bg + ';color:' + c.text + ';font-weight:700;font-size:13px;">' +
-      '<div class="grp-head"><span>' + escapeHtml(g.clinic) + '</span>' +
-      '<button type="button" class="grp-edit" title="កែប្រែ ' + escapeAttr(g.clinic) + '" ' +
-      'onclick="openClinicEditor(\'' + escapeAttr(g.clinic) + '\')">✏️ កែប្រែ</button></div></th>';
+      escapeHtml(g.clinic) + '</th>';
   }).join('');
   return '<tr><th style="text-align:left;"></th>' + cells + '</tr>';
 }
 
 // Editable header for one duty column: rename label only — deleting is done
-// once at the clinic group header above (🗑 there marks, then removes,
+// once at the clinic group header above (✕ there marks, then removes,
 // every column for that clinic at once, instead of a separate trash icon
 // per column). While that clinic is marked pending-delete, every one of
 // its column headers shows struck-through here too, so it's clear which
@@ -1311,8 +1297,8 @@ window.deleteSlotColumn = deleteSlotColumn;
 // Clinic editor (✏️ កែប្រែ on a clinic header): rename the clinic, rename each
 // column, or stop columns from the viewed month onward. Stopping never
 // deletes anything — earlier months and all saved data stay exactly as they were.
-function openClinicEditor(clinicName) {
-  STATE.editingClinic = clinicName;
+function openClinicEditor() {
+  STATE.editingClinic = 'ALL';
   renderClinicEditor();
 }
 window.openClinicEditor = openClinicEditor;
@@ -1325,42 +1311,110 @@ window.closeClinicEditor = closeClinicEditor;
 
 function renderClinicEditor() {
   var modal = document.getElementById('clinicEditModal');
-  var clinic = STATE.editingClinic;
-  function hide() { modal.classList.remove('show'); modal.innerHTML = ''; }
-  if (!clinic) { hide(); return; }
+  if (!STATE.editingClinic) { modal.classList.remove('show'); modal.innerHTML = ''; return; }
+  if (STATE.editingClinic === 'LEDGER') { renderLedgerEditor(); return; }
+  if (STATE.editingClinic === 'DOCTORS') { renderDoctorEditor(); return; }
   var mk = monthKey(STATE.year, STATE.month);
-  var cols = STATE.slotColumns.filter(function (c) { return c.clinic === clinic && columnActiveInMonth(c, mk); });
-  if (!cols.length) { STATE.editingClinic = null; hide(); return; }
-  var cc = clinicHeaderColors(clinic);
   var monthLabel = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
-  var rowsHtml = cols.map(function (c) {
-    return '<div class="ce-row">' +
-      '<input type="text" class="ce-input" value="' + escapeAttr(c.label) + '" ' +
-      'onchange="renameSlotColumn(\'' + c.field + '\', this.value); renderClinicEditor();">' +
-      '<span class="ce-tag">' + (c.period === 'NIGHT' ? 'យប់' : 'ថ្ងៃ') + '</span>' +
-      '<button type="button" class="ce-stop" onclick="stopSlotColumnFromMonth(\'' + c.field + '\')">បញ្ឈប់ពីខែនេះ</button>' +
-      '</div>';
-  }).join('');
-  modal.innerHTML = '<div class="modal-box">' +
-    '<div class="ce-title" style="background:' + cc.bg + ';color:' + cc.text + ';">✏️ កែប្រែគ្លីនិក</div>' +
-    '<label class="ce-lbl">ឈ្មោះគ្លីនិក (ប្តូរគ្រប់ជួរឈររបស់វា)</label>' +
-    '<input type="text" class="ce-input" value="' + escapeAttr(clinic) + '" ' +
-    'onchange="renameClinicFromEditor(\'' + escapeAttr(clinic) + '\', this.value)">' +
-    '<label class="ce-lbl">ជួរឈរក្នុងខែ ' + escapeHtml(monthLabel) + '</label>' + rowsHtml +
-    '<div class="ce-note">ការបញ្ឈប់ជួរឈរ មានប្រសិទ្ធភាពចាប់ពីខែ ' + escapeHtml(monthLabel) + ' តទៅ។ ខែមុនៗ និងទិន្នន័យទាំងអស់នៅរក្សាទុកដដែល មិនត្រូវលុបទេ។</div>' +
-    '<div class="ce-actions">' +
-    '<button type="button" class="ce-stop-all" onclick="stopClinicFromMonth(\'' + escapeAttr(clinic) + '\')">បញ្ឈប់ទាំងគ្លីនិកពីខែនេះ</button>' +
-    '<button type="button" class="ce-close" onclick="closeClinicEditor()">បិទ</button>' +
-    '</div></div>';
+  var nextLabel = monthOptionLabel(monthAfterKey(mk));
+  var clinics = activeClinicsForMonth(STATE.year, STATE.month);
+
+  var html = '<div class="modal-box" style="max-width:520px;">' +
+    '<div class="ce-title" style="background:var(--spv-bg);color:var(--spv);">✏️ កែប្រែគ្លីនិក និងជួរឈរ — ' + escapeHtml(monthLabel) + '</div>';
+
+  clinics.forEach(function (clinic) {
+    var cc = clinicHeaderColors(clinic);
+    var cols = STATE.slotColumns.filter(function (c) { return c.clinic === clinic && columnActiveInMonth(c, mk); });
+    var rowsHtml = cols.map(function (c) {
+      return '<div class="ce-row">' +
+        '<input type="text" class="ce-input" value="' + escapeAttr(c.label) + '" ' +
+        'onchange="renameSlotColumn(\'' + c.field + '\', this.value); renderClinicEditor();">' +
+        '<span class="ce-tag">' + (c.period === 'NIGHT' ? 'យប់' : 'ថ្ងៃ') + '</span>' +
+        '<button type="button" class="ce-stop" onclick="stopSlotColumnFromMonth(\'' + c.field + '\')">បញ្ឈប់</button>' +
+        '</div>';
+    }).join('');
+    html += '<div class="ce-sec">' +
+      '<div class="ce-sec-head" style="background:' + cc.bg + ';color:' + cc.text + ';">' +
+      '<input type="text" class="ce-input" value="' + escapeAttr(clinic) + '" title="ប្តូរឈ្មោះគ្លីនិក (គ្រប់ជួរឈររបស់វា)" ' +
+      'onchange="renameClinicFromEditor(\'' + escapeAttr(clinic) + '\', this.value)">' +
+      '<button type="button" class="ce-stop" onclick="stopClinicFromMonth(\'' + escapeAttr(clinic) + '\')">បញ្ឈប់ទាំងគ្លីនិក</button>' +
+      '</div>' + rowsHtml + '</div>';
+  });
+  if (!clinics.length) html += '<div class="empty-state" style="padding:14px;">គ្មានគ្លីនិកក្នុងខែនេះទេ</div>';
+
+  html += '<div class="ce-note">ការបញ្ឈប់ មានប្រសិទ្ធភាពចាប់ពីខែ ' + escapeHtml(monthLabel) + ' តទៅ។ ខែមុនៗ និងទិន្នន័យទាំងអស់នៅរក្សាទុកដដែល មិនត្រូវលុបទេ។</div>';
+
+  var names = [];
+  var seen = {};
+  STATE.slotColumns.forEach(function (c) { if (c.clinic && !seen[c.clinic]) { seen[c.clinic] = true; names.push(c.clinic); } });
+  html += '<div class="ce-add">' +
+    '<label class="ce-lbl">+ បន្ថែមគ្លីនិក ឬជួរឈរថ្មី (បង្ហាញចាប់ពីខែ ' + escapeHtml(nextLabel) + ')</label>' +
+    '<div class="ce-add-row">' +
+    '<input type="text" class="ce-input" id="ceNewClinic" list="ceClinicNames" placeholder="ឈ្មោះគ្លីនិក (ឧ. SPV, HMV ឬថ្មី)">' +
+    '<datalist id="ceClinicNames">' + names.map(function (n) { return '<option value="' + escapeAttr(n) + '"></option>'; }).join('') + '</datalist>' +
+    '<select class="ce-input" id="ceNewPeriod" style="flex:0 0 80px;min-width:80px;"><option value="DAY">ថ្ងៃ</option><option value="NIGHT">យប់</option></select>' +
+    '</div>' +
+    '<div class="ce-add-row">' +
+    '<input type="text" class="ce-input" id="ceNewLabel" placeholder="ឈ្មោះជួរឈរ ឧ. SPV ៤">' +
+    '<button type="button" class="ce-add-btn" onclick="addSlotFromEditor()">+ បន្ថែម</button>' +
+    '</div></div>' +
+    '<div class="ce-actions"><span></span><button type="button" class="ce-close" onclick="closeClinicEditor()">បិទ</button></div></div>';
+
+  modal.innerHTML = html;
   modal.classList.add('show');
   modal.onclick = function (e) { if (e.target === modal) closeClinicEditor(); };
 }
 window.renderClinicEditor = renderClinicEditor;
 
+// ---- ✏️ កែប្រែ for the "លុយធ្វើការគ្លីនិកសរុប" tab: every clinic together —
+// rename, 📥 ឈប់ធ្វើ (hide, data kept) or ✕ delete, all in one place. ----
+function openLedgerEditor() {
+  STATE.editingClinic = 'LEDGER';
+  renderClinicEditor();
+}
+window.openLedgerEditor = openLedgerEditor;
+
+function renderLedgerEditor() {
+  var modal = document.getElementById('clinicEditModal');
+  var rows = STATE.clinicNames.map(function (c) {
+    var qc = escapeAttr(c);
+    var cc = clinicHeaderColors(c);
+    return '<div class="ce-sec"><div class="ce-sec-head" style="background:' + cc.bg + ';color:' + cc.text + ';margin-bottom:2px;">' +
+      '<input type="text" class="ce-input" value="' + qc + '" title="ប្តូរឈ្មោះគ្លីនិក" onchange="ledgerRenameClinic(\'' + qc + '\', this.value)">' +
+      '<button type="button" class="ce-stop" style="color:inherit;border-color:currentColor;" title="ឈប់ធ្វើ (លាក់ចេញ — ទិន្នន័យរក្សាទុក)" onclick="ledgerArchiveClinic(\'' + qc + '\')">📥 ឈប់ធ្វើ</button>' +
+      '<button type="button" class="ce-stop" title="លុបជាអចិន្ត្រៃយ៍" onclick="ledgerDeleteClinic(\'' + qc + '\')">✕</button>' +
+      '</div></div>';
+  }).join('');
+  if (!STATE.clinicNames.length) rows = '<div class="empty-state" style="padding:14px;">មិនទាន់មានគ្លីនិកទេ</div>';
+  modal.innerHTML = '<div class="modal-box">' +
+    '<div class="ce-title" style="background:var(--spv-bg);color:var(--spv);">✏️ កែប្រែគ្លីនិក</div>' + rows +
+    '<div class="ce-note">📥 ឈប់ធ្វើ = លាក់គ្លីនិកចេញពីតារាង ទិន្នន័យចាស់នៅរក្សាទុក (អាចត្រឡប់មកវិញបាន)។ ✕ = លុបជាអចិន្ត្រៃយ៍។</div>' +
+    '<div class="ce-actions"><span></span><button type="button" class="ce-close" onclick="closeClinicEditor()">បិទ</button></div></div>';
+  modal.classList.add('show');
+  modal.onclick = function (e) { if (e.target === modal) closeClinicEditor(); };
+}
+
+function ledgerRenameClinic(oldName, newName) { renameClinicColumn(oldName, newName); renderClinicEditor(); }
+function ledgerArchiveClinic(name) { archiveClinic(name); renderClinicEditor(); }
+function ledgerDeleteClinic(name) { deleteClinicColumn(name); renderClinicEditor(); }
+window.ledgerRenameClinic = ledgerRenameClinic;
+window.ledgerArchiveClinic = ledgerArchiveClinic;
+window.ledgerDeleteClinic = ledgerDeleteClinic;
+
+function addSlotFromEditor() {
+  var clinic = document.getElementById('ceNewClinic').value.trim();
+  var period = document.getElementById('ceNewPeriod').value;
+  var label = document.getElementById('ceNewLabel').value.trim();
+  if (!clinic) { showToast('សូមវាយបញ្ចូលឈ្មោះគ្លីនិក'); return; }
+  if (!label) { showToast('សូមវាយបញ្ចូលឈ្មោះជួរឈរ'); return; }
+  addSlotColumn(label, clinic, period, 0);
+  STATE.editingClinic = null;
+  renderClinicEditor();
+}
+window.addSlotFromEditor = addSlotFromEditor;
+
 function renameClinicFromEditor(oldName, newNameRaw) {
-  var n = (newNameRaw || '').trim();
   renameScheduleClinic(oldName, newNameRaw);
-  if (n) STATE.editingClinic = n;
   renderClinicEditor();
 }
 window.renameClinicFromEditor = renameClinicFromEditor;
@@ -1379,7 +1433,6 @@ function stopClinicFromMonth(clinicName) {
   var mk = monthKey(STATE.year, STATE.month);
   STATE.slotColumns.filter(function (c) { return c.clinic === clinicName && columnActiveInMonth(c, mk); })
     .forEach(function (c) { deleteSlotColumnCore(c.field); });
-  STATE.editingClinic = null;
   persistRemoteState();
   renderSchedule();
   renderClinicEditor();
@@ -1405,18 +1458,7 @@ function renameScheduleClinic(oldName, newNameRaw) {
 }
 window.renameScheduleClinic = renameScheduleClinic;
 
-function bindSlotColumnControls() {
-  document.getElementById('addSlotColBtn').addEventListener('click', function () {
-    var clinic = document.getElementById('newSlotClinic').value.trim();
-    var period = document.getElementById('newSlotPeriod').value;
-    var label = document.getElementById('newSlotLabel').value.trim();
-    if (!clinic) { showToast('សូមវាយបញ្ចូលឈ្មោះគ្លីនិក'); return; }
-    if (!label) { showToast('សូមវាយបញ្ចូលឈ្មោះជួរឈរ'); return; }
-    addSlotColumn(label, clinic, period, 0);
-    document.getElementById('newSlotClinic').value = '';
-    document.getElementById('newSlotLabel').value = '';
-  });
-}
+function bindSlotColumnControls() {} // add-column form now lives inside the ✏️ editor modal
 
 // Every distinct clinic name currently used by any slot column — feeds the
 // "ឈ្មោះគ្លីនិក" datalist so picking an existing clinic (SPV, HMV, or any
@@ -1503,6 +1545,9 @@ function openEditor(cell) {
   // de-dupe while keeping order
   var seen = {};
   suggestions = suggestions.filter(function (s) { return s && !seen[s] && (seen[s] = true); });
+  // alphabetical (A–Z), with DAY OFF first in the day-off column
+  suggestions = suggestions.filter(function (s) { return s === 'DAY OFF'; })
+    .concat(suggestions.filter(function (s) { return s !== 'DAY OFF'; }).sort(compareNames));
 
   var listId = 'dlist_' + date.replace(/-/g, '') + '_' + field;
   var datalist = document.createElement('datalist');
@@ -1772,16 +1817,57 @@ function bindMonthCopyPaste() {
   document.getElementById('pasteMonthBtn').addEventListener('click', pasteWholeMonth);
 }
 
+// Alphabetical sort key for a doctor name — ignores the "Dr." / "វេជ្ជ." title prefix.
+function doctorSortKey(name) {
+  return String(name || '').replace(/^\s*(dr\.?\s*|វេជ្ជ\.?\s*)/i, '').trim();
+}
+// This name is always sorted LAST, whatever the others are.
+var ALWAYS_LAST_NAME = 'ka seyla';
+function compareNames(a, b) {
+  var ka = doctorSortKey(a).toLowerCase(), kb = doctorSortKey(b).toLowerCase();
+  var aLast = ka === ALWAYS_LAST_NAME, bLast = kb === ALWAYS_LAST_NAME;
+  if (aLast !== bLast) return aLast ? 1 : -1;
+  return doctorSortKey(a).localeCompare(doctorSortKey(b), 'en', { sensitivity: 'base' });
+}
+
 function renderDoctors() {
   var grid = document.getElementById('docGrid');
   if (!STATE.doctors.length) {
     grid.innerHTML = '<div class="empty-state">មិនទាន់មានទិន្នន័យគ្រូពេទ្យទេ</div>';
-    return;
+  } else {
+    grid.innerHTML = STATE.doctors.slice().sort(function (a, b) {
+      return compareNames(a.NameSPV || a.NameHMV, b.NameSPV || b.NameHMV);
+    }).map(function (d) {
+      var primary = d.NameSPV || d.NameHMV;
+      var secondary = (d.NameSPV && d.NameHMV) ? d.NameHMV : '';
+      var colorVal = d.Color || getNameColors(primary).bg || '#5B9BD5';
+      var poolCls = d.ClinicPool === 'SPV' ? 'spv' : (d.ClinicPool === 'HMV' ? 'hmv' : 'both');
+      var poolLabel = d.ClinicPool === 'Both' ? 'ទាំងពីរ' : d.ClinicPool;
+      return '<div class="doc-item"><div class="name"><span class="doc-dot" style="background:' + escapeAttr(colorVal) + ';"></span>' +
+        escapeHtml(primary) + (d.isLinda ? ' ⭐' : '') + '</div>' +
+        (secondary ? '<div style="font-size:12.5px;color:var(--sub);margin-top:3px;">' + escapeHtml(secondary) + '</div>' : '') +
+        '<span class="pool ' + poolCls + '">' + escapeHtml(poolLabel) + '</span></div>';
+    }).join('');
   }
-  grid.innerHTML = STATE.doctors.map(function (d) {
+  if (STATE.editingClinic === 'DOCTORS') renderClinicEditor();
+}
+
+function openDoctorEditor() {
+  STATE.editingClinic = 'DOCTORS';
+  renderClinicEditor();
+}
+window.openDoctorEditor = openDoctorEditor;
+
+// ✏️ កែប្រែ — every doctor editable in one place (colour, both names, clinic
+// pool, Linda flag, delete) plus the add-doctor form.
+function renderDoctorEditor() {
+  var modal = document.getElementById('clinicEditModal');
+  var rows = STATE.doctors.slice().sort(function (a, b) {
+    return compareNames(a.NameSPV || a.NameHMV, b.NameSPV || b.NameHMV);
+  }).map(function (d) {
     var name = d.NameSPV || d.NameHMV;
     var colorVal = d.Color || getNameColors(name).bg || '#5B9BD5';
-    return '<div class="doc-item">' +
+    return '<div class="doc-item" style="margin-bottom:8px;">' +
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
       '<input type="color" class="doc-color-input" value="' + colorVal + '" title="ជ្រើសពណ៌" ' +
       'onchange="updateDoctorColor(\'' + d.ID + '\', this.value)">' +
@@ -1800,13 +1886,28 @@ function renderDoctors() {
       '<input type="checkbox" style="width:15px;height:15px;" ' + (d.isLinda ? 'checked' : '') + ' ' +
       'onchange="updateDoctorField(\'' + d.ID + '\',\'isLinda\',this.checked)"> Linda?' +
       '</label>' +
-      '<button type="button" class="ledger-del" title="លុបគ្រូពេទ្យនេះ" onclick="deleteDoctor(\'' + d.ID + '\')">🗑</button>' +
+      '<button type="button" class="ledger-del" style="margin-left:auto;" title="លុបគ្រូពេទ្យនេះ" onclick="deleteDoctor(\'' + d.ID + '\')">✕</button>' +
       '</div></div>';
   }).join('');
+  if (!STATE.doctors.length) rows = '<div class="empty-state" style="padding:14px;">មិនទាន់មានទិន្នន័យគ្រូពេទ្យទេ</div>';
+
+  modal.innerHTML = '<div class="modal-box" style="max-width:560px;">' +
+    '<div class="ce-title" style="background:var(--spv-bg);color:var(--spv);">✏️ កែប្រែគ្រូពេទ្យ</div>' + rows +
+    '<form class="add-doc" id="addDocForm">' +
+    '<input type="text" id="newNameSPV" placeholder="ឈ្មោះ (SPV) — ឧ. Dr.Sok Dara">' +
+    '<input type="text" id="newNameHMV" placeholder="ឈ្មោះ (HMV) — ឧ. វេជ្ជ.សុខ ដារា">' +
+    '<select id="newPool"><option value="SPV">SPV</option><option value="HMV">HMV</option><option value="Both">ទាំងពីរ (Both)</option></select>' +
+    '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--sub);">' +
+    '<input type="checkbox" id="newIsLinda" style="width:16px;height:16px;"> Linda?</label>' +
+    '<button type="submit" id="addDocBtn">+ បន្ថែមគ្រូពេទ្យ</button></form>' +
+    '<div class="ce-actions" style="margin-top:12px;"><span></span><button type="button" class="ce-close" onclick="closeClinicEditor()">បិទ</button></div></div>';
+  modal.classList.add('show');
+  modal.onclick = function (e) { if (e.target === modal) closeClinicEditor(); };
 }
 
 function bindDoctorForm() {
-  document.getElementById('addDocForm').addEventListener('submit', function (e) {
+  document.addEventListener('submit', function (e) {
+    if (!e.target || e.target.id !== 'addDocForm') return;
     e.preventDefault();
     var nameSPV = document.getElementById('newNameSPV').value.trim();
     var nameHMV = document.getElementById('newNameHMV').value.trim();
@@ -1821,7 +1922,6 @@ function bindDoctorForm() {
     persistRemoteState();
     renderDoctors();
     showToast('បន្ថែមគ្រូពេទ្យរួចរាល់ ✓');
-    document.getElementById('addDocForm').reset();
     scheduleBackup();
   });
 }
@@ -2593,16 +2693,12 @@ function renderClinicLedger() {
       var qc = escapeAttr(c);
       return '<div class="cl-card">' +
         '<div class="cl-head" style="background:' + colors.bg + ';color:' + colors.text + ';">' +
-        '<input type="text" class="col-name-input" value="' + qc + '" ' +
-        'onchange="renameClinicColumn(\'' + qc + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះគ្លីនិកនេះ">' +
-        '<button type="button" class="cl-mini" title="ឈប់ធ្វើ (លាក់ចេញ — ទិន្នន័យរក្សាទុក)" onclick="archiveClinic(\'' + qc + '\')">📥 ឈប់ធ្វើ</button>' +
-        '<button type="button" class="cl-mini" style="color:var(--off);" title="លុបជាអចិន្ត្រៃយ៍" onclick="deleteClinicColumn(\'' + qc + '\')">🗑</button>' +
+        '<span class="cl-name">' + escapeHtml(c) + '</span>' +
         '</div>' +
         clRow('ប្រាក់ខែ (វេន)', dutyUsd) +
         clRow('ចំណូល Consult/IPD', incomeUsd) +
         '<div class="cl-total">' +
-        '<div class="cl-total-top"><span class="lbl">សរុប (អាចកែបាន)</span>' +
-        '<button type="button" class="cl-reset" title="ត្រឡប់ទៅលេខអូតូវិញ" onclick="clearClinicMonthValue(\'' + mk + '\',\'' + qc + '\')">↺ លេខអូតូ</button></div>' +
+        '<div class="cl-total-top"><span class="lbl">សរុប</span></div>' +
         '<div class="clinic-amount-cell"><span class="cur">$</span>' +
         '<input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v + '" onfocus="this.select()" ' +
         'onchange="updateClinicTotal(\'' + mk + '\',\'' + qc + '\',this.value)"></div>' +
@@ -2644,7 +2740,7 @@ function renderArchivedClinics() {
         '<div class="khr">' + fmtKhr(clinicLifetimeTotal(c) * STATE.khrPerUsd) + '</div>' +
         '<div class="l">' + escapeHtml(c) +
         ' <span style="cursor:pointer;color:var(--brand);text-decoration:underline;" onclick="unarchiveClinic(\'' + escapeAttr(c) + '\')">↺ ត្រឡប់</span>' +
-        ' <span style="cursor:pointer;color:var(--off);text-decoration:underline;margin-left:6px;" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">🗑 លុប</span>' +
+        ' <span style="cursor:pointer;color:var(--off);text-decoration:underline;margin-left:6px;" onclick="deleteClinicColumn(\'' + escapeAttr(c) + '\')">✕ លុប</span>' +
         '</div></div>';
     }).join('') +
     '</div>';
