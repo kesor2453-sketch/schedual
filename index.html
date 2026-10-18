@@ -428,6 +428,11 @@
   .cl-add-extra{display:grid;grid-template-columns:1fr 110px;gap:6px;margin:10px 0 2px;}
   .cl-add-extra .today-btn{grid-column:1 / -1;height:34px;}
   .cl-total-num{font-size:24px;font-weight:700;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .cl-extra-title{font-size:11.5px;font-weight:700;color:var(--hmv);margin:10px 0 6px;}
+  .cl-extra-row{display:grid;grid-template-columns:1fr 100px 28px;gap:6px;align-items:center;margin-bottom:6px;}
+  .cl-extra-row .ce-input{height:34px;}
+  .cl-extra-row .ledger-del{width:26px;height:26px;font-size:11px;}
+  .cl-extra-khr{grid-column:1 / -1;text-align:right;font-size:11px;color:var(--sub);margin-top:-3px;font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -1020,8 +1025,14 @@ function normalizeExtraByMonth(extraByMonth) {
     var e = extraByMonth[mk] || {};
     if (e.byClinic) { out[mk] = e.byClinic; return; }
     var byClinic = {};
-    if (e.SPV_Consult || e.SPV_IPD) byClinic.SPV = { consult: e.SPV_Consult || 0, ipd: e.SPV_IPD || 0 };
-    if (e.HMV_Consult || e.HMV_IPD) byClinic.HMV = { consult: e.HMV_Consult || 0, ipd: e.HMV_IPD || 0 };
+    // current shape: { clinicName: {consult, ipd, usd?} } (or an older flat $ number) — keep as is
+    Object.keys(e).forEach(function (k) {
+      if (/_(Consult|IPD)$/.test(k)) return;
+      if (typeof e[k] === 'number' || (e[k] && typeof e[k] === 'object')) byClinic[k] = e[k];
+    });
+    // oldest shape: SPV_Consult / HMV_IPD ... keys
+    if ((e.SPV_Consult || e.SPV_IPD) && !byClinic.SPV) byClinic.SPV = { consult: e.SPV_Consult || 0, ipd: e.SPV_IPD || 0 };
+    if ((e.HMV_Consult || e.HMV_IPD) && !byClinic.HMV) byClinic.HMV = { consult: e.HMV_Consult || 0, ipd: e.HMV_IPD || 0 };
     out[mk] = byClinic;
   });
   return out;
@@ -2592,7 +2603,7 @@ function extraDollarValue(raw, rates, clinic) {
   if (raw == null) return 0;
   if (typeof raw === 'object') {
     var r = getClinicRate(rates, clinic);
-    return (raw.consult || 0) * r.consult + (raw.ipd || 0) * r.ipd;
+    return (raw.consult || 0) * r.consult + (raw.ipd || 0) * r.ipd + (Number(raw.usd) || 0);
   }
   return Number(raw) || 0;
 }
@@ -2615,16 +2626,22 @@ window.updateIncomeRate = updateIncomeRate;
 // The extra/adjustment line for the currently viewed month, ONE clinic — a
 // single flat $ amount not tied to a specific day, added straight into that
 // month's total (no consult/ipd counts or rate math involved here).
-function updateIncomeExtra(clinic, value) {
+function updateIncomeExtra(clinic, type, value) {
   var key = monthKey(STATE.year, STATE.month);
   var current = getExtraForMonth(STATE.year, STATE.month);
   var updated = JSON.parse(JSON.stringify(current));
-  updated[clinic] = Math.max(0, Number(value) || 0);
+  var e = updated[clinic];
+  if (typeof e === 'number') e = { consult: 0, ipd: 0, usd: e };   // an older flat $ amount is kept
+  if (!e || typeof e !== 'object') e = { consult: 0, ipd: 0 };
+  e[type] = Math.max(0, Number(value) || 0);
+  updated[clinic] = e;
   STATE.incomeExtraByMonth[key] = updated;
   persistIncomeState();
   renderIncome();
 }
 window.updateIncomeExtra = updateIncomeExtra;
+function clearExtraLegacyUsd(clinic) { updateIncomeExtra(clinic, 'usd', 0); }
+window.clearExtraLegacyUsd = clearExtraLegacyUsd;
 
 function renderIncomeRates() {
   var clinics = activeClinicsForMonth(STATE.year, STATE.month);
@@ -2676,6 +2693,7 @@ function computeIncomeSummary(year, month) {
   var extra = getExtraForMonth(year, month);
   Object.keys(extra).forEach(function (c) {
     if (!byClinic[c]) byClinic[c] = { consult: 0, ipd: 0, usd: 0 };
+    if (extra[c] && typeof extra[c] === 'object') { byClinic[c].consult += extra[c].consult || 0; byClinic[c].ipd += extra[c].ipd || 0; }
     byClinic[c].usd += extraDollarValue(extra[c], rates, c);
   });
 
@@ -2738,9 +2756,9 @@ function incomeNumberInput(dateStr, clinic, type, val) {
     '" onfocus="this.select()" onchange="updateIncomeCell(\'' + dateStr + '\',\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
 }
 
-function extraAmountInput(clinic, val) {
-  return '<input type="number" min="0" step="0.01" class="edit-select" style="width:100%;text-align:center;" placeholder="$0.00" value="' + (val || 0) +
-    '" onfocus="this.select()" onchange="updateIncomeExtra(\'' + escapeAttr(clinic) + '\',this.value)">';
+function extraNumberInput(clinic, type, val) {
+  return '<input type="number" min="0" class="edit-select" style="width:70px;text-align:center;" value="' + (val || 0) +
+    '" onfocus="this.select()" onchange="updateIncomeExtra(\'' + escapeAttr(clinic) + '\',\'' + type + '\',this.value)">';
 }
 
 function renderIncomeTable() {
@@ -2827,9 +2845,14 @@ function renderIncomeTable() {
   var extra = getExtraForMonth(y, m);
   var extraUsd = 0;
   var extraCells = orderedClinics.map(function (c) {
-    var v = extraDollarValue(extra[c], rates, c);
-    extraUsd += v;
-    return '<td colspan="2">' + extraAmountInput(c, v) + '</td>';
+    var raw = extra[c];
+    var obj = (raw && typeof raw === 'object') ? raw : { consult: 0, ipd: 0, usd: (typeof raw === 'number' ? raw : 0) };
+    extraUsd += extraDollarValue(raw, rates, c);
+    var legacy = (Number(obj.usd) || 0) > 0
+      ? '<div style="font-size:10.5px;color:var(--sub);margin-top:3px;">+ ' + fmtUsd(obj.usd) + ' (ចំនួនចាស់) ' +
+        '<span style="cursor:pointer;color:var(--off);font-weight:700;" title="លុបចំនួនចាស់" onclick="clearExtraLegacyUsd(\'' + escapeAttr(c) + '\')">✕</span></div>'
+      : '';
+    return '<td>' + extraNumberInput(c, 'consult', obj.consult) + legacy + '</td><td>' + extraNumberInput(c, 'ipd', obj.ipd) + '</td>';
   }).join('');
   html += '<tr style="background:#f7f8fb;">' +
     '<td class="date-cell" style="font-style:italic;color:var(--sub);">+ បន្ថែម (ក្រៅតារាងថ្ងៃ)</td>' +
@@ -2970,25 +2993,41 @@ function clinicExtrasSum(mk, clinicName) {
 function clinicLifetimeTotal(clinicName) {
   var total = 0;
   Object.keys(STATE.clinicTotals).forEach(function (mk) { total += (STATE.clinicTotals[mk][clinicName] || 0); });
-  Object.keys(STATE.clinicExtras || {}).forEach(function (mk) { total += clinicExtrasSum(mk, clinicName); });
   return total;
 }
 
 // ---- "+ បន្ថែម": extra amounts per clinic per month (outside the daily table),
 // typed as numbers and added into that clinic's total. ----
-function addClinicExtra(mk, clinicName, i) {
+var clinicLedgerRendering = false; // true while the cards are being rebuilt (ignores blur→change fired by removing a focused box)
+function addClinicExtra(mk, clinicName, i, quiet) {
+  if (clinicLedgerRendering) return;
   var labelEl = document.getElementById('exl_' + i);
   var amtEl = document.getElementById('exa_' + i);
+  if (!labelEl || !amtEl) return;
   var amt = Math.round((Number(amtEl.value) || 0) * 100) / 100;
-  if (!amt) { showToast('សូមបញ្ចូលចំនួនលុយ'); amtEl.focus(); return; }
+  if (!amt) { if (!quiet) { showToast('សូមបញ្ចូលចំនួនលុយ'); amtEl.focus(); } return; }
   if (!STATE.clinicExtras[mk]) STATE.clinicExtras[mk] = {};
   if (!STATE.clinicExtras[mk][clinicName]) STATE.clinicExtras[mk][clinicName] = [];
   STATE.clinicExtras[mk][clinicName].push({ label: (labelEl.value || '').trim(), usd: amt });
+  labelEl.value = '';
+  amtEl.value = '';
   persistIncomeState();
   renderClinicLedger();
   showToast('បន្ថែមរួចរាល់ ✓');
 }
 window.addClinicExtra = addClinicExtra;
+
+// Edit an extra that is already listed (description or amount) — saved the moment
+// you leave the box, and the clinic total updates right away.
+function updateClinicExtra(mk, clinicName, idx, field, value) {
+  var list = clinicExtrasList(mk, clinicName);
+  if (!list[idx]) return;
+  if (field === 'usd') list[idx].usd = Math.round(Math.max(0, Number(value) || 0) * 100) / 100;
+  else list[idx].label = String(value || '').trim();
+  persistIncomeState();
+  if (clinicLedgerRendering) setTimeout(renderClinicLedger, 0); else renderClinicLedger();
+}
+window.updateClinicExtra = updateClinicExtra;
 
 function removeClinicExtra(mk, clinicName, idx) {
   var list = clinicExtrasList(mk, clinicName);
@@ -3028,7 +3067,7 @@ function monthsWithClinicActivity(clinicName) {
   });
   Object.keys(STATE.incomeExtraByMonth || {}).forEach(function (mk) {
     var v = STATE.incomeExtraByMonth[mk][clinicName];
-    if (v && ((v.consult || 0) > 0 || (v.ipd || 0) > 0)) set[mk] = true;
+    if (typeof v === 'number' ? v > 0 : (v && ((v.consult || 0) > 0 || (v.ipd || 0) > 0 || (v.usd || 0) > 0))) set[mk] = true;
   });
   return Object.keys(set);
 }
@@ -3052,7 +3091,7 @@ function renderClinicLedger() {
   } else {
     if (!STATE.clinicTotals[mk]) STATE.clinicTotals[mk] = {};
 
-    var cards = clinicNames.map(function (c, ci) {
+    var cards = clinicNames.map(function (c) {
       var dutyUsd = (payrollSummary.linda.byClinic[c] && payrollSummary.linda.byClinic[c].usd) || 0;
       var incomeUsd = (incomeSummary[c] && incomeSummary[c].usd) || 0;
 
@@ -3061,9 +3100,7 @@ function renderClinicLedger() {
       var autoVal = Math.round((dutyUsd + incomeUsd) * 100) / 100;
       if (autoVal > 0 && STATE.clinicTotals[mk][c] !== autoVal) { STATE.clinicTotals[mk][c] = autoVal; autoFilledAny = true; }
       var base = STATE.clinicTotals[mk][c] || 0;
-      var extras = clinicExtrasList(mk, c);
-      var extraSum = clinicExtrasSum(mk, c);
-      var v = base + extraSum;
+      var v = base;
 
       totalDuty += dutyUsd;
       totalIncome += incomeUsd;
@@ -3078,17 +3115,6 @@ function renderClinicLedger() {
         clRow('ប្រាក់ខែ (វេន)', dutyUsd) +
         clRow('ចំណូល Consult/IPD', incomeUsd) +
         (autoVal > 0 || !base ? '' : clRow('ចំនួនបញ្ចូលពីមុន', base)) +
-        extras.map(function (e, xi) {
-          return '<div class="cl-row cl-extra"><span class="lbl">+ ' + escapeHtml(e.label || 'បន្ថែម') + '</span>' +
-            '<span class="cl-amt">' + fmtUsd(e.usd) + '<small>' + fmtKhr((e.usd || 0) * STATE.khrPerUsd) + '</small></span>' +
-            '<button type="button" class="ledger-del" title="លុប" onclick="removeClinicExtra(\'' + mk + '\',\'' + qc + '\',' + xi + ')">✕</button></div>';
-        }).join('') +
-        '<div class="cl-add-extra">' +
-        '<input type="text" id="exl_' + ci + '" class="ce-input" placeholder="ពិពណ៌នា (មិនចាំបាច់)">' +
-        '<input type="number" step="0.01" id="exa_' + ci + '" class="ce-input" placeholder="$ ចំនួន" ' +
-        'onkeydown="if(event.key===\'Enter\'){addClinicExtra(\'' + mk + '\',\'' + qc + '\',' + ci + ');}">' +
-        '<button type="button" class="today-btn btn-edit" onclick="addClinicExtra(\'' + mk + '\',\'' + qc + '\',' + ci + ')">+ បន្ថែម</button>' +
-        '</div>' +
         '<div class="cl-total">' +
         '<div class="cl-total-top"><span class="lbl">សរុប</span></div>' +
         '<div class="cl-total-num">' + fmtUsd(v) + '</div>' +
@@ -3096,7 +3122,19 @@ function renderClinicLedger() {
         '</div></div>';
     }).join('');
 
-    cardsWrap.innerHTML = '<div class="cl-grid">' + cards + '</div>';
+    var drafts = {};
+    cardsWrap.querySelectorAll('input[data-clinic]').forEach(function (el) {
+      if (el.value) { drafts[el.id.slice(0, 3) + '|' + el.getAttribute('data-clinic')] = el.value; }
+    });
+    var hadFocus = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-clinic')
+      ? document.activeElement.id.slice(0, 3) + '|' + document.activeElement.getAttribute('data-clinic') : null;
+    clinicLedgerRendering = true;
+    try { cardsWrap.innerHTML = '<div class="cl-grid">' + cards + '</div>'; } finally { clinicLedgerRendering = false; }
+    cardsWrap.querySelectorAll('input[data-clinic]').forEach(function (el) {
+      var k = el.id.slice(0, 3) + '|' + el.getAttribute('data-clinic');
+      if (drafts[k] !== undefined) el.value = drafts[k];
+      if (hadFocus === k) el.focus();
+    });
   }
 
   if (autoFilledAny) persistIncomeState();
