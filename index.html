@@ -416,6 +416,12 @@
   .stat.all .l{color:rgba(255,255,255,.92);}
   .stat.all .n{color:#fff;font-size:24px;}
   .stat.all .khr{color:rgba(255,255,255,.9);font-weight:600;}
+  .sync-chip{display:inline-block;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:20px;margin-bottom:12px;background:#f0f2f6;color:var(--sub);}
+  .sync-chip.ok{background:var(--hmv-bg);color:#0b7f58;}
+  .sync-chip.err{background:var(--off-bg);color:#a52323;}
+  .mirror-note{font-size:12px;color:#0b7f58;background:var(--hmv-bg);border-radius:9px;padding:8px 10px;margin:4px 0 8px;line-height:1.5;}
+  .cell-slot.mirrored{cursor:default;}
+  input.col-name-input[readonly]{cursor:default;opacity:.95;}
 </style>
 </head>
 <body>
@@ -449,6 +455,7 @@
         </div>
       </div>
       <div class="stat-row" id="scheduleStatsWrap" style="margin-bottom:12px;"></div>
+      <div class="sync-chip" id="spvSyncStatus" style="display:none;"></div>
       <div style="margin-bottom:12px;"><button type="button" class="today-btn btn-edit" onclick="openClinicEditor()">✏️ កែប្រែ</button></div>
       <div class="clash-banner" id="clashBanner"></div>
       <div class="copied-banner" id="copiedBanner"></div>
@@ -724,6 +731,131 @@ var incomeFirstSnapshotHandled = false;
 
 var firstSnapshotHandled = false;
 
+/* ---------------- SPV MIRROR — SPV is copied live from the SOPHEAK VISAL CLINIC site ----------------
+   Read-only: this app only READS that site's Firestore (project spv-schedule). Edit SPV shifts on that
+   site and they appear here automatically. HMV / other clinics are untouched. Set to false to switch off. */
+var SPV_SOURCE_ENABLED = true;
+var SPV_SOURCE_NAME = 'SOPHEAK VISAL CLINIC';
+var spvSourceConfig = {
+  apiKey: "AIzaSyBgGZVOh-dl3RphAhLCdkta_KWxZcT20aU",
+  authDomain: "spv-schedule.firebaseapp.com",
+  projectId: "spv-schedule",
+  storageBucket: "spv-schedule.firebasestorage.app",
+  messagingSenderId: "959707281743",
+  appId: "1:959707281743:web:35cc99c80b4903defa2d3a"
+};
+var spvSourceRef = null;
+var spvSource = null;          // last data read from the other site
+var spvMirrorFields = {};      // { fieldId: true } — SPV columns that come from the other site
+var spvSyncState = { at: null, error: '' };
+if (SPV_SOURCE_ENABLED) {
+  try {
+    var spvSourceApp = initializeApp(spvSourceConfig, 'spvSource');
+    spvSourceRef = doc(initializeFirestore(spvSourceApp, {}), 'scheduleApp', 'main');
+  } catch (e) { spvSyncState.error = String(e && e.message || e); }
+}
+
+function isMirroredSpv(field) { return !!spvMirrorFields[field]; }
+
+// Copies the other site's SPV columns + shift names into STATE (in memory).
+// Returns nothing; safe to call repeatedly (idempotent).
+function applySpvMirror() {
+  var src = spvSource;
+  if (!src) return;
+  var DEFAULT_TMPL = [
+    { id: 'SPV_Day1', label: 'ព្រឹក', type: 'name' }, { id: 'SPV_Day2', label: 'ព្រឹក', type: 'name' },
+    { id: 'SPV_Day3', label: 'ព្រឹក', type: 'name' }, { id: 'SPV_Night', label: 'យប់', type: 'name' }
+  ];
+  function nameCols(list) { return (list || []).filter(function (c) { return c && c.type !== 'text'; }); }
+  var cbm = src.columnsByMonth || {};
+  var tmpl = nameCols(src.columnsTemplate && src.columnsTemplate.length ? src.columnsTemplate : DEFAULT_TMPL);
+  var months = Object.keys(cbm).filter(function (ym) { return /^\d{4}-\d{2}$/.test(ym) && cbm[ym] && cbm[ym].length; }).sort();
+  var firstMonth = months[0] || null;
+
+  var info = {}, order = [];
+  function note(c, ym) {
+    if (!info[c.id]) { info[c.id] = { id: c.id, label: c.label, months: [], inTmpl: false }; order.push(c.id); }
+    info[c.id].label = c.label;
+    if (ym) info[c.id].months.push(ym); else info[c.id].inTmpl = true;
+  }
+  tmpl.forEach(function (c) { note(c, null); });
+  months.forEach(function (ym) { nameCols(cbm[ym]).forEach(function (c) { note(c, ym); }); });
+
+  var khNum = ['០','១','២','៣','៤','៥','៦','៧','៨','៩'];
+  function toKh(n) { return String(n).split('').map(function (d) { return khNum[+d]; }).join(''); }
+  var mirrored = order.map(function (id) {
+    var i = info[id];
+    var minM = i.months.length ? i.months[0] : null;
+    var maxM = i.months.length ? i.months[i.months.length - 1] : null;
+    var presentInFirst = !firstMonth || i.months.indexOf(firstMonth) !== -1 || (i.inTmpl && !cbm[firstMonth]);
+    var activeFrom = presentInFirst ? null : minM;
+    var activeUntil = i.inTmpl ? null : maxM;
+    var period = (id === 'SPV_Night' || /យប់|night/i.test(i.label || '')) ? 'NIGHT' : 'DAY';
+    var old = slotColumnByField(id);
+    return { field: id, clinic: 'SPV', period: period, label: i.label || id,
+      rate: old ? old.rate : (RATES[id] != null ? RATES[id] : 25), activeFrom: activeFrom, activeUntil: activeUntil };
+  });
+  // same-period columns that share one label (e.g. three "ព្រឹក") get ១ ២ ៣ so they can be told apart
+  ['DAY', 'NIGHT'].forEach(function (p) {
+    var group = mirrored.filter(function (c) { return c.period === p; });
+    var count = {};
+    group.forEach(function (c) { count[c.label] = (count[c.label] || 0) + 1; });
+    var seen = {};
+    group.forEach(function (c) {
+      if (count[c.label] > 1) { seen[c.label] = (seen[c.label] || 0) + 1; c.label = c.label + ' ' + toKh(seen[c.label]); }
+    });
+  });
+
+  // our own older SPV columns that the other site doesn't have: keep their history, stop them where the other site begins
+  var cap = firstMonth ? monthBeforeKey(firstMonth) : monthBeforeKey(monthKey(new Date().getFullYear(), new Date().getMonth() + 1));
+  var keptOld = STATE.slotColumns.filter(function (c) { return c.clinic === 'SPV' && !info[c.field]; }).map(function (c) {
+    if (!c.activeUntil || c.activeUntil > cap) c.activeUntil = cap;
+    return c;
+  });
+  var others = STATE.slotColumns.filter(function (c) { return c.clinic !== 'SPV'; });
+  STATE.slotColumns = mirrored.concat(keptOld, others);
+
+  spvMirrorFields = {};
+  order.forEach(function (id) { spvMirrorFields[id] = true; });
+
+  // shift names: for every date the other site has, its SPV values win
+  var byDate = {};
+  STATE.scheduleAll.forEach(function (r) { if (r && r.Date) byDate[r.Date] = r; });
+  (src.scheduleAll || []).forEach(function (sr) {
+    if (!sr || !sr.Date) return;
+    var row = byDate[sr.Date];
+    var hasAny = order.some(function (id) { return sr[id]; });
+    if (!row) {
+      if (!hasAny) return;
+      row = { Date: sr.Date };
+      STATE.scheduleAll.push(row);
+      byDate[sr.Date] = row;
+    }
+    order.forEach(function (id) {
+      var v = sr[id] || '';
+      if (v) row[id] = v; else if (row[id]) delete row[id];
+    });
+  });
+}
+
+function renderSpvSyncStatus() {
+  var el = document.getElementById('spvSyncStatus');
+  if (!el) return;
+  if (!SPV_SOURCE_ENABLED) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  if (spvSyncState.error) {
+    el.className = 'sync-chip err';
+    el.textContent = '⚠ មិនអាចភ្ជាប់ទៅ ' + SPV_SOURCE_NAME + ' បានទេ — ' + spvSyncState.error;
+  } else if (spvSyncState.at) {
+    var t = spvSyncState.at;
+    el.className = 'sync-chip ok';
+    el.textContent = '🔗 SPV ចម្លងពី ' + SPV_SOURCE_NAME + ' — ធ្វើបច្ចុប្បន្នភាព ' + pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ' (កែ SPV នៅវេបនោះ)';
+  } else {
+    el.className = 'sync-chip';
+    el.textContent = '🔗 កំពុងភ្ជាប់ទៅ ' + SPV_SOURCE_NAME + '...';
+  }
+}
+
 /* ---------------- INIT ---------------- */
 document.addEventListener('DOMContentLoaded', function () {
   bindTabs();
@@ -741,6 +873,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Real-time listener: fires immediately from local cache (near-instant),
   // then again whenever data changes — on THIS device or any other one.
+  renderSpvSyncStatus();
+  if (spvSourceRef) {
+    onSnapshot(spvSourceRef, function (snap) {
+      if (snap.exists()) {
+        spvSource = snap.data();
+        spvSyncState = { at: new Date(), error: '' };
+        applySpvMirror();
+        if (firstSnapshotHandled) {
+          loadSchedule();
+          if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+          if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
+        }
+      } else {
+        spvSyncState = { at: null, error: 'រកមិនឃើញទិន្នន័យ' };
+      }
+      renderSpvSyncStatus();
+    }, function (err) {
+      spvSyncState = { at: null, error: err.message };
+      renderSpvSyncStatus();
+    });
+  }
+
   onSnapshot(scheduleDocRef, function (snap) {
     if (snap.exists()) {
       var data = snap.data();
@@ -765,6 +919,7 @@ document.addEventListener('DOMContentLoaded', function () {
       persistRemoteState();
     }
     firstSnapshotHandled = true;
+    applySpvMirror();
     loadSchedule();
     renderDoctors();
     if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
@@ -1333,7 +1488,7 @@ function clinicGroupHeaderRow(spvCols, otherCols) {
 // columns the pending delete will take.
 function slotHeaderCellHtml(col) {
   return '<div class="sched-col-head">' +
-    '<input type="text" class="col-name-input" value="' + escapeAttr(col.label) + '" ' +
+    '<input type="text" class="col-name-input" value="' + escapeAttr(col.label) + '" ' + (isMirroredSpv(col.field) ? 'readonly ' : '') +
     'onchange="renameSlotColumn(\'' + col.field + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះជួរឈរនេះ">' +
     '</div>';
 }
@@ -1444,7 +1599,12 @@ function renderClinicEditor() {
   clinics.forEach(function (clinic) {
     var cc = clinicHeaderColors(clinic);
     var cols = STATE.slotColumns.filter(function (c) { return c.clinic === clinic && columnActiveInMonth(c, mk); });
+    var mirroredClinic = clinic === 'SPV' && cols.length && cols.every(function (c) { return isMirroredSpv(c.field); });
     var rowsHtml = cols.map(function (c) {
+      if (mirroredClinic) {
+        return '<div class="ce-row"><input type="text" class="ce-input" value="' + escapeAttr(c.label) + '" readonly>' +
+          '<span class="ce-tag">' + (c.period === 'NIGHT' ? 'យប់' : 'ព្រឹក') + '</span></div>';
+      }
       return '<div class="ce-row">' +
         '<input type="text" class="ce-input" value="' + escapeAttr(c.label) + '" ' +
         'onchange="renameSlotColumn(\'' + c.field + '\', this.value); renderClinicEditor();">' +
@@ -1452,6 +1612,11 @@ function renderClinicEditor() {
         '<button type="button" class="ce-stop" onclick="stopSlotColumnFromMonth(\'' + c.field + '\')">បញ្ឈប់</button>' +
         '</div>';
     }).join('');
+    if (mirroredClinic) {
+      html += '<div class="ce-sec"><div class="ce-sec-head" style="background:' + cc.bg + ';color:' + cc.text + ';"><b style="padding:0 6px;">' + escapeHtml(clinic) + '</b></div>' +
+        '<div class="mirror-note">🔗 SPV ចម្លងពី ' + escapeHtml(SPV_SOURCE_NAME) + ' — ឈ្មោះជួរឈរ និងវេន កែនៅវេបនោះ។</div>' + rowsHtml + '</div>';
+      return;
+    }
     html += '<div class="ce-sec">' +
       '<div class="ce-sec-head" style="background:' + cc.bg + ';color:' + cc.text + ';">' +
       '<input type="text" class="ce-input" value="' + escapeAttr(clinic) + '" title="ប្តូរឈ្មោះគ្លីនិក (គ្រប់ជួរឈររបស់វា)" ' +
@@ -1525,6 +1690,7 @@ function addSlotFromEditor() {
   var period = document.getElementById('ceNewPeriod').value;
   var label = document.getElementById('ceNewLabel').value.trim();
   if (!clinic) { showToast('សូមវាយបញ្ចូលឈ្មោះគ្លីនិក'); return; }
+  if (clinic.toUpperCase() === 'SPV' && SPV_SOURCE_ENABLED) { showToast('SPV ចម្លងពី ' + SPV_SOURCE_NAME + ' — បន្ថែមជួរឈរនៅវេបនោះ'); return; }
   if (!label) { showToast('សូមវាយបញ្ចូលឈ្មោះជួរឈរ'); return; }
   addSlotColumn(label, clinic, period, 0);
   STATE.editingClinic = null;
@@ -1601,7 +1767,7 @@ function renderSlotCell(dateStr, field, value, clashes) {
   var isClash = value && clashes.indexOf(value) !== -1;
   var display = value ? escapeHtml(value) : '—';
   var style = value && !isClash ? ' style="' + styleFor(value) + '"' : '';
-  return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') +
+  return '<td><div class="cell-slot ' + (value ? cls : 'empty') + (isClash ? ' clash' : '') + (isMirroredSpv(field) ? ' mirrored' : '') +
     '"' + style + ' data-date="' + dateStr + '" data-field="' + field + '" data-value="' + escapeAttr(value || '') + '">' +
     display + '</div></td>';
 }
@@ -1640,6 +1806,7 @@ function harvestNames(fields) {
 
 function openEditor(cell) {
   if (STATE.editing) return; // one editor at a time
+  if (isMirroredSpv(cell.dataset.field)) { showToast('SPV ចម្លងពី ' + SPV_SOURCE_NAME + ' — សូមកែនៅវេបនោះ'); return; }
   var date = cell.dataset.date;
   var field = cell.dataset.field;
   var currentVal = cell.dataset.value;
