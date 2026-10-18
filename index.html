@@ -466,8 +466,6 @@
           <button class="nav-btn" id="nextMonth">›</button>
           <button class="today-btn" id="todayBtn">ខែនេះ</button>
           <select class="today-btn" id="monthPicker" ></select>
-          <button type="button" class="today-btn" id="copyMonthBtn" title="ចម្លងកាលវិភាគទាំងមូលនៃខែនេះ">📋 ចម្លងខែ</button>
-          <button type="button" class="today-btn" id="pasteMonthBtn" title="បិទភ្ជាប់កាលវិភាគដែលបានចម្លងមកខែនេះ">📥 បិទភ្ជាប់ខែ</button>
         </div>
       </div>
       <div class="stat-row" id="scheduleStatsWrap" style="margin-bottom:12px;"></div>
@@ -606,7 +604,6 @@ var STATE = {
   month: new Date().getMonth() + 1,
   editing: null,
   copiedDay: null,      // { sourceDate, fields } — one day's duty slots, copied and ready to paste elsewhere
-  copiedMonth: null,    // { year, month, days:[{day, fields}] } — a whole month's duty slots, copied and ready to paste onto another month
   copiedCellValue: null, // a single cell's value (any field, any day) — copy from one cell, paste into any other
   advanceTarget: null,   // { date, field } — set by Enter/↓ in a cell editor, opened right after this cell commits
   pendingDeleteClinic: null, // clinic name marked for bulk-delete after one ✕ click, awaiting a confirming second click
@@ -916,7 +913,6 @@ document.addEventListener('DOMContentLoaded', function () {
   bindIncomeMonthNav();
   bindClinicGridControls();
   bindSlotColumnControls();
-  bindMonthCopyPaste();
 
   document.getElementById('scheduleWrap').innerHTML =
     '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
@@ -1384,12 +1380,7 @@ function renderSchedule() {
   bindCellClicks();
 }
 
-// Shows whichever copy is currently active — a single day (📋 per-row) or a
-// whole month (📋 ចម្លងខែ) — with a link to clear it. A day-copy takes
-// display priority if somehow both are set, since it's the more specific
-// action most recently taken in that case is ambiguous; in practice only
-// one is ever set at a time (starting a new copy of either kind clears the
-// other, see copyDutyDay / copyWholeMonth).
+// Shows the single-day copy that is waiting to be pasted (📋 per-row), with a link to clear it.
 function renderCopiedBanner() {
   var copiedBanner = document.getElementById('copiedBanner');
   if (STATE.copiedDay) {
@@ -1397,11 +1388,6 @@ function renderCopiedBanner() {
     copiedBanner.innerHTML = '📋 បានចម្លងវេនពីថ្ងៃ ' + src.slice(8) + '/' + src.slice(5, 7) +
       ' — ចុច 📥 លើថ្ងៃផ្សេងទៀតដើម្បីបិទភ្ជាប់វេននេះ' +
       '<span class="clear-copy-link" onclick="clearCopiedDay()">✕ សម្អាត</span>';
-    copiedBanner.classList.add('show');
-  } else if (STATE.copiedMonth) {
-    copiedBanner.innerHTML = '📋 បានចម្លងកាលវិភាគខែ ' + MONTH_NAMES_KM[STATE.copiedMonth.month - 1] + ' ' + STATE.copiedMonth.year +
-      ' — ប្តូរទៅខែផ្សេងទៀត រួចចុច "📥 បិទភ្ជាប់ខែ" ខាងលើ' +
-      '<span class="clear-copy-link" onclick="clearCopiedMonth()">✕ សម្អាត</span>';
     copiedBanner.classList.add('show');
   } else {
     copiedBanner.classList.remove('show');
@@ -2039,7 +2025,6 @@ function copyDutyDay(dateStr) {
   var fields = {};
   STATE.slotColumns.forEach(function (c) { fields[c.field] = row[c.field] || ''; });
   STATE.copiedDay = { sourceDate: dateStr, fields: fields };
-  STATE.copiedMonth = null;
   renderSchedule();
   showToast('បានចម្លងវេនថ្ងៃទី ' + dateStr.slice(8) + '/' + dateStr.slice(5, 7) + ' ✓ — ចុច 📥 លើថ្ងៃណាមួយដើម្បីបិទភ្ជាប់');
 }
@@ -2082,84 +2067,6 @@ function clearCopiedDay() {
 window.clearCopiedDay = clearCopiedDay;
 
 // ---- Whole-month copy/paste ----
-// Copies every day's duty-slot assignments (all slotColumns fields, plus the
-// day-off/SPV_Off note) for the currently viewed month, keyed by day-of-month
-// rather than absolute date, so it can be pasted onto any other month.
-// Starting a month-copy clears any single-day copy in progress.
-function copyWholeMonth() {
-  var y = STATE.year, m = STATE.month;
-  var nDays = daysInMonth(y, m);
-  var days = [];
-  for (var d = 1; d <= nDays; d++) {
-    var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
-    var row = rowForDate(dateStr) || {};
-    var fields = {};
-    STATE.slotColumns.forEach(function (c) { fields[c.field] = row[c.field] || ''; });
-    fields.SPV_Off = row.SPV_Off || '';
-    days.push({ day: d, fields: fields });
-  }
-  STATE.copiedMonth = { year: y, month: m, days: days };
-  STATE.copiedDay = null;
-  renderSchedule();
-  showToast('បានចម្លងកាលវិភាគខែ ' + MONTH_NAMES_KM[m - 1] + ' ' + y + ' ✓ — ប្តូរទៅខែផ្សេងទៀតរួចចុច "📥 បិទភ្ជាប់ខែ"');
-}
-window.copyWholeMonth = copyWholeMonth;
-
-// Pastes the copied month onto the currently viewed month, day-of-month for
-// day-of-month — overwrites whatever is already there for each day that
-// exists in both months (a target month with fewer days just drops the
-// extra trailing days from the source). Recomputes auto-off for every
-// touched day, same as a normal single-cell edit would.
-function pasteWholeMonth() {
-  if (!STATE.copiedMonth) { showToast('មិនទាន់មានខែដែលបានចម្លងទេ — ចុច "📋 ចម្លងខែ" លើខែណាមួយសិន'); return; }
-  var y = STATE.year, m = STATE.month;
-  if (y === STATE.copiedMonth.year && m === STATE.copiedMonth.month) {
-    showToast('នេះជាខែដែលបានចម្លងរួចហើយ — សូមប្តូរទៅខែផ្សេង');
-    return;
-  }
-  var srcLabel = MONTH_NAMES_KM[STATE.copiedMonth.month - 1] + ' ' + STATE.copiedMonth.year;
-  var dstLabel = MONTH_NAMES_KM[m - 1] + ' ' + y;
-  if (!confirm('បិទភ្ជាប់កាលវិភាគពីខែ ' + srcLabel + ' មកខែ ' + dstLabel + ' មែនទេ? (នេះនឹងសរសេរជាន់លើទិន្នន័យណាមួយដែលមានស្រាប់ក្នុងខែ ' + dstLabel + ')')) return;
-
-  var nDaysTarget = daysInMonth(y, m);
-  STATE.copiedMonth.days.forEach(function (dayData) {
-    if (dayData.day > nDaysTarget) return;
-    var dateStr = y + '-' + pad2(m) + '-' + pad2(dayData.day);
-    var row = rowForDate(dateStr);
-    if (!row) { row = { Date: dateStr }; STATE.scheduleAll.push(row); }
-    Object.keys(dayData.fields).forEach(function (f) { row[f] = dayData.fields[f]; });
-    applyAutoOff(row);
-  });
-
-  renderSchedule();
-  showToast('បិទភ្ជាប់កាលវិភាគទាំងមូលមកខែ ' + dstLabel + ' រួចរាល់ ✓');
-
-  STATE.historyAll.unshift({
-    'ពេលវេលា': new Date().toISOString().slice(0, 16).replace('T', ' '),
-    'កាលបរិច្ឆេទ': y + '-' + pad2(m),
-    'វេន (Field)': 'COPY_PASTE_MONTH',
-    'ឈ្មោះចាស់': '',
-    'ឈ្មោះថ្មី': 'ចម្លងកាលវិភាគទាំងមូលពីខែ ' + STATE.copiedMonth.year + '-' + pad2(STATE.copiedMonth.month),
-    'អ្នកប្រើ': 'you'
-  });
-  if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
-  if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
-
-  persistRemoteState();
-  scheduleBackup();
-}
-window.pasteWholeMonth = pasteWholeMonth;
-
-function clearCopiedMonth() {
-  STATE.copiedMonth = null;
-  renderSchedule();
-}
-window.clearCopiedMonth = clearCopiedMonth;
-
-function bindMonthCopyPaste() {
-  document.getElementById('copyMonthBtn').addEventListener('click', copyWholeMonth);
-  document.getElementById('pasteMonthBtn').addEventListener('click', pasteWholeMonth);
-}
 
 // Alphabetical sort key for a doctor name — ignores the "Dr." / "វេជ្ជ." title prefix.
 function doctorSortKey(name) {
