@@ -422,6 +422,12 @@
   .mirror-note{font-size:12px;color:#0b7f58;background:var(--hmv-bg);border-radius:9px;padding:8px 10px;margin:4px 0 8px;line-height:1.5;}
   .cell-slot.mirrored{cursor:default;}
   input.col-name-input[readonly]{cursor:default;opacity:.95;}
+  .cl-extra .lbl{color:var(--hmv);font-weight:600;}
+  .cl-extra{align-items:center;}
+  .cl-extra .ledger-del{flex:none;width:26px;height:26px;font-size:11px;}
+  .cl-add-extra{display:grid;grid-template-columns:1fr 110px;gap:6px;margin:10px 0 2px;}
+  .cl-add-extra .today-btn{grid-column:1 / -1;height:34px;}
+  .cl-total-num{font-size:24px;font-weight:700;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -598,7 +604,8 @@ var STATE = {
   incomeExtraByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — not tied to a specific day
   incomeEntries: [],        // [{ Date, byClinic: { clinicName:{consult,ipd}, ... } }]
   pastIncomeEntries: [],   // legacy — kept only so an old Firestore doc doesn't crash on load
-  clinicTotals: {},        // { 'YYYY-MM': { clinicName: amountUsd } } — the editable grid's data
+  clinicTotals: {},        // { 'YYYY-MM': { clinicName: amountUsd } } — base amount (duty pay + Consult/IPD)
+  clinicExtras: {},        // { 'YYYY-MM': { clinicName: [ {label, usd}, ... ] } } — extra amounts outside the daily table
   clinicNames: ['SPV', 'HMV'],  // active columns shown in the grid; extend via "+ គ្លីនិកថ្មី"
   archivedClinics: []           // clinics you no longer work at — data kept, just hidden from the grid
 };
@@ -721,7 +728,7 @@ function persistRemoteState() {
 function persistIncomeState() {
   setDoc(incomeDocRef, {
     ratesByMonth: STATE.incomeRatesByMonth, entries: STATE.incomeEntries, extraByMonth: STATE.incomeExtraByMonth,
-    clinicTotals: STATE.clinicTotals, clinicNames: STATE.clinicNames, archivedClinics: STATE.archivedClinics
+    clinicTotals: STATE.clinicTotals, clinicExtras: STATE.clinicExtras, clinicNames: STATE.clinicNames, archivedClinics: STATE.archivedClinics
   }).catch(function (err) {
     showToast('⚠ មិនអាចផ្ញើចំណូលទៅ Firestore បានទេ៖ ' + err.message);
   });
@@ -937,6 +944,7 @@ document.addEventListener('DOMContentLoaded', function () {
       STATE.incomeEntries = (d.entries || []).map(normalizeIncomeEntry);
       STATE.incomeExtraByMonth = normalizeExtraByMonth(d.extraByMonth || {});
       STATE.clinicTotals = d.clinicTotals || {};
+      STATE.clinicExtras = d.clinicExtras || {};
       STATE.clinicNames = d.clinicNames && d.clinicNames.length ? d.clinicNames : ['SPV', 'HMV'];
       STATE.archivedClinics = d.archivedClinics || [];
       // backward-compat: an older doc may only have a flat "rates" field —
@@ -2859,6 +2867,10 @@ function renameClinicColumn(oldName, newNameRaw) {
       delete vals[oldName];
     }
   });
+  Object.keys(STATE.clinicExtras || {}).forEach(function (mk) {
+    var ex = STATE.clinicExtras[mk];
+    if (ex && Object.prototype.hasOwnProperty.call(ex, oldName)) { ex[newName] = ex[oldName]; delete ex[oldName]; }
+  });
   persistIncomeState();
   renderClinicLedger();
   showToast('ប្តូរឈ្មោះគ្លីនិករួចរាល់ ✓');
@@ -2894,6 +2906,9 @@ function deleteClinicColumn(clinicName) {
   Object.keys(STATE.clinicTotals).forEach(function (mk) {
     if (STATE.clinicTotals[mk]) delete STATE.clinicTotals[mk][clinicName];
   });
+  Object.keys(STATE.clinicExtras || {}).forEach(function (mk) {
+    if (STATE.clinicExtras[mk]) delete STATE.clinicExtras[mk][clinicName];
+  });
   persistIncomeState();
   renderClinicLedger();
   showToast('លុបជួរឈរគ្លីនិករួចរាល់ ✓');
@@ -2902,11 +2917,44 @@ window.deleteClinicColumn = deleteClinicColumn;
 
 // Sums one clinic's amounts across every month it has data for — works for
 // an active or an archived clinic name alike.
+function clinicExtrasList(mk, clinicName) {
+  return (STATE.clinicExtras && STATE.clinicExtras[mk] && STATE.clinicExtras[mk][clinicName]) || [];
+}
+function clinicExtrasSum(mk, clinicName) {
+  return clinicExtrasList(mk, clinicName).reduce(function (a, e) { return a + (Number(e.usd) || 0); }, 0);
+}
+
 function clinicLifetimeTotal(clinicName) {
   var total = 0;
   Object.keys(STATE.clinicTotals).forEach(function (mk) { total += (STATE.clinicTotals[mk][clinicName] || 0); });
+  Object.keys(STATE.clinicExtras || {}).forEach(function (mk) { total += clinicExtrasSum(mk, clinicName); });
   return total;
 }
+
+// ---- "+ បន្ថែម": extra amounts per clinic per month (outside the daily table),
+// typed as numbers and added into that clinic's total. ----
+function addClinicExtra(mk, clinicName, i) {
+  var labelEl = document.getElementById('exl_' + i);
+  var amtEl = document.getElementById('exa_' + i);
+  var amt = Math.round((Number(amtEl.value) || 0) * 100) / 100;
+  if (!amt) { showToast('សូមបញ្ចូលចំនួនលុយ'); amtEl.focus(); return; }
+  if (!STATE.clinicExtras[mk]) STATE.clinicExtras[mk] = {};
+  if (!STATE.clinicExtras[mk][clinicName]) STATE.clinicExtras[mk][clinicName] = [];
+  STATE.clinicExtras[mk][clinicName].push({ label: (labelEl.value || '').trim(), usd: amt });
+  persistIncomeState();
+  renderClinicLedger();
+  showToast('បន្ថែមរួចរាល់ ✓');
+}
+window.addClinicExtra = addClinicExtra;
+
+function removeClinicExtra(mk, clinicName, idx) {
+  var list = clinicExtrasList(mk, clinicName);
+  if (!list[idx]) return;
+  list.splice(idx, 1);
+  persistIncomeState();
+  renderClinicLedger();
+}
+window.removeClinicExtra = removeClinicExtra;
 
 // Linda's own total money from one clinic in one month — her duty-shift pay
 // (from Payroll) plus her Consult/IPD income (from Income), for that clinic.
@@ -2961,15 +3009,18 @@ function renderClinicLedger() {
   } else {
     if (!STATE.clinicTotals[mk]) STATE.clinicTotals[mk] = {};
 
-    var cards = clinicNames.map(function (c) {
+    var cards = clinicNames.map(function (c, ci) {
       var dutyUsd = (payrollSummary.linda.byClinic[c] && payrollSummary.linda.byClinic[c].usd) || 0;
       var incomeUsd = (incomeSummary[c] && incomeSummary[c].usd) || 0;
 
-      if (!(c in STATE.clinicTotals[mk])) {
-        var autoVal = Math.round((dutyUsd + incomeUsd) * 100) / 100;
-        if (autoVal > 0) { STATE.clinicTotals[mk][c] = autoVal; autoFilledAny = true; }
-      }
-      var v = STATE.clinicTotals[mk][c] || 0;
+      // base = duty pay + Consult/IPD, kept live; if there is nothing to compute
+      // (older months typed by hand) the stored amount is left untouched.
+      var autoVal = Math.round((dutyUsd + incomeUsd) * 100) / 100;
+      if (autoVal > 0 && STATE.clinicTotals[mk][c] !== autoVal) { STATE.clinicTotals[mk][c] = autoVal; autoFilledAny = true; }
+      var base = STATE.clinicTotals[mk][c] || 0;
+      var extras = clinicExtrasList(mk, c);
+      var extraSum = clinicExtrasSum(mk, c);
+      var v = base + extraSum;
 
       totalDuty += dutyUsd;
       totalIncome += incomeUsd;
@@ -2983,11 +3034,21 @@ function renderClinicLedger() {
         '</div>' +
         clRow('ប្រាក់ខែ (វេន)', dutyUsd) +
         clRow('ចំណូល Consult/IPD', incomeUsd) +
+        (autoVal > 0 || !base ? '' : clRow('ចំនួនបញ្ចូលពីមុន', base)) +
+        extras.map(function (e, xi) {
+          return '<div class="cl-row cl-extra"><span class="lbl">+ ' + escapeHtml(e.label || 'បន្ថែម') + '</span>' +
+            '<span class="cl-amt">' + fmtUsd(e.usd) + '<small>' + fmtKhr((e.usd || 0) * STATE.khrPerUsd) + '</small></span>' +
+            '<button type="button" class="ledger-del" title="លុប" onclick="removeClinicExtra(\'' + mk + '\',\'' + qc + '\',' + xi + ')">✕</button></div>';
+        }).join('') +
+        '<div class="cl-add-extra">' +
+        '<input type="text" id="exl_' + ci + '" class="ce-input" placeholder="ពិពណ៌នា (មិនចាំបាច់)">' +
+        '<input type="number" step="0.01" id="exa_' + ci + '" class="ce-input" placeholder="$ ចំនួន" ' +
+        'onkeydown="if(event.key===\'Enter\'){addClinicExtra(\'' + mk + '\',\'' + qc + '\',' + ci + ');}">' +
+        '<button type="button" class="today-btn btn-edit" onclick="addClinicExtra(\'' + mk + '\',\'' + qc + '\',' + ci + ')">+ បន្ថែម</button>' +
+        '</div>' +
         '<div class="cl-total">' +
         '<div class="cl-total-top"><span class="lbl">សរុប</span></div>' +
-        '<div class="clinic-amount-cell"><span class="cur">$</span>' +
-        '<input type="number" min="0" step="0.01" class="clinic-amount-input" placeholder="0.00" value="' + v + '" onfocus="this.select()" ' +
-        'onchange="updateClinicTotal(\'' + mk + '\',\'' + qc + '\',this.value)"></div>' +
+        '<div class="cl-total-num">' + fmtUsd(v) + '</div>' +
         '<div class="cl-khr">= ' + fmtKhr(v * STATE.khrPerUsd) + '</div>' +
         '</div></div>';
     }).join('');
