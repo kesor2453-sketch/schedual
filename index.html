@@ -825,6 +825,39 @@ function applySpvMirror() {
   spvMirrorFields = {};
   order.forEach(function (id) { spvMirrorFields[id] = true; });
 
+  // doctors: SPV doctor list, names and colours follow the other site (add / rename / delete / colour)
+  if (Array.isArray(src.doctors)) {
+    var SRC_MANUAL = {
+      S1: { bg: '#5B9BD5', text: '#ffffff' }, S2: { bg: '#FFFFFF', text: '#333333' },
+      S3: { bg: '#F4B6B6', text: '#7a1f1f' }, S4: { bg: '#E8B285', text: '#5c3a1e' },
+      S5: { bg: '#F5D97A', text: '#6b5900' }, S6: { bg: '#4C7A3D', text: '#ffffff' },
+      LINDA: { bg: '#8DC63F', text: '#1f3d0a' }
+    };
+    var SRC_PALETTE = ['#1747a6', '#0a6b4b', '#a52323', '#8a5300', '#6b3fd1', '#0f6b72', '#b23a6b', '#c9852e',
+      '#1c7a3e', '#8a2be2', '#c2185b', '#00695c', '#5d4037', '#37474f', '#ad1457'];
+    var srcIds = {};
+    src.doctors.forEach(function (sd) {
+      if (!sd || !sd.ID) return;
+      srcIds[sd.ID] = true;
+      var mc;
+      if (sd.color) mc = { bg: sd.color, text: contrastTextColor(sd.color) };
+      else if (SRC_MANUAL[sd.ID]) mc = SRC_MANUAL[sd.ID];
+      else mc = { bg: null, text: SRC_PALETTE[hashString(sd.ID) % SRC_PALETTE.length] };
+      var mine = STATE.doctors.filter(function (d) { return d.ID === sd.ID; })[0];
+      if (!mine) {
+        mine = { ID: sd.ID, NameSPV: sd.NameSPV || '', NameHMV: '', ClinicPool: 'SPV', isLinda: sd.ID === 'LINDA', Active: sd.Active !== false };
+        STATE.doctors.push(mine);
+      }
+      mine.NameSPV = sd.NameSPV || '';
+      mine.Active = sd.Active !== false;
+      mine.Mirrored = true;
+      mine.MirrorColor = mc;
+      mine.Color = mc.bg || '';
+    });
+    // SPV-only doctors that no longer exist on the other site are removed
+    STATE.doctors = STATE.doctors.filter(function (d) { return d.ClinicPool !== 'SPV' || srcIds[d.ID]; });
+  }
+
   // shift names: for every date the other site has, its SPV values win
   var byDate = {};
   STATE.scheduleAll.forEach(function (r) { if (r && r.Date) byDate[r.Date] = r; });
@@ -1408,6 +1441,7 @@ function contrastTextColor(hexBg) {
 function getNameColors(name) {
   if (!name) return { bg: null, text: '#1c2430' };
   var doc = STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0];
+  if (doc && doc.MirrorColor) return doc.MirrorColor;
   if (doc && doc.Color) return { bg: doc.Color, text: contrastTextColor(doc.Color) };
   var key = doc ? doc.ID : name;
   if (MANUAL_DOCTOR_COLORS[key]) return MANUAL_DOCTOR_COLORS[key];
@@ -2134,7 +2168,7 @@ function renderDoctors() {
     }).map(function (d) {
       var primary = d.NameSPV || d.NameHMV;
       var secondary = (d.NameSPV && d.NameHMV) ? d.NameHMV : '';
-      var colorVal = d.Color || getNameColors(primary).bg || '#5B9BD5';
+      var colorVal = d.Color || getNameColors(primary).bg || getNameColors(primary).text || '#5B9BD5';
       var poolCls = d.ClinicPool === 'SPV' ? 'spv' : (d.ClinicPool === 'HMV' ? 'hmv' : 'both');
       var poolLabel = d.ClinicPool === 'Both' ? 'ទាំងពីរ' : d.ClinicPool;
       return '<div class="doc-item"><div class="name"><span class="doc-dot" style="background:' + escapeAttr(colorVal) + ';"></span>' +
@@ -2160,33 +2194,36 @@ function renderDoctorEditor() {
     return compareNames(a.NameSPV || a.NameHMV, b.NameSPV || b.NameHMV);
   }).map(function (d) {
     var name = d.NameSPV || d.NameHMV;
-    var colorVal = d.Color || getNameColors(name).bg || '#5B9BD5';
+    var colorVal = d.Color || getNameColors(name).bg || getNameColors(name).text || '#5B9BD5';
+    var lock = d.Mirrored ? ' disabled' : '';
+    var ro = d.Mirrored ? ' readonly' : '';
     return '<div class="doc-item" style="margin-bottom:8px;">' +
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
-      '<input type="color" class="doc-color-input" value="' + colorVal + '" title="ជ្រើសពណ៌" ' +
+      '<input type="color" class="doc-color-input" value="' + colorVal + '" title="ជ្រើសពណ៌"' + lock + ' ' +
       'onchange="updateDoctorColor(\'' + d.ID + '\', this.value)">' +
-      '<input type="text" class="doc-name-input" value="' + escapeAttr(d.NameSPV) + '" placeholder="ឈ្មោះ (SPV)" ' +
+      '<input type="text" class="doc-name-input" value="' + escapeAttr(d.NameSPV) + '" placeholder="ឈ្មោះ (SPV)"' + ro + ' ' +
       'onchange="updateDoctorField(\'' + d.ID + '\',\'NameSPV\',this.value)">' +
       '</div>' +
       '<input type="text" class="doc-name-input" style="width:100%;margin-bottom:8px;" value="' + escapeAttr(d.NameHMV) + '" placeholder="ឈ្មោះ (HMV)" ' +
       'onchange="updateDoctorField(\'' + d.ID + '\',\'NameHMV\',this.value)">' +
       '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-      '<select class="doc-pool-select" onchange="updateDoctorField(\'' + d.ID + '\',\'ClinicPool\',this.value)">' +
+      '<select class="doc-pool-select"' + lock + ' onchange="updateDoctorField(\'' + d.ID + '\',\'ClinicPool\',this.value)">' +
       '<option value="SPV"' + (d.ClinicPool === 'SPV' ? ' selected' : '') + '>SPV</option>' +
       '<option value="HMV"' + (d.ClinicPool === 'HMV' ? ' selected' : '') + '>HMV</option>' +
       '<option value="Both"' + (d.ClinicPool === 'Both' ? ' selected' : '') + '>ទាំងពីរ (Both)</option>' +
       '</select>' +
       '<label style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--sub);">' +
-      '<input type="checkbox" style="width:15px;height:15px;" ' + (d.isLinda ? 'checked' : '') + ' ' +
+      '<input type="checkbox" style="width:15px;height:15px;"' + lock + ' ' + (d.isLinda ? 'checked' : '') + ' ' +
       'onchange="updateDoctorField(\'' + d.ID + '\',\'isLinda\',this.checked)"> Linda?' +
       '</label>' +
-      '<button type="button" class="ledger-del" style="margin-left:auto;" title="លុបគ្រូពេទ្យនេះ" onclick="deleteDoctor(\'' + d.ID + '\')">✕</button>' +
+      (d.Mirrored ? '<span class="ce-tag" style="margin-left:auto;">🔗 SPV</span>' : '<button type="button" class="ledger-del" style="margin-left:auto;" title="លុបគ្រូពេទ្យនេះ" onclick="deleteDoctor(\'' + d.ID + '\')">✕</button>') +
       '</div></div>';
   }).join('');
   if (!STATE.doctors.length) rows = '<div class="empty-state" style="padding:14px;">មិនទាន់មានទិន្នន័យគ្រូពេទ្យទេ</div>';
 
   modal.innerHTML = '<div class="modal-box" style="max-width:560px;">' +
-    '<div class="ce-title" style="background:var(--spv-bg);color:var(--spv);">✏️ កែប្រែគ្រូពេទ្យ</div>' + rows +
+    '<div class="ce-title" style="background:var(--spv-bg);color:var(--spv);">✏️ កែប្រែគ្រូពេទ្យ</div>' +
+    (SPV_SOURCE_ENABLED ? '<div class="mirror-note">🔗 គ្រូពេទ្យ SPV (ឈ្មោះ ពណ៌ បន្ថែម លុប) យកតាម ' + escapeHtml(SPV_SOURCE_NAME) + ' — កែនៅវេបនោះ។ គ្រូពេទ្យ HMV កែនៅទីនេះបាន។</div>' : '') + rows +
     '<form class="add-doc" id="addDocForm">' +
     '<input type="text" id="newNameSPV" placeholder="ឈ្មោះ (SPV) — ឧ. Dr.Sok Dara">' +
     '<input type="text" id="newNameHMV" placeholder="ឈ្មោះ (HMV) — ឧ. វេជ្ជ.សុខ ដារា">' +
@@ -2208,6 +2245,7 @@ function bindDoctorForm() {
     var clinicPool = document.getElementById('newPool').value;
     var isLinda = document.getElementById('newIsLinda').checked;
     if (!nameSPV && !nameHMV) { showToast('សូមបញ្ចូលឈ្មោះយ៉ាងហោចណាស់មួយ'); return; }
+    if (SPV_SOURCE_ENABLED && nameSPV && clinicPool !== 'HMV') { showToast('គ្រូពេទ្យ SPV ចម្លងពី ' + SPV_SOURCE_NAME + ' — សូមបន្ថែមនៅវេបនោះ'); return; }
 
     var id = (clinicPool === 'HMV' ? 'H' : clinicPool === 'SPV' ? 'S' : 'B') + Date.now();
     var doctor = { ID: id, NameSPV: nameSPV, NameHMV: nameHMV, ClinicPool: clinicPool, isLinda: isLinda, Active: true };
@@ -2226,6 +2264,9 @@ function bindDoctorForm() {
 function updateDoctorField(id, field, value) {
   var doc = STATE.doctors.filter(function (d) { return d.ID === id; })[0];
   if (!doc) return;
+  if (doc.Mirrored && (field === 'NameSPV' || field === 'ClinicPool' || field === 'isLinda')) {
+    showToast('គ្រូពេទ្យ SPV ចម្លងពី ' + SPV_SOURCE_NAME + ' — សូមកែនៅវេបនោះ'); renderClinicEditor(); return;
+  }
   if (field === 'isLinda') {
     if (value) { STATE.doctors.forEach(function (d) { d.isLinda = false; }); }
     doc.isLinda = !!value;
@@ -2244,6 +2285,7 @@ window.updateDoctorField = updateDoctorField;
 function updateDoctorColor(id, hex) {
   var doc = STATE.doctors.filter(function (d) { return d.ID === id; })[0];
   if (!doc) return;
+  if (doc.Mirrored) { showToast('ពណ៌គ្រូពេទ្យ SPV យកតាម ' + SPV_SOURCE_NAME + ' — សូមកែនៅវេបនោះ'); renderClinicEditor(); return; }
   doc.Color = hex;
   persistRemoteState();
   renderDoctors();
@@ -2257,6 +2299,7 @@ window.updateDoctorColor = updateDoctorColor;
 function deleteDoctor(id) {
   var doc = STATE.doctors.filter(function (d) { return d.ID === id; })[0];
   if (!doc) return;
+  if (doc.Mirrored) { showToast('គ្រូពេទ្យ SPV ចម្លងពី ' + SPV_SOURCE_NAME + ' — សូមលុបនៅវេបនោះ'); return; }
   var name = doc.NameSPV || doc.NameHMV;
   if (!confirm('លុបគ្រូពេទ្យ "' + name + '" ចេញពីបញ្ជីមែនទេ? (វេនចាស់ៗនៅតែបង្ហាញឈ្មោះដដែល គ្រាន់តែលែងមាននៅក្នុងបញ្ជីជ្រើសរើសទៀតហើយ)')) return;
   STATE.doctors = STATE.doctors.filter(function (d) { return d.ID !== id; });
