@@ -433,6 +433,11 @@
   .cl-extra-row .ce-input{height:34px;}
   .cl-extra-row .ledger-del{width:26px;height:26px;font-size:11px;}
   .cl-extra-khr{grid-column:1 / -1;text-align:right;font-size:11px;color:var(--sub);margin-top:-3px;font-variant-numeric:tabular-nums;}
+  .cl-life{margin-top:10px;border-radius:11px;padding:10px 12px;background:linear-gradient(135deg,#0e9f6e 0,#0b7f58 100%);color:#fff;}
+  .cl-life-l{font-size:11.5px;font-weight:600;opacity:.92;}
+  .cl-life-n{font-size:22px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;}
+  .cl-life-k{font-size:12px;text-align:right;opacity:.92;font-variant-numeric:tabular-nums;}
+  .stat.all .all-break{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.35);font-size:11.5px;font-weight:600;color:rgba(255,255,255,.95);line-height:1.5;}
 </style>
 </head>
 <body>
@@ -2428,9 +2433,10 @@ function loadPayroll() {
 function fmtUsd(n) { return '$' + (n || 0).toLocaleString(); }
 function fmtKhr(n) { return (n || 0).toLocaleString() + '៛'; }
 function fmtBoth(n) { return fmtUsd(n) + ' · ' + fmtKhr((n || 0) * STATE.khrPerUsd); }
-function dualStat(label, usd, highlight) {
+function dualStat(label, usd, highlight, extraLine) {
   return '<div class="stat' + (highlight === 'all' ? ' all' : highlight ? ' hl' : '') + '"><div class="l">' + label + '</div><div class="n">' + fmtUsd(usd) +
-    '</div><div class="khr">' + fmtKhr((usd || 0) * STATE.khrPerUsd) + '</div></div>';
+    '</div><div class="khr">' + fmtKhr((usd || 0) * STATE.khrPerUsd) + '</div>' +
+    (extraLine ? '<div class="all-break">' + extraLine + '</div>' : '') + '</div>';
 }
 function clRow(label, usd) {
   return '<div class="cl-row"><span class="lbl">' + label + '</span><span class="cl-amt">' + fmtUsd(usd) +
@@ -3119,7 +3125,11 @@ function renderClinicLedger() {
         '<div class="cl-total-top"><span class="lbl">សរុប</span></div>' +
         '<div class="cl-total-num">' + fmtUsd(v) + '</div>' +
         '<div class="cl-khr">= ' + fmtKhr(v * STATE.khrPerUsd) + '</div>' +
-        '</div></div>';
+        '</div>' +
+        '<div class="cl-life"><div class="cl-life-l">សរុបគ្រប់ខែ · ' + escapeHtml(c) + '</div>' +
+        '<div class="cl-life-n">' + fmtUsd(clinicLifetimeTotal(c)) + '</div>' +
+        '<div class="cl-life-k">= ' + fmtKhr(clinicLifetimeTotal(c) * STATE.khrPerUsd) + '</div></div>' +
+        '</div>';
     }).join('');
 
     var drafts = {};
@@ -3148,7 +3158,9 @@ function renderClinicLedger() {
     dualStat('សរុបខែនេះ (គ្រប់គ្លីនិក)', totalCombined, true) +
     dualStat('ប្រាក់ខែ (វេន)', totalDuty) +
     dualStat('ចំណូល Consult/IPD', totalIncome) +
-    dualStat('សរុបគ្រប់ខែ (ទាំងអស់)', overallTotal, 'all') +
+    dualStat('សរុបគ្រប់ខែ (ទាំងអស់)', overallTotal, 'all', clinicNames.concat(STATE.archivedClinics).map(function (c) {
+      return escapeHtml(c) + ' ' + fmtUsd(clinicLifetimeTotal(c));
+    }).join(' · ')) +
     '</div>';
 
   renderArchivedClinics();
