@@ -121,12 +121,6 @@
     width:100%;font-size:12px;padding:5px;border-radius:7px;border:1px solid var(--brand);
     font-family:inherit;
   }
-  .cell-edit-actions{display:flex;gap:3px;justify-content:center;margin-top:3px;}
-  .cell-edit-actions button{
-    border:none;background:#eef1f6;cursor:pointer;font-size:10.5px;padding:2px 5px;border-radius:5px;color:var(--ink);
-  }
-  .cell-edit-actions button:hover{background:#dde3ee;}
-  .cell-edit-actions button:disabled{opacity:.35;cursor:not-allowed;}
 
   .clash-banner{
     display:none;background:var(--warn-bg);border:1px solid #f2d19b;color:#8a5300;
@@ -134,20 +128,7 @@
   }
   .clash-banner.show{display:block;}
 
-  .copied-banner{
-    display:none;background:var(--spv-bg);border:1px solid #bcd6fb;color:#1747a6;
-    padding:8px 12px;border-radius:10px;font-size:12.5px;margin-bottom:10px;font-weight:600;
-  }
-  .copied-banner.show{display:block;}
-  .copied-banner .clear-copy-link{cursor:pointer;text-decoration:underline;margin-left:10px;font-weight:700;}
 
-  .date-actions{display:inline-flex;gap:1px;margin-left:4px;vertical-align:middle;}
-  .date-actions button{
-    border:none;background:none;cursor:pointer;font-size:11px;padding:1px 3px;border-radius:5px;opacity:.5;
-  }
-  .date-actions button:hover{background:#eef1f6;opacity:1;}
-  .date-actions button[disabled]{opacity:.18;cursor:not-allowed;}
-  .date-actions button[disabled]:hover{background:none;}
 
   /* Doctors panel */
   .doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
@@ -397,7 +378,6 @@
   form.add-doc button{height:38px;padding:0 18px;border-radius:11px;box-shadow:0 3px 10px rgba(47,111,237,.25);}
   form.add-doc button:hover{background:#245fd6;}
   .cl-mini{border-radius:9px;}
-  .cell-edit-actions button{border-radius:7px;font-size:11.5px;padding:3px 7px;}
 
   /* keyboard focus */
   .tab:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:none;box-shadow:var(--ring);}
@@ -472,7 +452,6 @@
       <div class="sync-chip" id="spvSyncStatus" style="display:none;"></div>
       <div style="margin-bottom:12px;"><button type="button" class="today-btn btn-edit" onclick="openClinicEditor()">✏️ កែប្រែ</button></div>
       <div class="clash-banner" id="clashBanner"></div>
-      <div class="copied-banner" id="copiedBanner"></div>
       <div id="scheduleWrap"></div>
       <div style="font-size:11px;color:var(--sub);margin-top:10px;">កែឈ្មោះជួរឈរដោយវាយផ្ទាល់ក្នុងក្បាល — ចុច ✏️ កែប្រែ ក្បែរឈ្មោះគ្លីនិក ដើម្បីប្តូរឈ្មោះ ឬបញ្ឈប់ជួរឈរ (ទិន្នន័យចាស់នៅរក្សាទុក)</div>
     </div>
@@ -603,8 +582,6 @@ var STATE = {
   year: new Date().getFullYear(),
   month: new Date().getMonth() + 1,
   editing: null,
-  copiedDay: null,      // { sourceDate, fields } — one day's duty slots, copied and ready to paste elsewhere
-  copiedCellValue: null, // a single cell's value (any field, any day) — copy from one cell, paste into any other
   advanceTarget: null,   // { date, field } — set by Enter/↓ in a cell editor, opened right after this cell commits
   pendingDeleteClinic: null, // clinic name marked for bulk-delete after one ✕ click, awaiting a confirming second click
   incomeRatesByMonth: {},   // { 'YYYY-MM': { clinicName:{consult,ipd}, ... } } — any clinic, not just SPV/HMV
@@ -1341,10 +1318,6 @@ function renderSchedule() {
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
       (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
       (dateStr === todayStr ? '<span class="today-badge">ថ្ងៃនេះ</span>' : '') +
-      '<span class="date-actions">' +
-      '<button type="button" title="ចម្លងវេនថ្ងៃនេះ" onclick="copyDutyDay(\'' + dateStr + '\')">📋</button>' +
-      '<button type="button" title="បិទភ្ជាប់វេនមកថ្ងៃនេះ" onclick="pasteDutyDay(\'' + dateStr + '\')"' + (STATE.copiedDay ? '' : ' disabled') + '>📥</button>' +
-      '</span>' +
       '<span class="dow">' + DOW_KM[dowName] + '</span></td>';
 
     spvCols.forEach(function (c) { html += renderSlotCell(dateStr, c.field, row[c.field], clashes); });
@@ -1375,24 +1348,10 @@ function renderSchedule() {
     banner.classList.remove('show');
   }
 
-  renderCopiedBanner();
 
   bindCellClicks();
 }
 
-// Shows the single-day copy that is waiting to be pasted (📋 per-row), with a link to clear it.
-function renderCopiedBanner() {
-  var copiedBanner = document.getElementById('copiedBanner');
-  if (STATE.copiedDay) {
-    var src = STATE.copiedDay.sourceDate;
-    copiedBanner.innerHTML = '📋 បានចម្លងវេនពីថ្ងៃ ' + src.slice(8) + '/' + src.slice(5, 7) +
-      ' — ចុច 📥 លើថ្ងៃផ្សេងទៀតដើម្បីបិទភ្ជាប់វេននេះ' +
-      '<span class="clear-copy-link" onclick="clearCopiedDay()">✕ សម្អាត</span>';
-    copiedBanner.classList.add('show');
-  } else {
-    copiedBanner.classList.remove('show');
-  }
-}
 
 // Same per-doctor colors as her original Google Sheet (matched by doctor ID,
 // so it survives name-spelling differences like Dr.Ben Linda / វេជ្ជ.ប៊ិន លីនដា).
@@ -1899,35 +1858,6 @@ function openEditor(cell) {
   cell.appendChild(input);
   cell.appendChild(datalist);
 
-  // Copy/paste this ONE cell's value — works between any two cells anywhere
-  // in the table (any column, any day), not just whole-day or whole-month.
-  var actionsDiv = document.createElement('div');
-  actionsDiv.className = 'cell-edit-actions';
-  var copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.title = 'ចម្លងតម្លៃនេះ';
-  copyBtn.textContent = '📋';
-  var pasteBtn = document.createElement('button');
-  pasteBtn.type = 'button';
-  pasteBtn.title = 'បិទភ្ជាប់តម្លៃដែលបានចម្លង';
-  pasteBtn.textContent = '📥';
-  if (!STATE.copiedCellValue) pasteBtn.disabled = true;
-  // mousedown preventDefault keeps focus on the input so clicking these
-  // buttons doesn't blur-and-commit the editor first.
-  copyBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
-  pasteBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
-  copyBtn.addEventListener('click', function () {
-    STATE.copiedCellValue = input.value || '';
-    showToast(input.value ? ('បានចម្លង «' + input.value + '» ✓') : 'បានចម្លងប្រអប់ទទេ ✓');
-    pasteBtn.disabled = false;
-  });
-  pasteBtn.addEventListener('click', function () {
-    input.value = STATE.copiedCellValue || '';
-    input.focus();
-  });
-  actionsDiv.appendChild(copyBtn);
-  actionsDiv.appendChild(pasteBtn);
-  cell.appendChild(actionsDiv);
 
   input.focus();
   input.select();
@@ -2016,57 +1946,6 @@ function saveCellValue(date, field, value) {
   scheduleBackup();
 }
 
-// Copies one date's duty-slot assignments (not the day-off note, which is
-// recomputed automatically) so they can be pasted onto another date.
-// Starting a day-copy clears any whole-month copy in progress, so the
-// "copied" banner always reflects exactly one pending copy at a time.
-function copyDutyDay(dateStr) {
-  var row = rowForDate(dateStr) || {};
-  var fields = {};
-  STATE.slotColumns.forEach(function (c) { fields[c.field] = row[c.field] || ''; });
-  STATE.copiedDay = { sourceDate: dateStr, fields: fields };
-  renderSchedule();
-  showToast('បានចម្លងវេនថ្ងៃទី ' + dateStr.slice(8) + '/' + dateStr.slice(5, 7) + ' ✓ — ចុច 📥 លើថ្ងៃណាមួយដើម្បីបិទភ្ជាប់');
-}
-window.copyDutyDay = copyDutyDay;
-
-// Pastes the copied duty slots onto dateStr, overwriting whatever was there,
-// then recomputes auto-off and clashes for the destination day just like a
-// normal manual edit would.
-function pasteDutyDay(dateStr) {
-  if (!STATE.copiedDay) { showToast('មិនទាន់មានវេនដែលបានចម្លងទេ — ចុច 📋 លើថ្ងៃណាមួយសិន'); return; }
-  var row = rowForDate(dateStr);
-  if (!row) { row = { Date: dateStr }; STATE.scheduleAll.push(row); }
-  Object.keys(STATE.copiedDay.fields).forEach(function (f) { row[f] = STATE.copiedDay.fields[f]; });
-  applyAutoOff(row);
-  renderSchedule();
-
-  var clashes = detectClashesLocal(row);
-  showToast(clashes.length ? ('⚠ ប៉ះទង្គិចវេន: ' + clashes.join(', ')) : 'បិទភ្ជាប់វេនរួចរាល់ ✓');
-
-  STATE.historyAll.unshift({
-    'ពេលវេលា': new Date().toISOString().slice(0, 16).replace('T', ' '),
-    'កាលបរិច្ឆេទ': dateStr,
-    'វេន (Field)': 'COPY_PASTE',
-    'ឈ្មោះចាស់': '',
-    'ឈ្មោះថ្មី': 'ចម្លងវេនពីថ្ងៃ ' + STATE.copiedDay.sourceDate,
-    'អ្នកប្រើ': 'you'
-  });
-  if (STATE.historyAll.length > 300) STATE.historyAll.length = 300;
-  if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
-
-  persistRemoteState();
-  scheduleBackup();
-}
-window.pasteDutyDay = pasteDutyDay;
-
-function clearCopiedDay() {
-  STATE.copiedDay = null;
-  renderSchedule();
-}
-window.clearCopiedDay = clearCopiedDay;
-
-// ---- Whole-month copy/paste ----
 
 // Alphabetical sort key for a doctor name — ignores the "Dr." / "វេជ្ជ." title prefix.
 function doctorSortKey(name) {
