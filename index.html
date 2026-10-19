@@ -1181,9 +1181,21 @@ function rowForDate(dateStr) {
   return null;
 }
 
+// A schedule cell may carry a time note after the name, e.g. "Dr.Ka Seyla (16pm-19pm)".
+// For payroll and colours the note, extra spaces and upper/lower case don't matter:
+// every variant counts as the SAME doctor.
+function baseDoctorName(name) {
+  return String(name || '').replace(/\s*[\(（][^\)）]*[\)）]\s*$/, '').replace(/\s+/g, ' ').trim();
+}
+function normDoctorKey(name) { return baseDoctorName(name).toLowerCase(); }
+
 function findDoctorByNameClient(name) {
   if (!name) return null;
-  return STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0] || null;
+  var k = normDoctorKey(name);
+  if (!k) return null;
+  return STATE.doctors.filter(function (d) {
+    return (d.NameSPV && normDoctorKey(d.NameSPV) === k) || (d.NameHMV && normDoctorKey(d.NameHMV) === k);
+  })[0] || null;
 }
 
 function lindaDoctor() {
@@ -1401,10 +1413,10 @@ function contrastTextColor(hexBg) {
 
 function getNameColors(name) {
   if (!name) return { bg: null, text: '#1c2430' };
-  var doc = STATE.doctors.filter(function (d) { return d.NameSPV === name || d.NameHMV === name; })[0];
+  var doc = findDoctorByNameClient(name);
   if (doc && doc.MirrorColor) return doc.MirrorColor;
   if (doc && doc.Color) return { bg: doc.Color, text: contrastTextColor(doc.Color) };
-  var key = doc ? doc.ID : name;
+  var key = doc ? doc.ID : baseDoctorName(name);
   if (MANUAL_DOCTOR_COLORS[key]) return MANUAL_DOCTOR_COLORS[key];
   return NAME_COLOR_PALETTE[hashString(key) % NAME_COLOR_PALETTE.length];
 }
@@ -2125,11 +2137,11 @@ function capDailyEarningsClient(rowObj) {
       var name = rowObj[f];
       if (!name) return;
       var doc = findDoctorByNameClient(name);
-      var docKey = doc ? doc.ID : name;
+      var docKey = doc ? doc.ID : normDoctorKey(name);
       var key = docKey + '|' + group.key;
       var col = slotColumnByField(f);
       var rate = col ? (col.rate || 0) : 0;
-      var displayName = doc ? (group.clinic === 'SPV' ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : name;
+      var displayName = doc ? (group.clinic === 'SPV' ? (doc.NameSPV || doc.NameHMV) : (doc.NameHMV || doc.NameSPV)) : baseDoctorName(name);
       if (!buckets[key] || rate > buckets[key].rate) {
         buckets[key] = { docKey: docKey, displayName: displayName, clinic: group.clinic, period: group.key, rate: rate };
       }
