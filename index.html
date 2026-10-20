@@ -1324,7 +1324,7 @@ function renderSchedule() {
     if (isWeekend) trClasses.push('weekend');
     if (dateStr === todayStr) trClasses.push('today');
     if (isMyDuty) trClasses.push('my-duty');
-    if (isAutoOff) trClasses.push('auto-off');
+    if (isAutoOff && !(dateStr > todayStr)) trClasses.push('auto-off');
 
     html += '<tr class="' + trClasses.join(' ') + '">';
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
@@ -1333,7 +1333,13 @@ function renderSchedule() {
       '<span class="dow">' + DOW_KM[dowName] + '</span></td>';
 
     spvCols.forEach(function (c) { html += renderSlotCell(dateStr, c.field, row[c.field], clashes); });
-    html += renderOffCell(dateStr, row['SPV_Off'], isMyPersonalOff);
+    // ឈប់សម្រាក: no need to type anything — on every day I'm not on duty it shows DAY OFF by itself
+    // (worked out when drawing, so it also covers days that were never touched). A name typed
+    // here by hand still wins; an old stored "DAY OFF" is ignored on days I am working.
+    var offStored = row['SPV_Off'];
+    var futureNoSchedule = dateStr > todayStr && isAutoOff;   // a coming day nobody is scheduled on yet
+    var offValue = (offStored && offStored !== AUTO_OFF_TEXT) ? offStored : ((!isMyDuty && lindaDoctor() && !futureNoSchedule) ? AUTO_OFF_TEXT : '');
+    html += renderOffCell(dateStr, offValue, isMyPersonalOff);
     otherCols.forEach(function (c) { html += renderSlotCell(dateStr, c.field, row[c.field], clashes); });
     html += '</tr>';
   }
