@@ -384,9 +384,21 @@
 
   @media (max-width:640px){
     header.top{flex-direction:column;align-items:stretch;}
-    .tabs{width:100%;}
-    .tab{padding:9px 13px;font-size:13.5px;}
     .month-nav .month-label{min-width:0;}
+  }
+  /* phone: tabs become a bottom app-style menu */
+  @media (max-width:720px){
+    body{padding-bottom:calc(78px + env(safe-area-inset-bottom));}
+    header.top{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgb(244,246,249);}
+    .tabs{position:fixed;left:0;right:0;bottom:0;z-index:1000;width:100%;max-width:100%;margin:0;
+      gap:0;padding:6px 4px calc(6px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;
+      background:#fff;box-shadow:0 -4px 18px rgba(20,30,60,.14);overflow:hidden;justify-content:space-between;}
+    .tab{flex:1 1 0;min-width:0;flex-direction:column;justify-content:flex-start;gap:3px;padding:6px 2px;
+      border-radius:12px;font-size:10.5px;line-height:1.2;text-align:center;box-shadow:none;}
+    .tab .tab-ic{font-size:21px;}
+    .tab span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;max-width:100%;}
+    .tab.active,.tab.active:hover{background:var(--tint);color:var(--brand);box-shadow:none;font-weight:700;}
+    .tab.active .tab-ic{transform:translateY(-1px) scale(1.12);}
   }
   table.sched thead tr.period-row th{padding:5px 4px;font-size:12px;font-weight:700;border-bottom:1px solid var(--line);}
   table.sched thead th.period-th.day{background:#fff8e6;color:#9a6a00;}
