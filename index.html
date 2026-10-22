@@ -386,8 +386,29 @@
     header.top{flex-direction:column;align-items:stretch;}
     .month-nav .month-label{min-width:0;}
   }
+
+  /* notifications bell */
+  .title-row{display:flex;align-items:center;gap:10px;}
+  .bell-wrap{position:relative;}
+  .bell-btn{position:relative;width:40px;height:40px;border-radius:12px;border:1px solid #d6dce6;background:#fff;font-size:19px;cursor:pointer;line-height:1;}
+  .bell-btn:hover{background:var(--tint);}
+  .bell-badge{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#e5484d;color:#fff;font-size:11px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid #fff;box-sizing:content-box;}
+  .bell-badge.show{display:flex;}
+  .notif-panel{display:none;position:absolute;top:48px;left:0;width:min(360px,calc(100vw - 32px));max-height:70vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 12px 36px rgba(20,30,60,.22);border:1px solid #e3e8f1;z-index:1200;}
+  .notif-panel.open{display:block;}
+  .notif-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:700;border-bottom:1px solid #eef1f6;}
+  .notif-item{display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid #f1f3f8;font-size:13.5px;line-height:1.45;}
+  .notif-item:last-child{border-bottom:0;}
+  .notif-item .ic{font-size:18px;line-height:1.2;}
+  .notif-item .when{font-size:11.5px;color:#7a8499;}
+  .notif-item.warn{background:#fff5f5;}
+  .notif-item.duty{background:#f2f8ff;}
+  .notif-empty{padding:22px 14px;text-align:center;color:#7a8499;font-size:13.5px;}
+  .notif-foot{padding:10px 14px;background:#f7f9fc;border-radius:0 0 14px 14px;}
+  .notif-foot button{width:100%;padding:9px;border-radius:10px;border:1px solid #b9cdf8;background:var(--tint);color:var(--brand);font-weight:600;cursor:pointer;font-size:13px;}
   /* phone: tabs become a bottom app-style menu */
   @media (max-width:720px){
+    .notif-panel{position:fixed;left:12px;right:12px;top:64px;width:auto;}
     body{padding-bottom:calc(78px + env(safe-area-inset-bottom));}
     header.top{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgb(244,246,249);}
     .tabs{position:fixed;left:0;right:0;bottom:0;z-index:1000;width:100%;max-width:100%;margin:0;
@@ -436,8 +457,17 @@
 <div id="app">
 
   <header class="top">
-    <div>
+    <div class="title-row">
       <h1>តារាងវេន SPV + HMV</h1>
+      <div class="bell-wrap">
+        <button type="button" class="bell-btn" id="bellBtn" title="ការជូនដំណឹង">🔔</button>
+        <span class="bell-badge" id="bellBadge">0</span>
+        <div class="notif-panel" id="notifPanel">
+          <div class="notif-head"><span>🔔 ការជូនដំណឹង (៧ថ្ងៃខាងមុខ)</span></div>
+          <div id="notifList"></div>
+          <div class="notif-foot"><button type="button" id="notifEnableBtn">📲 បើកការជូនដំណឹងលើឧបករណ៍នេះ</button></div>
+        </div>
+      </div>
     </div>
     <div class="tabs">
       <div class="tab active" data-panel="panel-schedule"><span class="tab-ic">📅</span><span>កាលវិភាគ</span></div>
@@ -512,6 +542,13 @@
       </div>
       <div class="stat-row" id="incomeStats"></div>
       <div class="pay-grid" id="incomeSummaryWrap"></div>
+    </div>
+
+    <div class="card" id="importCard">
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px;">📤 ដាក់របាយការណ៍ SPV ពីឯកសារ (PDF / Excel)</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:10px;">ជ្រើសរើស Doctor Report (PDF ឬ .xlsx) — ប្រព័ន្ធអាន Daily breakdown រួចដាក់ OPD ជា Consult និង IPD ចូលក្នុងតារាង SPV ដោយស្វ័យប្រវត្តិ</div>
+      <input type="file" id="importFile" accept=".pdf,.xlsx,.xls,.csv,application/pdf" style="font-size:13px;">
+      <div id="importPreview" style="margin-top:12px;"></div>
     </div>
 
     <div class="card" style="overflow-x:auto;">
@@ -2340,6 +2377,12 @@ function bindIncomeMonthNav() {
 // every working day and each number is editable directly in place.
 function bindIncomeForm() {}
 
+function incomeEntryHasData(dateStr) {
+  var r = incomeRowForDate(dateStr);
+  if (!r || !r.byClinic) return false;
+  return Object.keys(r.byClinic).some(function (c) { var v = r.byClinic[c] || {}; return (v.consult || 0) > 0 || (v.ipd || 0) > 0; });
+}
+
 function incomeRowForDate(dateStr) {
   for (var i = 0; i < STATE.incomeEntries.length; i++) {
     if (STATE.incomeEntries[i].Date === dateStr) return STATE.incomeEntries[i];
@@ -2603,7 +2646,8 @@ function renderIncomeTable() {
 
   for (var d = 1; d <= nDays; d++) {
     var dateStr = y + '-' + pad2(m) + '-' + pad2(d);
-    if (!isWorkingDay(dateStr)) continue;
+    var offDuty = !isWorkingDay(dateStr);
+    if (offDuty && !incomeEntryHasData(dateStr)) continue;   // off-duty days only listed when they carry imported/typed counts
     anyRow = true;
     var entry = incomeRowForDate(dateStr) || {};
     var entryByClinic = entry.byClinic || {};
@@ -2646,14 +2690,15 @@ function renderIncomeTable() {
     // Only show an editable box for the clinic(s) actually worked that day —
     // the other clinic(s) just show a dash, since there's nothing to log there.
     var cells = orderedClinics.map(function (c) {
-      var works = workedClinics.indexOf(c) !== -1;
       var v = entryByClinic[c] || { consult: 0, ipd: 0 };
+      var works = workedClinics.indexOf(c) !== -1 || (offDuty && ((v.consult || 0) > 0 || (v.ipd || 0) > 0));
       var consultCell = works ? incomeNumberInput(dateStr, c, 'consult', v.consult) : '<span style="color:#c3c9d3;">—</span>';
       var ipdCell = works ? incomeNumberInput(dateStr, c, 'ipd', v.ipd) : '<span style="color:#c3c9d3;">—</span>';
       return '<td>' + consultCell + '</td><td>' + ipdCell + '</td>';
     }).join('');
 
-    html += '<tr><td class="date-cell">' + d + '/' + pad2(m) + badges + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
+    if (offDuty) badges += '<span style="display:inline-block;background:#ffe3e3;color:#c92a2a;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:4px;">ក្រៅកាលវិភាគ</span>';
+    html += '<tr' + (offDuty ? ' style="background:#fff1f1;color:#c92a2a;"' : '') + '><td class="date-cell"' + (offDuty ? ' style="color:#c92a2a;"' : '') + '>' + d + '/' + pad2(m) + badges + '<span class="dow">' + DOW_KM[DOW_NAMES_EN[dow]] + '</span></td>' +
       cells +
       '<td style="font-weight:600;">' + fmtUsd(consultIpdUsd) + '</td>' +
       '<td style="font-weight:600;' + dutyStyle + '">' + fmtUsd(dutyUsd) + '</td>' +
@@ -3004,6 +3049,244 @@ function renderArchivedClinics() {
 
 /* ---------------- UTIL ---------------- */
 var toastTimer = null;
+
+// ===== Notifications (bell + optional browser notification) =====
+function notifDateStr(offset) {
+  var d = new Date(); d.setDate(d.getDate() + offset);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function notifDayLabel(offset, dateStr) {
+  if (offset === 0) return 'ថ្ងៃនេះ';
+  if (offset === 1) return 'ថ្ងៃស្អែក';
+  return dateStr.slice(8, 10) + '/' + dateStr.slice(5, 7);
+}
+function buildNotifications() {
+  var items = [], linda = lindaDoctor(), missing = [];
+  for (var i = 0; i < 7; i++) {
+    var ds = notifDateStr(i), row = rowForDate(ds), label = notifDayLabel(i, ds);
+    if (!row || rowIsAutoOff(row)) { missing.push(label); continue; }
+    if (linda) {
+      var cols = visibleColumnsForDate(ds).filter(function (c) {
+        var n = row[c.field]; return n && (n === linda.NameSPV || n === linda.NameHMV);
+      });
+      if (cols.length && i <= 2) {
+        items.push({ cls: 'duty', ic: '🩺', when: label,
+          text: 'អ្នកមានវេន៖ ' + cols.map(function (c) { return c.clinic + ' ' + c.label; }).join(' · ') });
+      }
+    }
+    var clashes = detectClashesLocal(row);
+    if (clashes.length) {
+      items.push({ cls: 'warn', ic: '⚠️', when: label, text: 'វេនជាន់គ្នា៖ ' + clashes.join(', ') });
+    }
+  }
+  if (missing.length) {
+    items.push({ cls: '', ic: '📝', when: 'មិនទាន់មានកាលវិភាគ',
+      text: missing.length + ' ថ្ងៃ៖ ' + missing.join(', ') });
+  }
+  return items;
+}
+function updateNotifications() {
+  var badge = document.getElementById('bellBadge'), list = document.getElementById('notifList');
+  if (!badge || !list) return;
+  var items = buildNotifications();
+  var urgent = items.filter(function (x) { return x.cls; }).length;
+  badge.textContent = urgent;
+  badge.classList.toggle('show', urgent > 0);
+  list.innerHTML = items.length ? items.map(function (x) {
+    return '<div class="notif-item ' + x.cls + '"><span class="ic">' + x.ic + '</span><div><div class="when">' +
+      x.when + '</div>' + x.text + '</div></div>';
+  }).join('') : '<div class="notif-empty">គ្មានការជូនដំណឹង ✓</div>';
+  pushBrowserNotice(items);
+}
+function pushBrowserNotice(items) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    var duty = items.filter(function (x) { return x.cls === 'duty'; })
+      .filter(function (x) { return x.when === 'ថ្ងៃនេះ' || x.when === 'ថ្ងៃស្អែក'; });
+    if (!duty.length) return;
+    var key = 'notif-sent-' + notifDateStr(0);
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    new Notification('តារាងវេន SPV + HMV', { body: duty.map(function (x) { return x.when + ' — ' + x.text; }).join('\n') });
+  } catch (e) {}
+}
+(function initNotifications() {
+  var btn = document.getElementById('bellBtn'), panel = document.getElementById('notifPanel');
+  var en = document.getElementById('notifEnableBtn');
+  btn.addEventListener('click', function (e) { e.stopPropagation(); updateNotifications(); panel.classList.toggle('open'); });
+  panel.addEventListener('click', function (e) { e.stopPropagation(); });
+  document.addEventListener('click', function () { panel.classList.remove('open'); });
+  function syncEnable() {
+    if (!('Notification' in window)) { en.style.display = 'none'; return; }
+    if (Notification.permission === 'granted') { en.textContent = '✓ បានបើកការជូនដំណឹងលើឧបករណ៍នេះ'; en.disabled = true; }
+  }
+  en.addEventListener('click', function () {
+    try {
+      Notification.requestPermission().then(function () { syncEnable(); updateNotifications(); });
+    } catch (e) { showToast('ឧបករណ៍នេះមិនគាំទ្រការជូនដំណឹងទេ'); }
+  });
+  syncEnable();
+  var _rs = renderSchedule;
+  renderSchedule = function () { var r = _rs.apply(this, arguments); updateNotifications(); return r; };
+  setInterval(updateNotifications, 60000);
+  updateNotifications();
+})();
+
+// ===== Import SPV daily report (PDF / Excel) into the Income tab =====
+var IMPORT_LIBS = {
+  pdf: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  pdfWorker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+  xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+};
+var IMPORT_MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+var importPending = null;
+
+function loadScriptOnce(url) {
+  return new Promise(function (resolve, reject) {
+    if (document.querySelector('script[data-lib="' + url + '"]')) return resolve();
+    var el = document.createElement('script');
+    el.src = url; el.setAttribute('data-lib', url);
+    el.onload = function () { resolve(); };
+    el.onerror = function () { reject(new Error('ផ្ទុកឧបករណ៍អានឯកសារមិនបាន — ត្រូវការអ៊ីនធឺណិត')); };
+    document.head.appendChild(el);
+  });
+}
+
+function importDateStr(y, m, d) { return y + '-' + pad2(m) + '-' + pad2(d); }
+
+// "05/Aug/2026", "2026-08-05", "05/08/2026", Excel serial number, or a Date
+function parseAnyDate(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return importDateStr(v.getFullYear(), v.getMonth() + 1, v.getDate());
+  if (typeof v === 'number') {
+    if (v < 20000 || v > 80000) return null;
+    var dt = new Date(Math.round((v - 25569) * 86400000));
+    return importDateStr(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  }
+  var t = String(v).trim(), m;
+  if ((m = t.match(/^(\d{1,2})[\/\-\s]([A-Za-z]{3})[A-Za-z]*[\/\-\s](\d{4})/)) && IMPORT_MONTHS[m[2].toLowerCase()])
+    return importDateStr(+m[3], IMPORT_MONTHS[m[2].toLowerCase()], +m[1]);
+  if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return importDateStr(+m[1], +m[2], +m[3]);
+  if ((m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) return importDateStr(+m[3], +m[2], +m[1]);
+  return null;
+}
+
+function parseReportText(text) {
+  var re = /(\d{1,2})\/([A-Za-z]{3})\/(\d{4})\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/g, m, out = {};
+  while ((m = re.exec(text))) {
+    var mon = IMPORT_MONTHS[m[2].toLowerCase()];
+    if (!mon) continue;
+    out[importDateStr(+m[3], mon, +m[1])] = { consult: +m[7], ipd: +m[8] };
+  }
+  return out;
+}
+
+function parseReportRows(rows) {
+  var hdr = -1, cDate = -1, cOpd = -1, cIpd = -1;
+  for (var r = 0; r < rows.length && hdr < 0; r++) {
+    var low = (rows[r] || []).map(function (c) { return String(c === null || c === undefined ? '' : c).trim().toLowerCase(); });
+    var d = low.findIndex(function (c) { return /^date/.test(c); });
+    var o = low.findIndex(function (c) { return c === 'opd' || c === 'consult'; });
+    var i = low.findIndex(function (c) { return c === 'ipd'; });
+    if (d >= 0 && o >= 0 && i >= 0) { hdr = r; cDate = d; cOpd = o; cIpd = i; }
+  }
+  if (hdr < 0) throw new Error('រកមិនឃើញជួរ Date / OPD / IPD ក្នុងឯកសារទេ');
+  var out = {};
+  for (var k = hdr + 1; k < rows.length; k++) {
+    var row = rows[k] || [], ds = parseAnyDate(row[cDate]);
+    if (!ds) continue;
+    out[ds] = { consult: Math.max(0, Number(row[cOpd]) || 0), ipd: Math.max(0, Number(row[cIpd]) || 0) };
+  }
+  return out;
+}
+
+async function readReportFile(file) {
+  var name = file.name.toLowerCase(), buf;
+  if (/\.pdf$/.test(name) || file.type === 'application/pdf') {
+    if (!window.pdfjsLib) await loadScriptOnce(IMPORT_LIBS.pdf);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = IMPORT_LIBS.pdfWorker;
+    buf = await file.arrayBuffer();
+    var pdf = await window.pdfjsLib.getDocument({ data: buf }).promise, text = '';
+    for (var p = 1; p <= pdf.numPages; p++) {
+      var page = await pdf.getPage(p), tc = await page.getTextContent();
+      text += tc.items.map(function (it) { return it.str; }).join(' ') + ' ';
+    }
+    return parseReportText(text);
+  }
+  if (/\.(xlsx|xls|csv)$/.test(name)) {
+    if (!window.XLSX) await loadScriptOnce(IMPORT_LIBS.xlsx);
+    buf = await file.arrayBuffer();
+    var wb = window.XLSX.read(buf, { type: 'array' }), best = {};
+    wb.SheetNames.forEach(function (sn) {
+      try {
+        var rows = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' });
+        var got = parseReportRows(rows);
+        Object.keys(got).forEach(function (k) { best[k] = got[k]; });
+      } catch (e) { /* sheet without the table */ }
+    });
+    if (!Object.keys(best).length) throw new Error('រកមិនឃើញជួរ Date / OPD / IPD ក្នុងឯកសារទេ');
+    return best;
+  }
+  throw new Error('គាំទ្រតែ PDF និង Excel (.xlsx) ប៉ុណ្ណោះ');
+}
+
+function showImportPreview(parsed, fileName) {
+  var box = document.getElementById('importPreview');
+  var dates = Object.keys(parsed).sort();
+  if (!dates.length) { box.innerHTML = '<div style="color:#c0392b;">មិនឃើញទិន្នន័យប្រចាំថ្ងៃក្នុងឯកសារ ' + escapeHtml(fileName) + ' ទេ</div>'; importPending = null; return; }
+  var matched = dates.filter(isWorkingDay), other = dates.filter(function (d) { return !isWorkingDay(d); });
+  var sum = function (arr, k) { return arr.reduce(function (a, d) { return a + parsed[d][k]; }, 0); };
+  importPending = { parsed: parsed, dates: dates, matched: matched, other: other };
+  box.innerHTML =
+    '<div style="background:#f4f8ff;border:1px solid #cfe0ff;border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.7;">' +
+    '<b>' + escapeHtml(fileName) + '</b><br>' +
+    'រកឃើញ <b>' + dates.length + '</b> ថ្ងៃ (' + dates[0] + ' → ' + dates[dates.length - 1] + ') · Consult(OPD) <b>' + sum(dates, 'consult') + '</b> · IPD <b>' + sum(dates, 'ipd') + '</b><br>' +
+    '✓ ត្រូវនឹងថ្ងៃអ្នកធ្វើវេនក្នុងកាលវិភាគ: <b>' + matched.length + '</b> ថ្ងៃ' +
+    (other.length ? '<br><span style="color:#c92a2a;">🔴 ក្រៅកាលវិភាគ: <b>' + other.length + '</b> ថ្ងៃ (' + other.map(function (d) { return d.slice(8) + '/' + d.slice(5, 7); }).join(', ') + ') — បង្ហាញពណ៌ក្រហម ហើយរាប់ចូលចំណូលសរុបធម្មតា</span>' : '') +
+    '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">' +
+    '<button type="button" id="importApplyBtn" class="today-btn" style="background:var(--brand);color:#fff;border-color:var(--brand);">✓ ដាក់ចូលតារាង SPV</button>' +
+    '<button type="button" id="importCancelBtn" class="today-btn">បោះបង់</button></div></div>';
+  document.getElementById('importApplyBtn').addEventListener('click', applyImport);
+  document.getElementById('importCancelBtn').addEventListener('click', clearImport);
+}
+
+function clearImport() {
+  importPending = null;
+  document.getElementById('importPreview').innerHTML = '';
+  document.getElementById('importFile').value = '';
+}
+
+function applyImport() {
+  if (!importPending) return;
+  var dates = importPending.matched.concat(importPending.other);
+  dates.forEach(function (ds) {
+    var row = incomeRowForDate(ds);
+    if (!row) { row = { Date: ds, byClinic: {} }; STATE.incomeEntries.push(row); }
+    if (!row.byClinic) row.byClinic = {};
+    row.byClinic.SPV = { consult: importPending.parsed[ds].consult, ipd: importPending.parsed[ds].ipd };
+  });
+  var first = dates.sort()[0];
+  persistIncomeState();
+  if (first) { STATE.year = Number(first.slice(0, 4)); STATE.month = Number(first.slice(5, 7)); }
+  var n = dates.length;
+  clearImport();
+  refreshAllMonthViews();
+  showToast('ដាក់ចូល SPV រួចរាល់ ✓ ' + n + ' ថ្ងៃ');
+}
+
+(function initIncomeImport() {
+  var inp = document.getElementById('importFile');
+  if (!inp) return;
+  inp.addEventListener('change', async function () {
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    var box = document.getElementById('importPreview');
+    box.innerHTML = '<div style="color:var(--sub);">⏳ កំពុងអាន ' + escapeHtml(f.name) + ' …</div>';
+    try { showImportPreview(await readReportFile(f), f.name); }
+    catch (e) { importPending = null; box.innerHTML = '<div style="color:#c0392b;">✗ ' + escapeHtml(e && e.message ? e.message : String(e)) + '</div>'; }
+  });
+})();
+
 function showToast(msg) {
   var t = document.getElementById('toast');
   t.textContent = msg;
