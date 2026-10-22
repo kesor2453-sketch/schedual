@@ -2666,16 +2666,9 @@ var DOW_NAMES_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 
 function incomeNumberInput(dateStr, clinic, type, val) {
   var a = "'" + dateStr + "','" + escapeAttr(clinic) + "','" + type + "'";
-  return '<span class="stepper"><button type="button" class="st-btn" onclick="stepIncome(' + a + ',-1)">−</button>' +
-    '<input type="number" min="0" class="edit-select" style="text-align:center;" value="' + (val || 0) +
-    '" onfocus="this.select()" onchange="updateIncomeCell(' + a + ',this.value)">' +
-    '<button type="button" class="st-btn" onclick="stepIncome(' + a + ',1)">+</button></span>';
+  return '<input type="number" min="0" class="edit-select" style="width:76px;text-align:center;font-weight:700;" value="' + (val || 0) +
+    '" onfocus="this.select()" onchange="updateIncomeCell(' + a + ',this.value)">';
 }
-function stepIncome(dateStr, clinic, type, delta) {
-  var r = incomeRowForDate(dateStr), cur = (r && r.byClinic && r.byClinic[clinic]) ? (r.byClinic[clinic][type] || 0) : 0;
-  updateIncomeCell(dateStr, clinic, type, Math.max(0, cur + delta));
-}
-window.stepIncome = stepIncome;
 
 // read-only box (looks like the number inputs but cannot be typed in)
 function roBox(text, extraStyle) {
@@ -2752,7 +2745,7 @@ function renderIncomeTable() {
     // the other clinic(s) just show a dash, since there's nothing to log there.
     var cells = orderedClinics.map(function (c) {
       var v = entryByClinic[c] || { consult: 0, ipd: 0 };
-      var works = workedClinics.indexOf(c) !== -1 || (offDuty && ((v.consult || 0) > 0 || (v.ipd || 0) > 0));
+      var works = workedClinics.indexOf(c) !== -1 || ((v.consult || 0) > 0 || (v.ipd || 0) > 0);   // a clinic with counts is always editable, even when I was on duty at another clinic that day
       var consultCell = works ? incomeNumberInput(dateStr, c, 'consult', v.consult) : '<span style="color:#c3c9d3;">—</span>';
       var ipdCell = works ? incomeNumberInput(dateStr, c, 'ipd', v.ipd) : '<span style="color:#c3c9d3;">—</span>';
       return '<td>' + consultCell + '</td><td>' + ipdCell + '</td>';
