@@ -2604,7 +2604,7 @@ function computeIncomeSummary(year, month) {
   var extra = getExtraForMonth(year, month);
   Object.keys(extra).forEach(function (c) {
     if (!byClinic[c]) byClinic[c] = { consult: 0, ipd: 0, usd: 0 };
-    if (extra[c] && typeof extra[c] === 'object') { byClinic[c].consult += extra[c].consult || 0; byClinic[c].ipd += extra[c].ipd || 0; byClinic[c].extraConsult = extra[c].consult || 0; }
+    if (extra[c] && typeof extra[c] === 'object') { byClinic[c].ipd += extra[c].ipd || 0; byClinic[c].extraConsult = extra[c].consult || 0; }
     byClinic[c].usd += extraDollarValue(extra[c], rates, c);
   });
 
@@ -2641,7 +2641,7 @@ function renderIncome() {
       '<table class="pay"><tbody>' +
       '<tr><td>Consult</td><td class="num">' + d.consult + ' នាក់</td></tr>' +
       '<tr><td>IPD</td><td class="num">' + d.ipd + ' នាក់</td></tr>' +
-      '<tr style="color:var(--sub);"><td>↳ Consult ក្រៅ <span style="font-size:10.5px;">(រួមក្នុង Consult)</span></td><td class="num">' + (d.extraConsult || 0) + ' នាក់</td></tr>' +
+      '<tr><td>Consult ក្រៅ</td><td class="num">' + (d.extraConsult || 0) + ' នាក់</td></tr>' +
       '<tr style="font-weight:700;"><td>សរុប</td><td class="num">' + fmtUsd(d.usd) + '<br><span style="font-weight:400;font-size:11px;color:var(--sub);">' + fmtKhr(d.khr) + '</span></td></tr>' +
       '</tbody></table></div>';
   }
