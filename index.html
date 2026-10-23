@@ -2623,7 +2623,7 @@ function renderIncome() {
     .concat(clinicNamesForMonth.filter(function (c) { return c !== 'SPV' && c !== 'HMV'; }).sort());
 
   var totalUsd = 0, totalConsult = 0, totalIpd = 0;
-  orderedClinics.forEach(function (c) { totalUsd += byClinic[c].usd; totalConsult += byClinic[c].consult; totalIpd += byClinic[c].ipd; });
+  orderedClinics.forEach(function (c) { totalUsd += byClinic[c].usd; totalConsult += byClinic[c].consult + (byClinic[c].extraConsult || 0); totalIpd += byClinic[c].ipd; });
 
   var statsEl = document.getElementById('incomeStats');
   statsEl.className = 'inc-tiles';
