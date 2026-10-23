@@ -2597,6 +2597,8 @@ function computeIncomeSummary(year, month) {
       byClinic[c].consult += v.consult || 0;
       byClinic[c].ipd += v.ipd || 0;
       byClinic[c].usd += (v.consult || 0) * r.consult + (v.ipd || 0) * r.ipd;
+      byClinic[c].consultUsd = (byClinic[c].consultUsd || 0) + (v.consult || 0) * r.consult;
+      byClinic[c].ipdUsd = (byClinic[c].ipdUsd || 0) + (v.ipd || 0) * r.ipd;
     });
   });
 
@@ -2605,7 +2607,7 @@ function computeIncomeSummary(year, month) {
   var extra = getExtraForMonth(year, month);
   Object.keys(extra).forEach(function (c) {
     if (!byClinic[c]) byClinic[c] = { consult: 0, ipd: 0, usd: 0 };
-    if (extra[c] && typeof extra[c] === 'object') { byClinic[c].ipd += extra[c].ipd || 0; byClinic[c].extraConsult = extra[c].consult || 0; }
+    if (extra[c] && typeof extra[c] === 'object') { byClinic[c].ipd += extra[c].ipd || 0; byClinic[c].extraConsult = extra[c].consult || 0; byClinic[c].ipdUsd = (byClinic[c].ipdUsd || 0) + (extra[c].ipd || 0) * getClinicRate(rates, c).ipd; }
     byClinic[c].usd += extraDollarValue(extra[c], rates, c);
   });
 
@@ -2634,15 +2636,19 @@ function renderIncome() {
     '<div class="inc-tile t-blue"><div class="ic">🩺</div><div class="n">' + totalConsult + '</div><div class="l">Consult សរុប</div></div>' +
     '<div class="inc-tile t-purple"><div class="ic">🛏️</div><div class="n">' + totalIpd + '</div><div class="l">IPD សរុប</div></div>';
 
+  function line(label, n, usd) {
+    return '<tr><td>' + label + '</td><td class="num">' + n + ' នាក់<br><span style="font-weight:400;font-size:11px;color:var(--sub);">= ' +
+      fmtUsd(usd) + ' · ' + fmtKhr(usd * STATE.khrPerUsd) + '</span></td></tr>';
+  }
   function clinicCard(name, d) {
     var isKnown = name === 'SPV' || name === 'HMV';
     var cls = name === 'SPV' ? 'spv' : (name === 'HMV' ? 'hmv' : '');
     var style = isKnown ? '' : ' style="color:' + clinicHeaderColors(name).text + ';"';
     return '<div class="pay-col"><h3 class="' + cls + '"' + style + '>' + escapeHtml(name) + '</h3>' +
       '<table class="pay"><tbody>' +
-      '<tr><td>Consult</td><td class="num">' + d.consult + ' នាក់</td></tr>' +
-      '<tr><td>IPD</td><td class="num">' + d.ipd + ' នាក់</td></tr>' +
-      '<tr><td>Consult ក្រៅ</td><td class="num">' + (d.extraConsult || 0) + ' នាក់</td></tr>' +
+      line('Consult', d.consult, d.consultUsd || 0) +
+      line('IPD', d.ipd, d.ipdUsd || 0) +
+      line('Consult ក្រៅ', d.extraConsult || 0, d.extraConsult || 0) +
       '<tr style="font-weight:700;"><td>សរុប</td><td class="num">' + fmtUsd(d.usd) + '<br><span style="font-weight:400;font-size:11px;color:var(--sub);">' + fmtKhr(d.khr) + '</span></td></tr>' +
       '</tbody></table></div>';
   }
