@@ -2514,7 +2514,8 @@ function extraDollarValue(raw, rates, clinic) {
   if (raw == null) return 0;
   if (typeof raw === 'object') {
     var r = getClinicRate(rates, clinic);
-    return (raw.consult || 0) * r.consult + (raw.ipd || 0) * r.ipd + (Number(raw.usd) || 0);
+    // outside consults are a flat $1 each; an older IPD count / $ amount keeps being counted until removed
+    return (raw.consult || 0) * 1 + (raw.ipd || 0) * r.ipd + (Number(raw.usd) || 0);
   }
   return Number(raw) || 0;
 }
@@ -2770,14 +2771,15 @@ function renderIncomeTable() {
     var raw = extra[c];
     var obj = (raw && typeof raw === 'object') ? raw : { consult: 0, ipd: 0, usd: (typeof raw === 'number' ? raw : 0) };
     extraUsd += extraDollarValue(raw, rates, c);
-    var legacy = (Number(obj.usd) || 0) > 0
-      ? '<div style="font-size:10.5px;color:var(--sub);margin-top:3px;">+ ' + fmtUsd(obj.usd) + ' (ចំនួនចាស់) ' +
-        '<span style="cursor:pointer;color:var(--off);font-weight:700;" title="លុបចំនួនចាស់" onclick="clearExtraLegacyUsd(\'' + escapeAttr(c) + '\')">✕</span></div>'
-      : '';
-    return '<td>' + extraNumberInput(c, 'consult', obj.consult) + legacy + '</td><td>' + extraNumberInput(c, 'ipd', obj.ipd) + '</td>';
+    var legacy = '';
+    if ((Number(obj.usd) || 0) > 0) legacy += '<div style="font-size:10.5px;color:var(--sub);margin-top:3px;">+ ' + fmtUsd(obj.usd) + ' (ចំនួនចាស់) ' +
+        '<span style="cursor:pointer;color:var(--off);font-weight:700;" title="លុបចំនួនចាស់" onclick="clearExtraLegacyUsd(\'' + escapeAttr(c) + '\')">✕</span></div>';
+    if ((Number(obj.ipd) || 0) > 0) legacy += '<div style="font-size:10.5px;color:var(--sub);margin-top:3px;">+ IPD ' + obj.ipd + ' (ចំនួនចាស់) ' +
+        '<span style="cursor:pointer;color:var(--off);font-weight:700;" title="លុបចំនួនចាស់" onclick="updateIncomeExtra(\'' + escapeAttr(c) + '\',\'ipd\',0)">✕</span></div>';
+    return '<td colspan="2">' + extraNumberInput(c, 'consult', obj.consult) + legacy + '</td>';
   }).join('');
   html += '<tr style="background:#f7f8fb;">' +
-    '<td class="date-cell" style="font-style:italic;color:var(--sub);">+ ចំនួន Consult ក្រៅ (ក្រៅតារាងថ្ងៃ)</td>' +
+    '<td class="date-cell" style="font-style:italic;color:var(--sub);">+ ចំនួន Consult ក្រៅ (១ = $1)</td>' +
     extraCells +
     '<td>' + roBox(fmtUsd(extraUsd), 'font-weight:600;') + '</td>' +
     '<td>' + roBox('—', 'color:#c3c9d3;') + '</td>' +
