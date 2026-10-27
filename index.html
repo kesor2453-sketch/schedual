@@ -486,8 +486,8 @@
     header.top{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgb(244,246,249);}
     .tabs{position:fixed;left:0;right:0;bottom:0;z-index:1000;width:100%;max-width:100%;margin:0;
       gap:0;padding:6px 4px calc(6px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;
-      background:#fff;box-shadow:0 -4px 18px rgba(20,30,60,.14);overflow:hidden;justify-content:space-between;}
-    .tab{flex:1 1 0;min-width:0;flex-direction:column;justify-content:flex-start;gap:3px;padding:6px 2px;
+      background:#fff;box-shadow:0 -4px 18px rgba(20,30,60,.14);overflow-x:auto;scrollbar-width:none;justify-content:flex-start;}
+    .tab{flex:1 0 60px;min-width:60px;flex-direction:column;justify-content:flex-start;gap:3px;padding:6px 2px;
       border-radius:12px;font-size:10.5px;line-height:1.2;text-align:center;box-shadow:none;}
     .tab .tab-ic{font-size:21px;}
     .tab span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;max-width:100%;}
@@ -545,6 +545,7 @@
     <div class="tabs">
       <div class="tab active" data-panel="panel-schedule"><span class="tab-ic">📅</span><span>កាលវិភាគ</span></div>
       <div class="tab" data-panel="panel-doctors"><span class="tab-ic">👩‍⚕️</span><span>គ្រូពេទ្យ</span></div>
+      <div class="tab" data-panel="panel-attendance"><span class="tab-ic">🧾</span><span>វត្តមាន</span></div>
       <div class="tab" data-panel="panel-payroll"><span class="tab-ic">💵</span><span>ប្រាក់ខែ</span></div>
       <div class="tab" data-panel="panel-income"><span class="tab-ic">📈</span><span>ចំណូល</span></div>
       <div class="tab" data-panel="panel-history"><span class="tab-ic">🏥</span><span>លុយធ្វើការគ្លីនិកសរុប</span></div>
@@ -579,6 +580,11 @@
       <div class="doc-grid" id="docGrid"></div>
     </div>
 
+</div>
+  </div>
+
+  <!-- ATTENDANCE -->
+  <div class="panel" id="panel-attendance">
     <div class="card" id="attCard">
       <div class="att-head">
         <div style="font-weight:800;font-size:16px;">🧾 សន្លឹកវត្តមានប្រចាំខែ <span style="font-weight:400;font-size:12px;color:var(--sub);">(ម៉ោងស្កេនចូល-ចេញ · ហត្ថាលេខា)</span></div>
@@ -614,7 +620,6 @@
         </div>
       </div>
     </div>
-  </div>
 
   <!-- PAYROLL -->
   <div class="panel" id="panel-payroll">
@@ -765,6 +770,8 @@ var STATE = {
   archivedClinics: []           // clinics you no longer work at — data kept, just hidden from the grid
 };
 
+function khNum(n) { return String(n).replace(/\d/g, function (d) { return '០១២៣៤៥៦៧៨៩'.charAt(+d); }); }
+function monthLabelKm(y, m) { return 'ខែ' + MONTH_NAMES_KM[m - 1] + ' ឆ្នាំ' + khNum(y); }
 var MONTH_NAMES_KM = ['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'];
 var DOW_KM = {'Sunday':'អាទិត្យ','Monday':'ចន្ទ','Tuesday':'អង្គារ','Wednesday':'ពុធ','Thursday':'ព្រហ','Friday':'សុក្រ','Saturday':'សៅរ៍'};
 var SLOT_LABELS = {SPV_Day1:'SPV ១',SPV_Day2:'SPV ២',SPV_Day3:'SPV ៣',SPV_Night:'SPV យប់',HMV_Day:'HMV ថ្ងៃ',HMV_Night:'HMV យប់'};
@@ -1252,6 +1259,8 @@ function bindTabs() {
       if (t.dataset.panel === 'panel-history') renderClinicLedger();
       if (t.dataset.panel === 'panel-doctors') renderDoctors();
       if (t.dataset.panel === 'panel-income') renderIncome();
+      if (t.dataset.panel === 'panel-attendance') { renderAttSheet(true); renderQrCard(); }
+      try { t.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {}
     });
   });
 }
@@ -1302,7 +1311,7 @@ function getAvailableMonths() {
 
 function monthOptionLabel(ym) {
   var parts = ym.split('-');
-  return MONTH_NAMES_KM[Number(parts[1]) - 1] + ' ' + parts[0];
+  return monthLabelKm(parts[0], Number(parts[1]));
 }
 
 function refreshMonthPickers() {
@@ -1336,7 +1345,7 @@ function shiftMonth(delta) {
 
 /* ---------------- SCHEDULE RENDER (fully from memory) ---------------- */
 function loadSchedule() {
-  document.getElementById('monthLabel').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  document.getElementById('monthLabel').textContent = monthLabelKm(STATE.year, STATE.month);
   document.getElementById('clashBanner').classList.remove('show');
   renderSchedule();
   refreshMonthPickers();
@@ -1416,7 +1425,7 @@ function renderSchedule() {
   var today = new Date();
   var todayStr = today.getFullYear() + '-' + pad2(today.getMonth() + 1) + '-' + pad2(today.getDate());
 
-  document.getElementById('monthLabel').textContent = MONTH_NAMES_KM[m - 1] + ' ' + y;
+  document.getElementById('monthLabel').textContent = monthLabelKm(y, m);
 
   var allClashDays = [];
   var myDutyDayCount = 0;
@@ -1781,7 +1790,7 @@ function renderClinicEditor() {
   if (STATE.editingClinic === 'LEDGER') { renderLedgerEditor(); return; }
   if (STATE.editingClinic === 'DOCTORS') { renderDoctorEditor(); return; }
   var mk = monthKey(STATE.year, STATE.month);
-  var monthLabel = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  var monthLabel = monthLabelKm(STATE.year, STATE.month);
   var nextLabel = monthOptionLabel(monthAfterKey(mk));
   var clinics = activeClinicsForMonth(STATE.year, STATE.month);
 
@@ -2398,7 +2407,7 @@ function getMyDutyPayForDate(dateStr) {
 }
 
 function loadPayroll() {
-  document.getElementById('monthLabelPay').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  document.getElementById('monthLabelPay').textContent = monthLabelKm(STATE.year, STATE.month);
   var summary = computePayrollClient(STATE.year, STATE.month);
   var incomeSummary = computeIncomeSummary(STATE.year, STATE.month);
   renderPayroll(summary, incomeSummary);
@@ -2693,7 +2702,7 @@ function computeIncomeSummary(year, month) {
 
 function renderIncome() {
   renderIncomeRates();
-  document.getElementById('monthLabelIncome').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  document.getElementById('monthLabelIncome').textContent = monthLabelKm(STATE.year, STATE.month);
   refreshMonthPickers();
 
   var byClinic = computeIncomeSummary(STATE.year, STATE.month);
@@ -3089,7 +3098,7 @@ function renderClinicLedger() {
   var mk = monthKey(y, m);
   var clinicNames = STATE.clinicNames;
 
-  document.getElementById('monthLabelHistory').textContent = MONTH_NAMES_KM[m - 1] + ' ' + y;
+  document.getElementById('monthLabelHistory').textContent = monthLabelKm(y, m);
 
   var payrollSummary = computePayrollClient(y, m);
   var incomeSummary = computeIncomeSummary(y, m);
@@ -3463,6 +3472,18 @@ function watchAtt(y, m) {
   } catch (e) { attSubs[ym] = false; }
 }
 
+// Only the first scan-in and the last scan-out exist. A shift that crosses days (24 h, 48 h …)
+// is filled in automatically: every day in between runs 07:00 → 07:00.
+function spreadShift(res, inMs, outMs) {
+  var cur = inMs;
+  for (var n = 0; n < 12; n++) {
+    var D = ppDate(cur), nb = ppMs(ppDate(ppMs(D, '00:00') + 86400000), '07:00');
+    if (outMs <= nb + 3 * 3600000) { res[D] = { in: cur, out: outMs }; return; }
+    res[D] = { in: cur, out: nb };
+    cur = nb;
+  }
+}
+
 // per-day { in, out } (ms) for one doctor, from scans + hand corrections
 function attCalc(docId, ym) {
   var recs = (ATT[ym] || []).filter(function (r) { return r.id === docId && r.at; });
@@ -3472,11 +3493,12 @@ function attCalc(docId, ym) {
   ins.forEach(function (r, i) {
     var D = ppDate(r.at);
     if (res[D] && res[D].in) return;
-    res[D] = { in: r.at };
-    var nextIn = ins[i + 1] ? ins[i + 1].at : Infinity;
+    var nextIn = ins[i + 1] ? ins[i + 1].at : Infinity, matched = null;
     for (var k = 0; k < outs.length; k++) {
-      if (!used[k] && outs[k].at > r.at && outs[k].at < r.at + 30 * 3600000 && outs[k].at < nextIn) { res[D].out = outs[k].at; used[k] = true; break; }
+      if (!used[k] && outs[k].at > r.at && outs[k].at < r.at + 120 * 3600000 && outs[k].at < nextIn) { matched = outs[k].at; used[k] = true; break; }
     }
+    if (matched === null) { res[D] = { in: r.at }; return; }
+    spreadShift(res, r.at, matched);
   });
   outs.forEach(function (r, k) { if (used[k]) return; var D = ppDate(r.at); if (!res[D]) res[D] = {}; if (!res[D].out && !res[D].in) res[D].out = r.at; });
   var latest = {};
@@ -3491,9 +3513,10 @@ function attCalc(docId, ym) {
   return res;
 }
 
-function attShiftTags(doc, ds) {
+function attShiftTags(doc, ds, clinic) {
   var row = rowForDate(ds); if (!row) return [];
   return visibleColumnsForDate(ds).filter(function (c) {
+    if (clinic && c.clinic !== clinic) return false;
     var f = row[c.field] ? findDoctorByNameClient(row[c.field]) : null; return f && f.ID === doc.ID;
   }).map(function (c) { return { night: c.period === 'NIGHT', text: c.clinic + ' ' + c.label }; });
 }
@@ -3508,22 +3531,22 @@ function attMonthLocked() {
   return ym < nowYm;
 }
 
-function attRows(doc, editable) {
+function attRows(doc, editable, clinic) {
   var locked = attMonthLocked();
   var y = STATE.year, m = STATE.month, ym = y + '-' + pad2(m), nd = daysInMonth(y, m), A = attCalc(doc.ID, ym);
   var rows = '', totMin = 0, worked = 0;
   for (var d = 1; d <= nd; d++) {
-    var ds = ym + '-' + pad2(d), dow = new Date(y, m - 1, d).getDay(), a = A[ds] || {}, tags = attShiftTags(doc, ds);
+    var ds = ym + '-' + pad2(d), dow = new Date(y, m - 1, d).getDay(), tags = attShiftTags(doc, ds, clinic), a = (clinic && !tags.length) ? {} : (A[ds] || {});
     var mins = (a.in && a.out && a.out > a.in) ? Math.round((a.out - a.in) / 60000) : 0;
     if (mins) { totMin += mins; worked++; }
     var inV = a.in ? ppHM(a.in) : '', outV = a.out ? ppHM(a.out) : '';
-    var outNext = (a.in && a.out && ppDate(a.out) !== ppDate(a.in)) ? ' <small>(+១)</small>' : '';
+    var outNext = '';
     var cellIn, cellOut;
     if (editable) {
       var dis = locked ? ' disabled' : '';
       cellIn = '<input type="time" class="att-time" data-d="' + ds + '" data-t="in" value="' + inV + '"' + dis + '>';
       cellOut = '<input type="time" class="att-time" data-d="' + ds + '" data-t="out" value="' + outV + '"' + dis + '>' + outNext;
-    } else { cellIn = inV; cellOut = outV + (outNext ? ' (+1)' : ''); }
+    } else { cellIn = inV; cellOut = outV; }
     rows += '<tr class="' + ((dow === 0 || dow === 6) ? 'we ' : '') + (tags.length || a.in ? '' : 'off') + '">' +
       '<td class="' + (editable ? 'd' : 'l') + '">' + d + '/' + pad2(m) + (editable ? '<small>' + DOW_KM[DOW_NAMES_EN[dow]] + '</small>' : ' ' + DOW_KM[DOW_NAMES_EN[dow]]) + '</td>' +
       shiftCell(tags, false, editable) + shiftCell(tags, true, editable) +
@@ -3547,7 +3570,7 @@ function renderAttSheet(force) {
     sel.innerHTML = list.map(function (d) { return '<option value="' + escapeAttr(d.ID) + '">' + escapeHtml(docName(d)) + '</option>'; }).join('');
   }
   sel.value = attDocId;
-  document.getElementById('attMonthLabel').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  document.getElementById('attMonthLabel').textContent = monthLabelKm(STATE.year, STATE.month);
   watchAtt(STATE.year, STATE.month);
   var doc = list.filter(function (d) { return d.ID === attDocId; })[0];
   var active = document.activeElement;
@@ -3555,27 +3578,61 @@ function renderAttSheet(force) {
   wrap.innerHTML = (attMonthLocked() ? '<div style="background:#f3f5f9;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:8px;">🔒 ខែកន្លងផុតហើយ — មិនអាចកែបានទេ (មើល និងព្រីនបាន)</div>' : '') + '<table class="att">' + ATT_HEAD + '<tbody>' + attRows(doc, true) + '</tbody></table>';
 }
 
-function attPage(doc) {
-  return '<div class="ps-page"><div class="ps-title">សន្លឹកវត្តមាន — ' + escapeHtml(docName(doc)) + '</div><div class="ps-sub">' + MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year + '</div>' +
-    '<table class="pst">' + ATT_HEAD.replace('min-width:110px;', 'width:22%;') + '<tbody>' + attRows(doc, false) + '</tbody></table></div>';
+function attPage(doc, clinic) {
+  return '<div class="ps-page"><div class="ps-title">សន្លឹកវត្តមាន — ' + escapeHtml(docName(doc)) + (clinic ? ' — ' + escapeHtml(clinic) : '') + '</div><div class="ps-sub">' + monthLabelKm(STATE.year, STATE.month) + '</div>' +
+    '<table class="pst">' + ATT_HEAD.replace('min-width:110px;', 'width:22%;') + '<tbody>' + attRows(doc, false, clinic) + '</tbody></table></div>';
+}
+// clinics a doctor (or everyone, doc = null) has shifts at this month
+function attClinicsFor(doc) {
+  var ym = STATE.year + '-' + pad2(STATE.month), nd = daysInMonth(STATE.year, STATE.month), seen = {}, out = [];
+  (doc ? [doc] : activeDoctorList()).forEach(function (d) {
+    for (var i = 1; i <= nd; i++) attShiftTags(d, ym + '-' + pad2(i)).length && visibleColumnsForDate(ym + '-' + pad2(i)).forEach(function (c) {
+      if (!seen[c.clinic] && attShiftTags(d, ym + '-' + pad2(i), c.clinic).length) { seen[c.clinic] = 1; out.push(c.clinic); }
+    });
+  });
+  if (!out.length) activeClinicsForMonth(STATE.year, STATE.month).forEach(function (c) { out.push(c); });
+  return out;
+}
+function askClinic(clinics, cb) {
+  var old = document.getElementById('clinicAsk'); if (old) old.remove();
+  var ov = document.createElement('div'); ov.id = 'clinicAsk';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(20,30,60,.45);display:flex;align-items:center;justify-content:center;padding:16px;';
+  var btn = 'display:block;width:100%;padding:13px;margin-top:10px;border-radius:12px;border:1px solid #d6dce6;background:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;';
+  ov.innerHTML = '<div style="background:#fff;border-radius:18px;padding:20px;max-width:340px;width:100%;box-shadow:0 14px 40px rgba(0,0,0,.3);">' +
+    '<div style="font-weight:800;font-size:16px;">🖨️ ព្រីនសម្រាប់គ្លីនិកមួយណា?</div>' +
+    '<div style="font-size:12.5px;color:var(--sub);margin-top:4px;">ព្រីនដាច់ដោយឡែកតែមួយគ្លីនិក</div>' +
+    clinics.map(function (c, i) { return '<button type="button" data-i="' + i + '" style="' + btn + 'color:var(--brand);border-color:#b9cdf8;background:#f2f6ff;">' + escapeHtml(c) + '</button>'; }).join('') +
+    '<button type="button" data-all="1" style="' + btn + '">ទាំងអស់ (រួម)</button>' +
+    '<button type="button" data-x="1" style="' + btn + 'border:0;color:#8a93a6;font-weight:600;">បោះបង់</button></div>';
+  ov.addEventListener('click', function (e) {
+    var t = e.target.closest('button'), close = function () { ov.remove(); };
+    if (t && t.dataset.i !== undefined) { close(); cb(clinics[+t.dataset.i]); }
+    else if (t && t.dataset.all) { close(); cb(null); }
+    else if (t && t.dataset.x || e.target === ov) close();
+  });
+  document.body.appendChild(ov);
 }
 function printAttSheet() {
   var list = activeDoctorList(), doc = list.filter(function (d) { return d.ID === attDocId; })[0]; if (!doc) return;
-  document.getElementById('psheet').innerHTML = attPage(doc);
-  runPrint('portrait');
-}
-// every doctor who has a shift or a scan this month, one A4 page each
-function printAllAttSheets() {
-  var ym = STATE.year + '-' + pad2(STATE.month), nd = daysInMonth(STATE.year, STATE.month), list = activeDoctorList();
-  var used = list.filter(function (doc) {
-    if (Object.keys(attCalc(doc.ID, ym)).some(function (k) { return k.indexOf(ym) === 0; })) return true;
-    for (var d = 1; d <= nd; d++) if (attShiftTags(doc, ym + '-' + pad2(d)).length) return true;
-    return false;
+  askClinic(attClinicsFor(doc), function (clinic) {
+    document.getElementById('psheet').innerHTML = attPage(doc, clinic);
+    runPrint('portrait');
   });
-  if (!used.length) used = list;
-  if (!used.length) return;
-  document.getElementById('psheet').innerHTML = used.map(attPage).join('');
-  runPrint('portrait');
+}
+// every doctor who has a shift (at the chosen clinic) this month, one A4 page each
+function printAllAttSheets() {
+  askClinic(attClinicsFor(null), function (clinic) {
+    var ym = STATE.year + '-' + pad2(STATE.month), nd = daysInMonth(STATE.year, STATE.month), list = activeDoctorList();
+    var used = list.filter(function (doc) {
+      if (!clinic && Object.keys(attCalc(doc.ID, ym)).some(function (k) { return k.indexOf(ym) === 0; })) return true;
+      for (var d = 1; d <= nd; d++) if (attShiftTags(doc, ym + '-' + pad2(d), clinic).length) return true;
+      return false;
+    });
+    if (!used.length) used = list;
+    if (!used.length) return;
+    document.getElementById('psheet').innerHTML = used.map(function (d) { return attPage(d, clinic); }).join('');
+    runPrint('portrait');
+  });
 }
 function runPrint(orient) {
   var st = document.createElement('style'); st.textContent = '@media print{@page{size:A4 ' + orient + ';margin:8mm}}'; document.head.appendChild(st);
@@ -3702,6 +3759,27 @@ async function ciGo(t) {
   var _rm = refreshAllMonthViews;
   refreshAllMonthViews = function () { var r = _rm.apply(this, arguments); renderAttSheet(); return r; };
   renderQrCard();
+
+  // swipe left / right on the page to go to the next / previous tab
+  var sx = 0, sy = 0, sEl = null;
+  function blocked(el) {
+    for (var e = el; e && e !== document.body; e = e.parentElement) {
+      var t = e.tagName;
+      if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA' || t === 'BUTTON') return true;
+      if (e.id === 'notifPanel' || e.classList && (e.classList.contains('modal') || e.classList.contains('overlay'))) return true;
+      if (e.scrollWidth > e.clientWidth + 6 && getComputedStyle(e).overflowX !== 'visible' && e.id !== 'app') return true;
+    }
+    return false;
+  }
+  document.addEventListener('touchstart', function (e) { var t = e.touches[0]; sx = t.clientX; sy = t.clientY; sEl = e.target; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (CI_MODE || !sEl) return;
+    var t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy, el = sEl; sEl = null;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5 || blocked(el)) return;
+    var tabs = [].slice.call(document.querySelectorAll('.tabs .tab')), i = tabs.findIndex(function (x) { return x.classList.contains('active'); });
+    var j = i + (dx < 0 ? 1 : -1);
+    if (j >= 0 && j < tabs.length) tabs[j].click();
+  }, { passive: true });
 })();
 
 function showToast(msg) {
