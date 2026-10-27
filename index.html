@@ -3491,10 +3491,21 @@ function attShiftTags(doc, ds) {
   var row = rowForDate(ds); if (!row) return [];
   return visibleColumnsForDate(ds).filter(function (c) {
     var f = row[c.field] ? findDoctorByNameClient(row[c.field]) : null; return f && f.ID === doc.ID;
-  }).map(function (c) { return (c.period === 'NIGHT' ? '🌙 ' : '☀️ ') + c.clinic + ' ' + c.label; });
+  }).map(function (c) { return { night: c.period === 'NIGHT', text: c.clinic + ' ' + c.label }; });
+}
+
+function shiftCell(tags, night, editable) {
+  var on = tags.some(function (t) { return t.night === night; });
+  return '<td>' + (on ? '<b style="color:' + (night ? '#3b46b8' : '#a66a00') + ';font-size:15px;">✓</b>' : '') + '</td>';
+}
+
+function attMonthLocked() {
+  var ym = STATE.year + '-' + pad2(STATE.month), nowYm = ppDate(Date.now()).slice(0, 7);
+  return ym < nowYm;
 }
 
 function attRows(doc, editable) {
+  var locked = attMonthLocked();
   var y = STATE.year, m = STATE.month, ym = y + '-' + pad2(m), nd = daysInMonth(y, m), A = attCalc(doc.ID, ym);
   var rows = '', totMin = 0, worked = 0;
   for (var d = 1; d <= nd; d++) {
@@ -3505,18 +3516,19 @@ function attRows(doc, editable) {
     var outNext = (a.in && a.out && ppDate(a.out) !== ppDate(a.in)) ? ' <small>(+១)</small>' : '';
     var cellIn, cellOut;
     if (editable) {
-      cellIn = '<input type="time" class="att-time" data-d="' + ds + '" data-t="in" value="' + inV + '">';
-      cellOut = '<input type="time" class="att-time" data-d="' + ds + '" data-t="out" value="' + outV + '">' + outNext;
+      var dis = locked ? ' disabled' : '';
+      cellIn = '<input type="time" class="att-time" data-d="' + ds + '" data-t="in" value="' + inV + '"' + dis + '>';
+      cellOut = '<input type="time" class="att-time" data-d="' + ds + '" data-t="out" value="' + outV + '"' + dis + '>' + outNext;
     } else { cellIn = inV; cellOut = outV + (outNext ? ' (+1)' : ''); }
     rows += '<tr class="' + ((dow === 0 || dow === 6) ? 'we ' : '') + (tags.length || a.in ? '' : 'off') + '">' +
       '<td class="' + (editable ? 'd' : 'l') + '">' + d + '/' + pad2(m) + (editable ? '<small>' + DOW_KM[DOW_NAMES_EN[dow]] + '</small>' : ' ' + DOW_KM[DOW_NAMES_EN[dow]]) + '</td>' +
-      '<td class="l">' + (editable ? tags.map(function (t) { return '<span class="att-tag">' + escapeHtml(t) + '</span>'; }).join('') : escapeHtml(tags.join(' · '))) + '</td>' +
+      shiftCell(tags, false, editable) + shiftCell(tags, true, editable) +
       '<td>' + cellIn + '</td><td>' + cellOut + '</td><td>' + (mins ? hoursText(mins) : '') + '</td><td></td><td></td></tr>';
   }
-  rows += '<tr class="tot"><td colspan="4" class="l">សរុប ' + worked + ' ថ្ងៃ</td><td>' + (totMin ? hoursText(totMin) : '') + '</td><td></td><td></td></tr>';
+  rows += '<tr class="tot"><td colspan="5" class="l">សរុប ' + worked + ' ថ្ងៃ</td><td>' + (totMin ? hoursText(totMin) : '') + '</td><td></td><td></td></tr>';
   return rows;
 }
-var ATT_HEAD = '<thead><tr><th>ថ្ងៃ</th><th>វេន</th><th>ម៉ោងចូល</th><th>ម៉ោងចេញ</th><th>ចំនួនម៉ោង</th><th style="min-width:110px;">ហត្ថាលេខា</th><th style="min-width:80px;">ផ្សេងៗ</th></tr></thead>';
+var ATT_HEAD = '<thead><tr><th>កាលបរិច្ឆេទ</th><th>☀️ វេនថ្ងៃ</th><th>🌙 វេនយប់</th><th>ម៉ោងចូល</th><th>ម៉ោងចេញ</th><th>ចំនួនម៉ោង</th><th style="min-width:110px;">ហត្ថាលេខា</th><th style="min-width:80px;">ផ្សេងៗ</th></tr></thead>';
 
 function activeDoctorList() { return STATE.doctors.filter(function (d) { return d.Active !== false; }); }
 
@@ -3536,7 +3548,7 @@ function renderAttSheet(force) {
   var doc = list.filter(function (d) { return d.ID === attDocId; })[0];
   var active = document.activeElement;
   if (!force && active && active.classList && active.classList.contains('att-time') && wrap.contains(active)) return;   // don't redraw while typing
-  wrap.innerHTML = '<table class="att">' + ATT_HEAD + '<tbody>' + attRows(doc, true) + '</tbody></table>';
+  wrap.innerHTML = (attMonthLocked() ? '<div style="background:#f3f5f9;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:8px;">🔒 ខែកន្លងផុតហើយ — មិនអាចកែបានទេ (មើល និងព្រីនបាន)</div>' : '') + '<table class="att">' + ATT_HEAD + '<tbody>' + attRows(doc, true) + '</tbody></table>';
 }
 
 function printAttSheet() {
@@ -3555,6 +3567,7 @@ function runPrint(orient) {
 }
 
 async function saveAttFix(docObj, ds, t, hm) {
+  if (attMonthLocked()) { showToast('ខែកន្លងផុតហើយ មិនអាចកែបានទេ'); renderAttSheet(true); return; }
   var cr = Date.now(), base = { t: t, id: docObj.ID, n: docName(docObj), fix: 1, fd: ds, cr: cr, ts: serverTimestamp() };
   var ym = STATE.year + '-' + pad2(STATE.month), rec;
   if (!hm) rec = Object.assign({ clr: 1, at: cr, d: ds }, base);
