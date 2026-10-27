@@ -454,7 +454,8 @@
   body.psp #app,body.psp #ciApp,body.psp .toast{display:none !important;}
   body.psp #psheet{display:block;background:#fff;color:#000;padding:0;}
   .ps-title{font-size:18px;font-weight:800;margin:0 0 4px;text-align:center;}
-  .ps-sub{text-align:center;color:#444;margin-bottom:10px;font-size:13px;}
+  .ps-sub{text-align:center;color:#000;margin-bottom:12px;font-size:18px;font-weight:800;}
+  .ps-page{page-break-after:always;} .ps-page:last-child{page-break-after:auto;}
   table.pst{width:100%;border-collapse:collapse;font-size:12px;}
   table.pst th,table.pst td{border:1px solid #555;padding:4px 5px;text-align:center;height:24px;}
   table.pst th{background:#eee;}
@@ -581,7 +582,10 @@
     <div class="card" id="attCard">
       <div class="att-head">
         <div style="font-weight:800;font-size:16px;">🧾 សន្លឹកវត្តមានប្រចាំខែ <span style="font-weight:400;font-size:12px;color:var(--sub);">(ម៉ោងស្កេនចូល-ចេញ · ហត្ថាលេខា)</span></div>
-        <button type="button" class="today-btn btn-edit" id="attPrintBtn">🖨️ ព្រីន</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="today-btn btn-edit" id="attPrintBtn">🖨️ ព្រីន</button>
+          <button type="button" class="today-btn btn-edit" id="attPrintAllBtn">🖨️ ព្រីនទាំងអស់</button>
+        </div>
       </div>
       <div class="month-nav" style="margin-bottom:10px;">
         <div class="left">
@@ -3551,11 +3555,26 @@ function renderAttSheet(force) {
   wrap.innerHTML = (attMonthLocked() ? '<div style="background:#f3f5f9;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:8px;">🔒 ខែកន្លងផុតហើយ — មិនអាចកែបានទេ (មើល និងព្រីនបាន)</div>' : '') + '<table class="att">' + ATT_HEAD + '<tbody>' + attRows(doc, true) + '</tbody></table>';
 }
 
+function attPage(doc) {
+  return '<div class="ps-page"><div class="ps-title">សន្លឹកវត្តមាន — ' + escapeHtml(docName(doc)) + '</div><div class="ps-sub">' + MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year + '</div>' +
+    '<table class="pst">' + ATT_HEAD.replace('min-width:110px;', 'width:22%;') + '<tbody>' + attRows(doc, false) + '</tbody></table></div>';
+}
 function printAttSheet() {
   var list = activeDoctorList(), doc = list.filter(function (d) { return d.ID === attDocId; })[0]; if (!doc) return;
-  var ps = document.getElementById('psheet');
-  ps.innerHTML = '<div class="ps-title">សន្លឹកវត្តមាន — ' + escapeHtml(docName(doc)) + '</div><div class="ps-sub">' + MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year + '</div>' +
-    '<table class="pst">' + ATT_HEAD.replace('min-width:110px;', 'width:22%;') + '<tbody>' + attRows(doc, false) + '</tbody></table>';
+  document.getElementById('psheet').innerHTML = attPage(doc);
+  runPrint('portrait');
+}
+// every doctor who has a shift or a scan this month, one A4 page each
+function printAllAttSheets() {
+  var ym = STATE.year + '-' + pad2(STATE.month), nd = daysInMonth(STATE.year, STATE.month), list = activeDoctorList();
+  var used = list.filter(function (doc) {
+    if (Object.keys(attCalc(doc.ID, ym)).some(function (k) { return k.indexOf(ym) === 0; })) return true;
+    for (var d = 1; d <= nd; d++) if (attShiftTags(doc, ym + '-' + pad2(d)).length) return true;
+    return false;
+  });
+  if (!used.length) used = list;
+  if (!used.length) return;
+  document.getElementById('psheet').innerHTML = used.map(attPage).join('');
   runPrint('portrait');
 }
 function runPrint(orient) {
@@ -3663,6 +3682,7 @@ async function ciGo(t) {
   $('attPrev').addEventListener('click', function () { shiftMonth(-1); });
   $('attNext').addEventListener('click', function () { shiftMonth(1); });
   $('attPrintBtn').addEventListener('click', printAttSheet);
+  $('attPrintAllBtn').addEventListener('click', printAllAttSheets);
   $('attWrap').addEventListener('change', function (e) {
     var el = e.target; if (!el.classList.contains('att-time')) return;
     var doc = activeDoctorList().filter(function (d) { return d.ID === attDocId; })[0];
