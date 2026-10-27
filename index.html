@@ -429,6 +429,36 @@
   .st-btn:hover{background:var(--tint);border-color:#b9cdf8;} .st-btn:active{transform:scale(.92);}
   .ro-box{width:84px !important;border-radius:10px;border-color:#dfe5f1 !important;}
   @media (max-width:720px){.st-btn{width:26px;height:26px;}.stepper input.edit-select{width:44px !important;}}
+
+  /* ===== attendance sheet + QR + check-in page ===== */
+  #ciApp{display:none;max-width:460px;margin:0 auto;padding:22px 16px 40px;}
+  body.ci-mode #app{display:none !important;}
+  body.ci-mode #ciApp{display:block;}
+  .cibox{background:#fff;border-radius:20px;padding:22px 20px;box-shadow:0 10px 32px rgba(20,30,60,.14);}
+  .cibox select{width:100%;padding:12px;border-radius:12px;border:1px solid #d6dce6;font-size:16px;margin:6px 0 4px;font-family:inherit;}
+  .ci-btns{display:flex;gap:10px;margin-top:16px;}
+  .ci-btn{flex:1;padding:16px 8px;border-radius:14px;border:0;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;color:#fff;}
+  .ci-in{background:linear-gradient(135deg,#12b886,#0b7f58);box-shadow:0 6px 14px rgba(14,159,110,.3);}
+  .ci-out{background:linear-gradient(135deg,#f08c3a,#d9480f);box-shadow:0 6px 14px rgba(217,72,15,.3);}
+  .att-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  table.att{width:100%;border-collapse:collapse;font-size:13px;min-width:640px;}
+  table.att th{background:#f2f5fb;padding:9px 6px;border-bottom:1px solid #e1e7f2;font-weight:700;white-space:nowrap;}
+  table.att td{padding:6px;border-bottom:1px solid #f0f2f8;text-align:center;}
+  table.att td.d{text-align:left;white-space:nowrap;font-weight:700;}
+  table.att td.d small{display:block;font-weight:400;color:var(--sub);font-size:11px;}
+  table.att tr.we td{background:#fff7f7;} table.att tr.off td{color:#9aa3b5;}
+  table.att tr.tot td{background:#eef7f2;font-weight:800;}
+  input.att-time{width:96px;text-align:center;padding:5px 4px;border-radius:9px;border:1px solid #d6dce6;font-family:inherit;}
+  .att-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eaf1ff;color:var(--brand);margin:1px;}
+  #psheet{display:none;}
+  body.psp #app,body.psp #ciApp,body.psp .toast{display:none !important;}
+  body.psp #psheet{display:block;background:#fff;color:#000;padding:0;}
+  .ps-title{font-size:18px;font-weight:800;margin:0 0 4px;text-align:center;}
+  .ps-sub{text-align:center;color:#444;margin-bottom:10px;font-size:13px;}
+  table.pst{width:100%;border-collapse:collapse;font-size:12px;}
+  table.pst th,table.pst td{border:1px solid #555;padding:4px 5px;text-align:center;height:24px;}
+  table.pst th{background:#eee;}
+  table.pst td.l{text-align:left;}
   /* notifications bell */
   .title-row{display:flex;align-items:center;gap:10px;}
   .bell-wrap{position:relative;}
@@ -547,6 +577,39 @@
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;"><div style="font-weight:700;font-size:15px;">បញ្ជីគ្រូពេទ្យ</div><button type="button" class="today-btn btn-edit" onclick="openDoctorEditor()">✏️ កែប្រែ</button></div>
       <div class="doc-grid" id="docGrid"></div>
     </div>
+
+    <div class="card" id="attCard">
+      <div class="att-head">
+        <div style="font-weight:800;font-size:16px;">🧾 សន្លឹកវត្តមានប្រចាំខែ <span style="font-weight:400;font-size:12px;color:var(--sub);">(ម៉ោងស្កេនចូល-ចេញ · ហត្ថាលេខា)</span></div>
+        <button type="button" class="today-btn btn-edit" id="attPrintBtn">🖨️ ព្រីន</button>
+      </div>
+      <div class="month-nav" style="margin-bottom:10px;">
+        <div class="left">
+          <select class="today-btn" id="attDoc"></select>
+          <button class="nav-btn" id="attPrev">‹</button>
+          <div class="month-label" id="attMonthLabel">—</div>
+          <button class="nav-btn" id="attNext">›</button>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:var(--sub);margin-bottom:8px;">ម៉ោងចូល/ចេញ បំពេញដោយស្វ័យប្រវត្តិពីការស្កេន QR — ភ្លេចស្កេន? វាយម៉ោងដោយដៃក្នុងប្រអប់បាន (រក្សាទុកភ្លាមៗ)។ ជួរ ហត្ថាលេខា ទុកទំនេរសម្រាប់ចុះហត្ថាលេខាលើក្រដាសព្រីន។</div>
+      <div id="attWrap" style="overflow-x:auto;"></div>
+    </div>
+
+    <div class="card" id="qrCard">
+      <div style="font-weight:800;font-size:16px;margin-bottom:6px;">📲 QR ចុះវត្តមាន <span style="font-weight:400;font-size:12px;color:var(--sub);">(ម៉ោងចូល / ចេញ)</span></div>
+      <div style="font-size:12.5px;color:var(--sub);line-height:1.7;margin-bottom:10px;">គ្រូពេទ្យស្កេន QR ដោយទូរស័ព្ទ → ជ្រើសឈ្មោះ → ចុច «ចូលធ្វើការ» ឬ «ចេញ»។ ម៉ោងបញ្ជូនចូលសន្លឹកវត្តមានខាងលើ។</div>
+      <div id="qrWarn"></div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+        <div id="qrImg" style="background:#fff;padding:10px;border-radius:12px;border:1px solid #e3e8f1;min-width:140px;min-height:140px;"></div>
+        <div style="flex:1;min-width:200px;">
+          <div id="qrUrl" style="font-size:12px;word-break:break-all;color:var(--sub);margin-bottom:10px;"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="today-btn" id="qrCopy">📋 ចម្លងតំណ</button>
+            <button type="button" class="today-btn btn-edit" id="qrPrint">🖨️ ព្រីន QR</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- PAYROLL -->
@@ -632,12 +695,21 @@
 </div>
 
 <div class="modal-back" id="clinicEditModal"></div>
+<div id="ciApp"><div class="cibox">
+  <h2 style="margin:0 0 4px;">⏱️ ចុះវត្តមាន</h2>
+  <div style="color:var(--sub);font-size:12.5px;margin-bottom:14px;" id="ciNow"></div>
+  <label style="font-weight:700;font-size:13px;">ឈ្មោះ<select id="ciName"></select></label>
+  <div class="ci-btns"><button type="button" class="ci-btn ci-in" id="ciIn">✅ ចូលធ្វើការ</button><button type="button" class="ci-btn ci-out" id="ciOut">🚪 ចេញ</button></div>
+  <div id="ciMsg" style="margin-top:16px;line-height:1.7;font-size:14px;"></div>
+</div></div>
+<div id="psheet"></div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  initializeFirestore, persistentLocalCache, doc, setDoc, onSnapshot
+  initializeFirestore, persistentLocalCache, doc, setDoc, onSnapshot,
+  collection, addDoc, query, where, serverTimestamp, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ============================================================
@@ -3358,6 +3430,245 @@ function applyImport() {
     try { showImportPreview(await readReportFile(f), f.name); }
     catch (e) { importPending = null; box.innerHTML = '<div style="color:#c0392b;">✗ ' + escapeHtml(e && e.message ? e.message : String(e)) + '</div>'; }
   }
+})();
+
+// ===== Attendance: QR scan in/out, monthly sheet with times + signature =====
+var CI_COL = 'dutyCheckins';
+var CI_MODE = (function () { try { return new URLSearchParams(location.search).get('ci') === '1'; } catch (e) { return false; } })();
+if (CI_MODE) document.body.classList.add('ci-mode');
+var PP_OFF = 7 * 3600000;
+var ATT = {}, attSubs = {}, attDocId = null;
+
+function ppDate(ms) { var t = new Date(ms + PP_OFF); return t.getUTCFullYear() + '-' + pad2(t.getUTCMonth() + 1) + '-' + pad2(t.getUTCDate()); }
+function ppHM(ms) { var t = new Date(ms + PP_OFF); return pad2(t.getUTCHours()) + ':' + pad2(t.getUTCMinutes()); }
+function ppMs(dateStr, hm) { var a = dateStr.split('-'), b = hm.split(':'); return Date.UTC(+a[0], +a[1] - 1, +a[2], +b[0], +b[1]) - PP_OFF; }
+function hoursText(mins) { return Math.floor(mins / 60) + 'h' + pad2(mins % 60); }
+function docName(d) { return d.NameSPV || d.NameHMV || d.ID; }
+
+function watchAtt(y, m) {
+  var ym = y + '-' + pad2(m);
+  if (attSubs[ym]) return;
+  attSubs[ym] = true;
+  try {
+    var pv = new Date(y, m - 2, 1), nx = new Date(y, m, 1);
+    var lo = pv.getFullYear() + '-' + pad2(pv.getMonth() + 1) + '-25', hi = nx.getFullYear() + '-' + pad2(nx.getMonth() + 1) + '-03';
+    onSnapshot(query(collection(db, CI_COL), where('d', '>=', lo), where('d', '<=', hi)), function (snap) {
+      ATT[ym] = snap.docs.map(function (q) { return q.data(); });
+      renderAttSheet();
+    }, function () { attSubs[ym] = false; });
+  } catch (e) { attSubs[ym] = false; }
+}
+
+// per-day { in, out } (ms) for one doctor, from scans + hand corrections
+function attCalc(docId, ym) {
+  var recs = (ATT[ym] || []).filter(function (r) { return r.id === docId && r.at; });
+  var scan = recs.filter(function (r) { return !r.fix; }).sort(function (a, b) { return a.at - b.at; });
+  var ins = scan.filter(function (r) { return r.t === 'in'; }), outs = scan.filter(function (r) { return r.t === 'out'; });
+  var res = {}, used = {};
+  ins.forEach(function (r, i) {
+    var D = ppDate(r.at);
+    if (res[D] && res[D].in) return;
+    res[D] = { in: r.at };
+    var nextIn = ins[i + 1] ? ins[i + 1].at : Infinity;
+    for (var k = 0; k < outs.length; k++) {
+      if (!used[k] && outs[k].at > r.at && outs[k].at < r.at + 30 * 3600000 && outs[k].at < nextIn) { res[D].out = outs[k].at; used[k] = true; break; }
+    }
+  });
+  outs.forEach(function (r, k) { if (used[k]) return; var D = ppDate(r.at); if (!res[D]) res[D] = {}; if (!res[D].out && !res[D].in) res[D].out = r.at; });
+  var latest = {};
+  recs.filter(function (r) { return r.fix && r.fd; }).forEach(function (r) {
+    var key = r.fd + '|' + r.t;
+    if (!latest[key] || (r.cr || 0) >= (latest[key].cr || 0)) latest[key] = r;
+  });
+  Object.keys(latest).forEach(function (key) {
+    var r = latest[key], D = r.fd; if (!res[D]) res[D] = {};
+    if (r.clr) delete res[D][r.t]; else res[D][r.t] = r.at;
+  });
+  return res;
+}
+
+function attShiftTags(doc, ds) {
+  var row = rowForDate(ds); if (!row) return [];
+  return visibleColumnsForDate(ds).filter(function (c) {
+    var f = row[c.field] ? findDoctorByNameClient(row[c.field]) : null; return f && f.ID === doc.ID;
+  }).map(function (c) { return (c.period === 'NIGHT' ? '🌙 ' : '☀️ ') + c.clinic + ' ' + c.label; });
+}
+
+function attRows(doc, editable) {
+  var y = STATE.year, m = STATE.month, ym = y + '-' + pad2(m), nd = daysInMonth(y, m), A = attCalc(doc.ID, ym);
+  var rows = '', totMin = 0, worked = 0;
+  for (var d = 1; d <= nd; d++) {
+    var ds = ym + '-' + pad2(d), dow = new Date(y, m - 1, d).getDay(), a = A[ds] || {}, tags = attShiftTags(doc, ds);
+    var mins = (a.in && a.out && a.out > a.in) ? Math.round((a.out - a.in) / 60000) : 0;
+    if (mins) { totMin += mins; worked++; }
+    var inV = a.in ? ppHM(a.in) : '', outV = a.out ? ppHM(a.out) : '';
+    var outNext = (a.in && a.out && ppDate(a.out) !== ppDate(a.in)) ? ' <small>(+១)</small>' : '';
+    var cellIn, cellOut;
+    if (editable) {
+      cellIn = '<input type="time" class="att-time" data-d="' + ds + '" data-t="in" value="' + inV + '">';
+      cellOut = '<input type="time" class="att-time" data-d="' + ds + '" data-t="out" value="' + outV + '">' + outNext;
+    } else { cellIn = inV; cellOut = outV + (outNext ? ' (+1)' : ''); }
+    rows += '<tr class="' + ((dow === 0 || dow === 6) ? 'we ' : '') + (tags.length || a.in ? '' : 'off') + '">' +
+      '<td class="' + (editable ? 'd' : 'l') + '">' + d + '/' + pad2(m) + (editable ? '<small>' + DOW_KM[DOW_NAMES_EN[dow]] + '</small>' : ' ' + DOW_KM[DOW_NAMES_EN[dow]]) + '</td>' +
+      '<td class="l">' + (editable ? tags.map(function (t) { return '<span class="att-tag">' + escapeHtml(t) + '</span>'; }).join('') : escapeHtml(tags.join(' · '))) + '</td>' +
+      '<td>' + cellIn + '</td><td>' + cellOut + '</td><td>' + (mins ? hoursText(mins) : '') + '</td><td></td><td></td></tr>';
+  }
+  rows += '<tr class="tot"><td colspan="4" class="l">សរុប ' + worked + ' ថ្ងៃ</td><td>' + (totMin ? hoursText(totMin) : '') + '</td><td></td><td></td></tr>';
+  return rows;
+}
+var ATT_HEAD = '<thead><tr><th>ថ្ងៃ</th><th>វេន</th><th>ម៉ោងចូល</th><th>ម៉ោងចេញ</th><th>ចំនួនម៉ោង</th><th style="min-width:110px;">ហត្ថាលេខា</th><th style="min-width:80px;">ផ្សេងៗ</th></tr></thead>';
+
+function activeDoctorList() { return STATE.doctors.filter(function (d) { return d.Active !== false; }); }
+
+function renderAttSheet(force) {
+  var wrap = document.getElementById('attWrap'); if (!wrap) return;
+  var list = activeDoctorList(), sel = document.getElementById('attDoc');
+  if (!list.length) { wrap.innerHTML = '<div class="empty-state">មិនទាន់មានគ្រូពេទ្យ</div>'; return; }
+  if (!attDocId || !list.some(function (d) { return d.ID === attDocId; })) attDocId = (lindaDoctor() || list[0]).ID;
+  var key = list.map(function (d) { return d.ID + docName(d); }).join('|');
+  if (sel.dataset.k !== key) {
+    sel.dataset.k = key;
+    sel.innerHTML = list.map(function (d) { return '<option value="' + escapeAttr(d.ID) + '">' + escapeHtml(docName(d)) + '</option>'; }).join('');
+  }
+  sel.value = attDocId;
+  document.getElementById('attMonthLabel').textContent = MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year;
+  watchAtt(STATE.year, STATE.month);
+  var doc = list.filter(function (d) { return d.ID === attDocId; })[0];
+  var active = document.activeElement;
+  if (!force && active && active.classList && active.classList.contains('att-time') && wrap.contains(active)) return;   // don't redraw while typing
+  wrap.innerHTML = '<table class="att">' + ATT_HEAD + '<tbody>' + attRows(doc, true) + '</tbody></table>';
+}
+
+function printAttSheet() {
+  var list = activeDoctorList(), doc = list.filter(function (d) { return d.ID === attDocId; })[0]; if (!doc) return;
+  var ps = document.getElementById('psheet');
+  ps.innerHTML = '<div class="ps-title">សន្លឹកវត្តមាន — ' + escapeHtml(docName(doc)) + '</div><div class="ps-sub">' + MONTH_NAMES_KM[STATE.month - 1] + ' ' + STATE.year + '</div>' +
+    '<table class="pst">' + ATT_HEAD.replace('min-width:110px;', 'width:22%;') + '<tbody>' + attRows(doc, false) + '</tbody></table>';
+  runPrint('portrait');
+}
+function runPrint(orient) {
+  var st = document.createElement('style'); st.textContent = '@media print{@page{size:A4 ' + orient + ';margin:8mm}}'; document.head.appendChild(st);
+  document.body.classList.add('psp');
+  var clean = function () { document.body.classList.remove('psp'); document.getElementById('psheet').innerHTML = ''; st.remove(); window.removeEventListener('afterprint', clean); };
+  window.addEventListener('afterprint', clean);
+  setTimeout(function () { window.print(); }, 50);
+}
+
+async function saveAttFix(docObj, ds, t, hm) {
+  var cr = Date.now(), base = { t: t, id: docObj.ID, n: docName(docObj), fix: 1, fd: ds, cr: cr, ts: serverTimestamp() };
+  var ym = STATE.year + '-' + pad2(STATE.month), rec;
+  if (!hm) rec = Object.assign({ clr: 1, at: cr, d: ds }, base);
+  else {
+    var at = ppMs(ds, hm), A = attCalc(docObj.ID, ym)[ds] || {};
+    if (t === 'out') { var inMs = A.in; if (inMs && at <= inMs) at += 86400000; else if (!inMs) { /* keep as typed */ } }
+    rec = Object.assign({ at: at, d: ppDate(at) }, base);
+  }
+  // optimistic local update so the sheet reflects it at once
+  (ATT[ym] = ATT[ym] || []).push(rec);
+  renderAttSheet(true);
+  try { await addDoc(collection(db, CI_COL), rec); showToast('រក្សាទុករួចរាល់ ✓'); }
+  catch (e) { showError(e); }
+}
+
+function ciUrl() { return location.origin + location.pathname + '?ci=1'; }
+function loadQRLib() {
+  return window.QRCode ? Promise.resolve() : new Promise(function (ok, no) {
+    var sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    sc.onload = ok; sc.onerror = function () { no(new Error('QR')); }; document.head.appendChild(sc);
+  });
+}
+async function makeQR(el, url, size) {
+  try { await loadQRLib(); el.innerHTML = ''; new window.QRCode(el, { text: url, width: size, height: size, correctLevel: window.QRCode.CorrectLevel.M }); }
+  catch (e) { el.textContent = '⚠ មិនអាចផ្ទុក QR (ត្រូវការអ៊ីនធឺណិត) — ប្រើតំណជំនួស'; }
+}
+function renderQrCard() {
+  var u = ciUrl();
+  document.getElementById('qrUrl').textContent = u;
+  document.getElementById('qrWarn').innerHTML = location.protocol === 'file:'
+    ? '<div style="background:#fff4e5;border:1px solid #ffd8a8;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:10px;">⚠ QR ដំណើរការបានតែពេលគេហទំព័រនេះនៅលើអ៊ីនធឺណិត (ឧ. GitHub Pages) — ឥឡូវកំពុងបើកពីឯកសារក្នុងម៉ាស៊ីន។</div>' : '';
+  makeQR(document.getElementById('qrImg'), u, 140);
+}
+async function printQrPoster() {
+  var ps = document.getElementById('psheet');
+  ps.innerHTML = '<div style="text-align:center;padding-top:50px;"><h2 style="font-size:28px;margin:6px 0;">តារាងវេន SPV + HMV</h2><div style="font-size:18px;margin:4px 0 24px;">ស្កេនដើម្បីចុះវត្តមាន ចូល / ចេញ</div><div id="qrPoster" style="display:inline-block;"></div><div style="font-size:15px;margin-top:24px;line-height:1.9;">១) ស្កេន QR &nbsp; ២) ជ្រើសឈ្មោះ &nbsp; ៣) ចុច «ចូលធ្វើការ» ឬ «ចេញ»</div></div>';
+  document.body.classList.add('psp');
+  await makeQR(document.getElementById('qrPoster'), ciUrl(), 320);
+  document.body.classList.remove('psp');
+  runPrint('portrait');
+}
+
+// ---- the phone page opened by the QR (?ci=1) ----
+function ciMeGet() { try { return localStorage.getItem('dutyCiMe') || ''; } catch (e) { return ''; } }
+function ciMeSet(v) { try { localStorage.setItem('dutyCiMe', v); } catch (e) {} }
+function renderCI() {
+  var sel = document.getElementById('ciName'); if (!sel) return;
+  var list = activeDoctorList(), key = list.map(function (d) { return d.ID; }).join('|');
+  if (sel.dataset.k === key) return;
+  sel.dataset.k = key;
+  var me = ciMeGet();
+  try { var q = new URLSearchParams(location.search).get('me'); if (q) me = q; } catch (e) {}
+  sel.innerHTML = '<option value="">— ជ្រើសរើសឈ្មោះ —</option>' + list.map(function (d) { return '<option value="' + escapeAttr(d.ID) + '">' + escapeHtml(docName(d)) + '</option>'; }).join('');
+  if (list.some(function (d) { return d.ID === me; })) sel.value = me;
+  ciShowLast();
+}
+async function ciLast(id) {
+  var out = [], now = Date.now();
+  for (var k = 0; k < 2; k++) {
+    var ds = ppDate(now - k * 86400000);
+    var sn = await getDocs(query(collection(db, CI_COL), where('d', '==', ds)));
+    sn.forEach(function (x) { var v = x.data(); if (v.id === id && !v.fix && v.at) out.push(v); });
+  }
+  out.sort(function (a, b) { return a.at - b.at; });
+  return out[out.length - 1] || null;
+}
+async function ciShowLast() {
+  var id = document.getElementById('ciName').value, msg = document.getElementById('ciMsg');
+  if (!id) { msg.textContent = ''; return; }
+  try {
+    var last = await ciLast(id);
+    msg.innerHTML = last ? 'កំណត់ត្រាចុងក្រោយ៖ <b>' + (last.t === 'in' ? 'ចូលធ្វើការ' : 'ចេញពីការងារ') + '</b> ម៉ោង ' + ppHM(last.at) + '<br>សូមចុច ចូល ឬ ចេញ' : 'សូមចុច ចូល ឬ ចេញ';
+  } catch (e) { msg.textContent = 'សូមចុច ចូល ឬ ចេញ'; }
+}
+var ciBusy = false;
+async function ciGo(t) {
+  var id = document.getElementById('ciName').value, msg = document.getElementById('ciMsg');
+  var d = STATE.doctors.filter(function (x) { return x.ID === id; })[0];
+  if (!d) { msg.innerHTML = '<b style="color:#e53935">⚠ សូមជ្រើសរើសឈ្មោះ</b>'; return; }
+  if (ciBusy) return; ciBusy = true; msg.textContent = '…'; ciMeSet(id);
+  try {
+    var now = Date.now();
+    await addDoc(collection(db, CI_COL), { t: t, d: ppDate(now), id: id, n: docName(d), at: now, cr: now, ts: serverTimestamp(), dev: (navigator.userAgent || '').slice(0, 80) });
+    try { if (navigator.vibrate) navigator.vibrate(150); } catch (e) {}
+    msg.innerHTML = '<b style="color:#0f9d7a">✅ ' + (t === 'in' ? 'ចូលធ្វើការ' : 'ចេញពីការងារ') + ' · ' + escapeHtml(docName(d)) + '</b><br>ម៉ោង ' + ppHM(now) + ' (' + ppDate(now).split('-').reverse().join('/') + ')';
+  } catch (e) { msg.innerHTML = '<b style="color:#e53935">⚠ មិនអាចកត់ត្រា៖ ' + escapeHtml(e.message || String(e)) + '</b>'; }
+  ciBusy = false;
+}
+
+(function initAttendance() {
+  var $ = function (i) { return document.getElementById(i); };
+  $('attDoc').addEventListener('change', function () { attDocId = this.value; renderAttSheet(); });
+  $('attPrev').addEventListener('click', function () { shiftMonth(-1); });
+  $('attNext').addEventListener('click', function () { shiftMonth(1); });
+  $('attPrintBtn').addEventListener('click', printAttSheet);
+  $('attWrap').addEventListener('change', function (e) {
+    var el = e.target; if (!el.classList.contains('att-time')) return;
+    var doc = activeDoctorList().filter(function (d) { return d.ID === attDocId; })[0];
+    if (doc) saveAttFix(doc, el.dataset.d, el.dataset.t, el.value);
+  });
+  $('qrCopy').addEventListener('click', function () {
+    try { navigator.clipboard.writeText(ciUrl()).then(function () { showToast('ចម្លងតំណរួចរាល់ ✓'); }); } catch (e) { showToast(ciUrl()); }
+  });
+  $('qrPrint').addEventListener('click', printQrPoster);
+  $('ciName').addEventListener('change', ciShowLast);
+  $('ciIn').addEventListener('click', function () { ciGo('in'); });
+  $('ciOut').addEventListener('click', function () { ciGo('out'); });
+  function tick() { var n = Date.now(); $('ciNow').textContent = ppDate(n).split('-').reverse().join('/') + ' · ' + ppHM(n); }
+  tick(); setInterval(tick, 20000);
+  var _rd = renderDoctors;
+  renderDoctors = function () { var r = _rd.apply(this, arguments); renderAttSheet(); renderCI(); return r; };
+  var _rm = refreshAllMonthViews;
+  refreshAllMonthViews = function () { var r = _rm.apply(this, arguments); renderAttSheet(); return r; };
+  renderQrCard();
 })();
 
 function showToast(msg) {
