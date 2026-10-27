@@ -590,8 +590,6 @@
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;"><div style="font-weight:700;font-size:15px;">បញ្ជីគ្រូពេទ្យ</div><button type="button" class="today-btn btn-edit" onclick="openDoctorEditor()">✏️ កែប្រែ</button></div>
       <div class="doc-grid" id="docGrid"></div>
     </div>
-
-</div>
   </div>
 
   <!-- ATTENDANCE -->
@@ -631,6 +629,7 @@
         </div>
       </div>
     </div>
+  </div>
 
   <!-- PAYROLL -->
   <div class="panel" id="panel-payroll">
@@ -3554,7 +3553,7 @@ function shiftCell(tags, night, editable) {
 // "7:05", "705", "0705", "7" -> "07:05" ; "" -> "" ; bad -> null
 function parseHM(v) {
   v = String(v || '').trim(); if (!v) return '';
-  var m = v.match(/^(\d{1,2})[:.\s]?(\d{2})?$/); if (!m) return null;
+  var m = v.match(/^(\d{1,2})[:.\s]?(\d{1,2})?$/); if (!m) return null;
   var h = +m[1], mi = m[2] === undefined ? 0 : +m[2];
   if (v.indexOf(':') < 0 && v.indexOf('.') < 0 && /^\d{3,4}$/.test(v)) { var p = v.length === 3 ? [v.slice(0, 1), v.slice(1)] : [v.slice(0, 2), v.slice(2)]; h = +p[0]; mi = +p[1]; }
   if (h > 23 || mi > 59) return null;
@@ -3776,6 +3775,18 @@ async function ciGo(t) {
   $('attNext').addEventListener('click', function () { shiftMonth(1); });
   $('attPrintBtn').addEventListener('click', printAttSheet);
   $('attPrintAllBtn').addEventListener('click', printAllAttSheets);
+  // typing mask: 07 -> "07:" then minutes, e.g. 0705 -> 07:05
+  $('attWrap').addEventListener('input', function (e) {
+    var el = e.target; if (!el.classList.contains('att-time')) return;
+    var del = (e.inputType || '').indexOf('delete') === 0;
+    var d = el.value.replace(/\D/g, '').slice(0, 4);
+    if (d.length === 1 && d > '2' && !del) d = '0' + d;                       // 7 -> 07
+    if (d.length >= 2 && +d.slice(0, 2) > 23) d = '0' + d.slice(0, 1) + d.slice(1, 3);   // 25 -> 02 5
+    if (d.length === 3 && d.charAt(2) > '5' && !del) d = d.slice(0, 2) + '0' + d.charAt(2); // 07:7 -> 07:07
+    el.value = d.length >= 3 ? d.slice(0, 2) + ':' + d.slice(2) : (d.length === 2 && !del ? d + ':' : d);
+  });
+  $('attWrap').addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.classList.contains('att-time')) e.target.blur(); });
+  $('attWrap').addEventListener('focusin', function (e) { if (e.target.classList.contains('att-time')) { var t = e.target; setTimeout(function () { try { t.select(); } catch (x) {} }, 0); } });
   $('attWrap').addEventListener('change', function (e) {
     var el = e.target; if (!el.classList.contains('att-time')) return;
     var hm = parseHM(el.value);
