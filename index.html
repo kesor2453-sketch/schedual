@@ -455,7 +455,11 @@
   @keyframes todayPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(47,111,237,.55);}50%{transform:scale(1.12);box-shadow:0 0 0 6px rgba(47,111,237,0);}}
   table.pst tr.we td{color:#c00;background:#fdecec;}
   table.att tr.tot td{background:#eef7f2;font-weight:800;}
-  input.att-time{width:96px;text-align:center;padding:5px 4px;border-radius:9px;border:1px solid #d6dce6;font-family:inherit;}
+  input.att-time{width:84px;text-align:center;padding:7px 4px;border-radius:10px;border:1.5px solid #b9cdf8;background:#fff;font-family:inherit;font-size:14px;font-weight:700;color:#1c2430;}
+  input.att-time:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,237,.2);}
+  input.att-time:disabled{background:#f3f5f9;border-color:#e1e6ef;color:#7a8499;}
+  @keyframes rowFlash{0%{background:#fff3b0;}100%{background:transparent;}}
+  table.att tr.flash td{animation:rowFlash 2.4s ease-out 2;}
   .att-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eaf1ff;color:var(--brand);margin:1px;}
   #psheet{display:none;}
   body.psp #app,body.psp #ciApp,body.psp .toast{display:none !important;}
@@ -3473,8 +3477,16 @@ function watchAtt(y, m) {
     var pv = new Date(y, m - 2, 1), nx = new Date(y, m, 1);
     var lo = pv.getFullYear() + '-' + pad2(pv.getMonth() + 1) + '-25', hi = nx.getFullYear() + '-' + pad2(nx.getMonth() + 1) + '-03';
     onSnapshot(query(collection(db, CI_COL), where('d', '>=', lo), where('d', '<=', hi)), function (snap) {
+      var prevN = (ATT[ym] || []).length, prevLoaded = !!ATT[ym];
       ATT[ym] = snap.docs.map(function (q) { return q.data(); });
-      renderAttSheet();
+      renderAttSheet(true);
+      if (prevLoaded) {
+        var fresh = ATT[ym].filter(function (r) { return !r.fix && r.at && Date.now() - r.at < 60000; }).sort(function (a, b) { return b.at - a.at; })[0];
+        if (fresh && ATT[ym].length > prevN && fresh.id === attDocId) {
+          showToast('📲 ' + (fresh.n || '') + ' ' + (fresh.t === 'in' ? 'ចូល' : 'ចេញ') + ' ម៉ោង ' + ppHM(fresh.at) + ' (' + ppDate(fresh.at).split('-').reverse().join('/') + ')');
+          flashAttRow(ppDate(fresh.at));
+        }
+      }
     }, function () { attSubs[ym] = false; });
   } catch (e) { attSubs[ym] = false; }
 }
@@ -3492,6 +3504,12 @@ function spreadShift(res, inMs, outMs) {
 }
 
 // per-day { in, out } (ms) for one doctor, from scans + hand corrections
+function flashAttRow(ds) {
+  var tr = document.querySelector('#attWrap tr[data-row="' + ds + '"]'); if (!tr) return;
+  try { if (document.getElementById('panel-attendance').classList.contains('active')) tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+  tr.classList.add('flash'); setTimeout(function () { tr.classList.remove('flash'); }, 5000);
+}
+
 function attCalc(docId, ym) {
   var recs = (ATT[ym] || []).filter(function (r) { return r.id === docId && r.at; });
   var scan = recs.filter(function (r) { return !r.fix; }).sort(function (a, b) { return a.at - b.at; });
@@ -3533,6 +3551,16 @@ function shiftCell(tags, night, editable) {
   return '<td>' + (on ? '<b style="color:' + (night ? '#3b46b8' : '#a66a00') + ';font-size:15px;">✓</b>' : '') + '</td>';
 }
 
+// "7:05", "705", "0705", "7" -> "07:05" ; "" -> "" ; bad -> null
+function parseHM(v) {
+  v = String(v || '').trim(); if (!v) return '';
+  var m = v.match(/^(\d{1,2})[:.\s]?(\d{2})?$/); if (!m) return null;
+  var h = +m[1], mi = m[2] === undefined ? 0 : +m[2];
+  if (v.indexOf(':') < 0 && v.indexOf('.') < 0 && /^\d{3,4}$/.test(v)) { var p = v.length === 3 ? [v.slice(0, 1), v.slice(1)] : [v.slice(0, 2), v.slice(2)]; h = +p[0]; mi = +p[1]; }
+  if (h > 23 || mi > 59) return null;
+  return pad2(h) + ':' + pad2(mi);
+}
+
 function attMonthLocked() {
   var ym = STATE.year + '-' + pad2(STATE.month), nowYm = ppDate(Date.now()).slice(0, 7);
   return ym < nowYm;
@@ -3551,11 +3579,11 @@ function attRows(doc, editable, clinic) {
     var cellIn, cellOut;
     if (editable) {
       var dis = locked ? ' disabled' : '';
-      cellIn = '<input type="time" class="att-time" data-d="' + ds + '" data-t="in" value="' + inV + '"' + dis + '>';
-      cellOut = '<input type="time" class="att-time" data-d="' + ds + '" data-t="out" value="' + outV + '"' + dis + '>' + outNext;
+      cellIn = '<input type="text" inputmode="numeric" maxlength="5" placeholder="--:--" class="att-time" data-d="' + ds + '" data-t="in" value="' + inV + '"' + dis + '>';
+      cellOut = '<input type="text" inputmode="numeric" maxlength="5" placeholder="--:--" class="att-time" data-d="' + ds + '" data-t="out" value="' + outV + '"' + dis + '>' + outNext;
     } else { cellIn = inV; cellOut = outV; }
     var isToday = editable && ds === ppDate(Date.now());
-    rows += '<tr class="' + ((dow === 0 || dow === 6) ? 'we ' : '') + (isToday ? 'today ' : '') + (tags.length || a.in || dow === 0 || dow === 6 ? '' : 'off') + '">' +
+    rows += '<tr data-row="' + ds + '" class="' + ((dow === 0 || dow === 6) ? 'we ' : '') + (isToday ? 'today ' : '') + (tags.length || a.in || dow === 0 || dow === 6 ? '' : 'off') + '">' +
       '<td class="' + (editable ? 'd' : 'l') + '">' + d + '/' + pad2(m) + (editable ? (isToday ? '<span class="today-pill">ថ្ងៃនេះ</span>' : '') + '<small>' + DOW_KM[DOW_NAMES_EN[dow]] + '</small>' : ' ' + DOW_KM[DOW_NAMES_EN[dow]]) + '</td>' +
       shiftCell(tags, false, editable) + shiftCell(tags, true, editable) +
       '<td>' + cellIn + '</td><td>' + cellOut + '</td><td>' + (mins ? hoursText(mins) : '') + '</td><td></td><td></td></tr>';
@@ -3651,7 +3679,7 @@ function runPrint(orient) {
 }
 
 async function saveAttFix(docObj, ds, t, hm) {
-  if (attMonthLocked()) { showToast('ខែកន្លងផុតហើយ មិនអាចកែបានទេ'); renderAttSheet(true); return; }
+  if (attMonthLocked()) { showToast('ខែកន្លងផុតហើយ មិនអាចកែបានទេ'); setTimeout(function () { renderAttSheet(true); }, 0); return; }
   var cr = Date.now(), base = { t: t, id: docObj.ID, n: docName(docObj), fix: 1, fd: ds, cr: cr, ts: serverTimestamp() };
   var ym = STATE.year + '-' + pad2(STATE.month), rec;
   if (!hm) rec = Object.assign({ clr: 1, at: cr, d: ds }, base);
@@ -3662,7 +3690,7 @@ async function saveAttFix(docObj, ds, t, hm) {
   }
   // optimistic local update so the sheet reflects it at once
   (ATT[ym] = ATT[ym] || []).push(rec);
-  renderAttSheet(true);
+  setTimeout(function () { renderAttSheet(true); }, 0);   // not inside the blur/change event: redraw after it finishes
   try { await addDoc(collection(db, CI_COL), rec); showToast('រក្សាទុករួចរាល់ ✓'); }
   catch (e) { showError(e); }
 }
@@ -3750,6 +3778,9 @@ async function ciGo(t) {
   $('attPrintAllBtn').addEventListener('click', printAllAttSheets);
   $('attWrap').addEventListener('change', function (e) {
     var el = e.target; if (!el.classList.contains('att-time')) return;
+    var hm = parseHM(el.value);
+    if (hm === null) { showToast('ម៉ោងមិនត្រឹមត្រូវ — វាយបែប 07:30'); setTimeout(function () { renderAttSheet(true); }, 0); return; }
+    el.value = hm;
     var doc = activeDoctorList().filter(function (d) { return d.ID === attDocId; })[0];
     if (doc) saveAttFix(doc, el.dataset.d, el.dataset.t, el.value);
   });
