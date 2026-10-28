@@ -458,6 +458,10 @@
   input.att-time{width:84px;text-align:center;padding:7px 4px;border-radius:10px;border:1.5px solid #b9cdf8;background:#fff;font-family:inherit;font-size:14px;font-weight:700;color:#1c2430;}
   input.att-time:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,237,.2);}
   input.att-time:disabled{background:#f3f5f9;border-color:#e1e6ef;color:#7a8499;}
+  .att-stack{margin:3px 0;} .att-stack.att-hr{min-height:34px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+  .att-hrtot{margin-top:2px;padding-top:3px;border-top:1px dashed #b9c4d8;font-weight:800;color:#0b7f58;}
+  .att-plus{margin-top:4px;width:30px;height:26px;border-radius:8px;border:1px dashed #9bb8f0;background:#f5f9ff;color:var(--brand);font-weight:800;cursor:pointer;line-height:1;}
+  .att-plus:hover{background:#e3eeff;}
   @keyframes rowFlash{0%{background:#fff3b0;}100%{background:transparent;}}
   table.att tr.flash td{animation:rowFlash 2.4s ease-out 2;}
   .att-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eaf1ff;color:var(--brand);margin:1px;}
@@ -3490,19 +3494,20 @@ function watchAtt(y, m) {
   } catch (e) { attSubs[ym] = false; }
 }
 
-// Only the first scan-in and the last scan-out exist. A shift that crosses days (24 h, 48 h …)
+// Only the first scan-in and the last scan-out of a shift exist. A shift that crosses days (24 h, 48 h …)
 // is filled in automatically: every day in between runs 07:00 → 07:00.
+// A day can hold several sessions (e.g. morning 2 h + evening 15 h): { 'YYYY-MM-DD': [ {in,out}, ... ] }
+function addSess(res, D, o) { (res[D] = res[D] || []).push(o); }
 function spreadShift(res, inMs, outMs) {
   var cur = inMs;
   for (var n = 0; n < 12; n++) {
     var D = ppDate(cur), nb = ppMs(ppDate(ppMs(D, '00:00') + 86400000), '07:00');
-    if (outMs <= nb + 3 * 3600000) { res[D] = { in: cur, out: outMs }; return; }
-    res[D] = { in: cur, out: nb };
+    if (outMs <= nb + 3 * 3600000) { addSess(res, D, { in: cur, out: outMs }); return; }
+    addSess(res, D, { in: cur, out: nb });
     cur = nb;
   }
 }
 
-// per-day { in, out } (ms) for one doctor, from scans + hand corrections
 function flashAttRow(ds) {
   var tr = document.querySelector('#attWrap tr[data-row="' + ds + '"]'); if (!tr) return;
   try { if (document.getElementById('panel-attendance').classList.contains('active')) tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
@@ -3515,24 +3520,24 @@ function attCalc(docId, ym) {
   var ins = scan.filter(function (r) { return r.t === 'in'; }), outs = scan.filter(function (r) { return r.t === 'out'; });
   var res = {}, used = {};
   ins.forEach(function (r, i) {
-    var D = ppDate(r.at);
-    if (res[D] && res[D].in) return;
     var nextIn = ins[i + 1] ? ins[i + 1].at : Infinity, matched = null;
     for (var k = 0; k < outs.length; k++) {
       if (!used[k] && outs[k].at > r.at && outs[k].at < r.at + 120 * 3600000 && outs[k].at < nextIn) { matched = outs[k].at; used[k] = true; break; }
     }
-    if (matched === null) { res[D] = { in: r.at }; return; }
-    spreadShift(res, r.at, matched);
+    if (matched === null) addSess(res, ppDate(r.at), { in: r.at });
+    else spreadShift(res, r.at, matched);
   });
-  outs.forEach(function (r, k) { if (used[k]) return; var D = ppDate(r.at); if (!res[D]) res[D] = {}; if (!res[D].out && !res[D].in) res[D].out = r.at; });
+  outs.forEach(function (r, k) { if (!used[k]) addSess(res, ppDate(r.at), { out: r.at }); });
+  Object.keys(res).forEach(function (D) { res[D].sort(function (x, y) { return (x.in || x.out) - (y.in || y.out); }); });
   var latest = {};
   recs.filter(function (r) { return r.fix && r.fd; }).forEach(function (r) {
-    var key = r.fd + '|' + r.t;
+    var key = r.fd + '|' + r.t + '|' + (r.k || 0);
     if (!latest[key] || (r.cr || 0) >= (latest[key].cr || 0)) latest[key] = r;
   });
   Object.keys(latest).forEach(function (key) {
-    var r = latest[key], D = r.fd; if (!res[D]) res[D] = {};
-    if (r.clr) delete res[D][r.t]; else res[D][r.t] = r.at;
+    var r = latest[key], D = r.fd, k = r.k || 0, arr = res[D] = res[D] || [];
+    while (arr.length <= k) arr.push({});
+    if (r.clr) delete arr[k][r.t]; else arr[k][r.t] = r.at;
   });
   return res;
 }
@@ -3565,31 +3570,48 @@ function attMonthLocked() {
   return ym < nowYm;
 }
 
+var attExtra = {};   // "docId|date" -> extra empty session slots opened with the + button
+function attInput(ds, t, k, v, dis) {
+  return '<input type="text" inputmode="numeric" maxlength="5" placeholder="--:--" class="att-time" data-d="' + ds + '" data-t="' + t + '" data-k="' + k + '" value="' + v + '"' + dis + '>';
+}
 function attRows(doc, editable, clinic) {
   var locked = attMonthLocked();
   var y = STATE.year, m = STATE.month, ym = y + '-' + pad2(m), nd = daysInMonth(y, m), A = attCalc(doc.ID, ym);
   var rows = '', totMin = 0, worked = 0;
   for (var d = 1; d <= nd; d++) {
-    var ds = ym + '-' + pad2(d), dow = new Date(y, m - 1, d).getDay(), tags = attShiftTags(doc, ds, clinic), a = (clinic && !tags.length) ? {} : (A[ds] || {});
-    var mins = (a.in && a.out && a.out > a.in) ? Math.round((a.out - a.in) / 60000) : 0;
-    if (mins) { totMin += mins; worked++; }
-    var inV = a.in ? ppHM(a.in) : '', outV = a.out ? ppHM(a.out) : '';
-    var outNext = '';
-    var cellIn, cellOut;
+    var ds = ym + '-' + pad2(d), dow = new Date(y, m - 1, d).getDay(), tags = attShiftTags(doc, ds, clinic);
+    var arr = (clinic && !tags.length) ? [] : (A[ds] || []);
+    var mins = arr.map(function (a) { return (a.in && a.out && a.out > a.in) ? Math.round((a.out - a.in) / 60000) : 0; });
+    var dayMin = mins.reduce(function (x, y2) { return x + y2; }, 0);
+    if (dayMin) { totMin += dayMin; worked++; }
+    var inC = '', outC = '', hrC = '';
     if (editable) {
-      var dis = locked ? ' disabled' : '';
-      cellIn = '<input type="text" inputmode="numeric" maxlength="5" placeholder="--:--" class="att-time" data-d="' + ds + '" data-t="in" value="' + inV + '"' + dis + '>';
-      cellOut = '<input type="text" inputmode="numeric" maxlength="5" placeholder="--:--" class="att-time" data-d="' + ds + '" data-t="out" value="' + outV + '"' + dis + '>' + outNext;
-    } else { cellIn = inV; cellOut = outV; }
+      var dis = locked ? ' disabled' : '', extra = attExtra[doc.ID + '|' + ds] || 0, slots = Math.max(arr.length, 1, locked ? 0 : 1 + extra);
+      for (var k = 0; k < slots; k++) {
+        var a = arr[k] || {};
+        inC += '<div class="att-stack">' + attInput(ds, 'in', k, a.in ? ppHM(a.in) : '', dis) + '</div>';
+        outC += '<div class="att-stack">' + attInput(ds, 'out', k, a.out ? ppHM(a.out) : '', dis) + '</div>';
+        hrC += '<div class="att-stack att-hr">' + (mins[k] ? hoursText(mins[k]) : '&nbsp;') + '</div>';
+      }
+      if (arr.filter(function (z) { return z.in || z.out; }).length > 1 && dayMin) hrC += '<div class="att-hr att-hrtot">សរុប ' + hoursText(dayMin) + '</div>';
+      if (!locked && arr.length >= 1) inC += '<button type="button" class="att-plus" data-d="' + ds + '" title="បន្ថែមម៉ោងចូល-ចេញមួយទៀតក្នុងថ្ងៃនេះ">＋</button>';
+    } else {
+      var shown = arr.map(function (z, i) { return { z: z, m: mins[i] }; }).filter(function (o) { return o.z.in || o.z.out; });
+      inC = shown.map(function (o) { return o.z.in ? ppHM(o.z.in) : '&nbsp;'; }).join('<br>');
+      outC = shown.map(function (o) { return o.z.out ? ppHM(o.z.out) : '&nbsp;'; }).join('<br>');
+      hrC = shown.map(function (o) { return o.m ? hoursText(o.m) : '&nbsp;'; }).join('<br>') + (shown.length > 1 && dayMin ? '<br><b>សរុប ' + hoursText(dayMin) + '</b>' : '');
+    }
+    var hasAny = arr.some(function (z) { return z.in || z.out; });
     var isToday = editable && ds === ppDate(Date.now());
-    rows += '<tr data-row="' + ds + '" class="' + ((dow === 0 || dow === 6) ? 'we ' : '') + (isToday ? 'today ' : '') + (tags.length || a.in || dow === 0 || dow === 6 ? '' : 'off') + '">' +
+    rows += '<tr data-row="' + ds + '" class="' + ((dow === 0 || dow === 6) ? 'we ' : '') + (isToday ? 'today ' : '') + (tags.length || hasAny || dow === 0 || dow === 6 ? '' : 'off') + '">' +
       '<td class="' + (editable ? 'd' : 'l') + '">' + d + '/' + pad2(m) + (editable ? (isToday ? '<span class="today-pill">ថ្ងៃនេះ</span>' : '') + '<small>' + DOW_KM[DOW_NAMES_EN[dow]] + '</small>' : ' ' + DOW_KM[DOW_NAMES_EN[dow]]) + '</td>' +
       shiftCell(tags, false, editable) + shiftCell(tags, true, editable) +
-      '<td>' + cellIn + '</td><td>' + cellOut + '</td><td>' + (mins ? hoursText(mins) : '') + '</td><td></td><td></td></tr>';
+      '<td>' + inC + '</td><td>' + outC + '</td><td>' + hrC + '</td><td></td><td></td></tr>';
   }
   rows += '<tr class="tot"><td colspan="5" class="l">សរុប ' + worked + ' ថ្ងៃ</td><td>' + (totMin ? hoursText(totMin) : '') + '</td><td></td><td></td></tr>';
   return rows;
 }
+
 var ATT_HEAD = '<thead><tr><th>កាលបរិច្ឆេទ</th><th>☀️ វេនថ្ងៃ</th><th>🌙 វេនយប់</th><th>ម៉ោងចូល</th><th>ម៉ោងចេញ</th><th>ចំនួនម៉ោង</th><th style="min-width:110px;">ហត្ថាលេខា</th><th style="min-width:80px;">ផ្សេងៗ</th></tr></thead>';
 
 function activeDoctorList() { return STATE.doctors.filter(function (d) { return d.Active !== false; }); }
@@ -3677,13 +3699,14 @@ function runPrint(orient) {
   setTimeout(function () { window.print(); }, 50);
 }
 
-async function saveAttFix(docObj, ds, t, hm) {
+async function saveAttFix(docObj, ds, t, hm, k) {
+  k = +k || 0;
   if (attMonthLocked()) { showToast('ខែកន្លងផុតហើយ មិនអាចកែបានទេ'); setTimeout(function () { renderAttSheet(true); }, 0); return; }
-  var cr = Date.now(), base = { t: t, id: docObj.ID, n: docName(docObj), fix: 1, fd: ds, cr: cr, ts: serverTimestamp() };
+  var cr = Date.now(), base = { t: t, id: docObj.ID, n: docName(docObj), fix: 1, fd: ds, k: k, cr: cr, ts: serverTimestamp() };
   var ym = STATE.year + '-' + pad2(STATE.month), rec;
   if (!hm) rec = Object.assign({ clr: 1, at: cr, d: ds }, base);
   else {
-    var at = ppMs(ds, hm), A = attCalc(docObj.ID, ym)[ds] || {};
+    var at = ppMs(ds, hm), A = (attCalc(docObj.ID, ym)[ds] || [])[k] || {};
     if (t === 'out') { var inMs = A.in; if (inMs && at <= inMs) at += 86400000; else if (!inMs) { /* keep as typed */ } }
     rec = Object.assign({ at: at, d: ppDate(at) }, base);
   }
@@ -3785,6 +3808,10 @@ async function ciGo(t) {
     if (d.length === 3 && d.charAt(2) > '5' && !del) d = d.slice(0, 2) + '0' + d.charAt(2); // 07:7 -> 07:07
     el.value = d.length >= 3 ? d.slice(0, 2) + ':' + d.slice(2) : (d.length === 2 && !del ? d + ':' : d);
   });
+  $('attWrap').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.att-plus') : null; if (!b) return;
+    var key = attDocId + '|' + b.dataset.d; attExtra[key] = (attExtra[key] || 0) + 1; renderAttSheet(true);
+  });
   $('attWrap').addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.classList.contains('att-time')) e.target.blur(); });
   $('attWrap').addEventListener('focusin', function (e) { if (e.target.classList.contains('att-time')) { var t = e.target; setTimeout(function () { try { t.select(); } catch (x) {} }, 0); } });
   $('attWrap').addEventListener('change', function (e) {
@@ -3793,7 +3820,7 @@ async function ciGo(t) {
     if (hm === null) { showToast('ម៉ោងមិនត្រឹមត្រូវ — វាយបែប 07:30'); setTimeout(function () { renderAttSheet(true); }, 0); return; }
     el.value = hm;
     var doc = activeDoctorList().filter(function (d) { return d.ID === attDocId; })[0];
-    if (doc) saveAttFix(doc, el.dataset.d, el.dataset.t, el.value);
+    if (doc) saveAttFix(doc, el.dataset.d, el.dataset.t, el.value, el.dataset.k);
   });
   $('qrCopy').addEventListener('click', function () {
     try { navigator.clipboard.writeText(ciUrl()).then(function () { showToast('ចម្លងតំណរួចរាល់ ✓'); }); } catch (e) { showToast(ciUrl()); }
