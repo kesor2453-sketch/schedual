@@ -3737,7 +3737,16 @@ async function saveAttFix(docObj, ds, t, hm, k) {
   if (!hm) rec = Object.assign({ clr: 1, at: cr, d: ds }, base);
   else {
     var at = ppMs(ds, hm), A = (attCalc(docObj.ID, ym)[ds] || [])[k] || {};
-    if (t === 'out') { var inMs = A.in; if (inMs && at <= inMs) at += 86400000; else if (!inMs) { /* keep as typed */ } }
+    if (t === 'out') {
+      var inMs = A.in;
+      if (inMs && at <= inMs) at += 86400000;
+      else if (inMs) {
+        // 24h duty (day+night on this date): a morning out time after a morning in is the NEXT day (07:00 -> 08:00 = 25h)
+        var tg = attShiftTags(docObj, ds), arrAll = attCalc(docObj.ID, ym)[ds] || [];
+        var hasDay = tg.some(function (x) { return !x.night; }), hasNight = tg.some(function (x) { return x.night; });
+        if (hasDay && hasNight && k === arrAll.length - 1 && +hm.slice(0, 2) < 12) at += 86400000;
+      }
+    }
     rec = Object.assign({ at: at, d: ppDate(at) }, base);
   }
   // optimistic local update so the sheet reflects it at once
