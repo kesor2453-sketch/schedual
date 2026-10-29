@@ -447,13 +447,24 @@
   table.att td.d{text-align:left;white-space:nowrap;font-weight:700;}
   table.att td.d small{display:block;font-weight:400;color:var(--sub);font-size:11px;}
   table.att tr.off td{color:#9aa3b5;}
-  table.att tr.we td{background:#ffecec;color:#d92b2b;} table.att tr.we td.d,table.att tr.we td.d small{color:#d92b2b;}
+  table.att tr.we td{background:#fde8e8;color:#d92b2b;}
+  table.att tr.we td.d{background:#f27b7b;color:#fff;} table.att tr.we td.d small{color:#fff;}
+  .sh-pill{height:30px;min-width:70px;border-radius:9px;border:1.5px dotted #c9d1df;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;}
+  .sh-pill.on{background:#8cc63f;border:0;color:#111;}
+  .att-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#2f6fed;color:#fff;border-radius:12px 12px 0 0;padding:10px 14px;font-weight:800;}
+  .att-banner button{border:0;border-radius:9px;background:rgba(255,255,255,.28);color:#fff;font-size:15px;padding:6px 11px;cursor:pointer;font-weight:800;}
+  .att-banner button:hover{background:rgba(255,255,255,.42);}
+  .att-banner .sp{opacity:.9;font-weight:600;}
+  table.att{border-radius:0 0 12px 12px;}
+  table.att td input.att-time,table.att td textarea.att-time{color:#1565c0;font-weight:800;}
+  table.att .att-hr{color:#b45f06;} table.att tr.we .att-hr{color:#d92b2b;}
   table.att tr.today td{background:#dbe9ff !important;color:#1c4fd6;}
   table.att tr.today td.d,table.att tr.today td.d small{color:#1c4fd6;}
   table.att tr.today td:first-child{box-shadow:inset 4px 0 0 #2f6fed;}
   .today-pill{display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:#fff;background:#2f6fed;padding:1px 8px;border-radius:20px;animation:todayPulse 1.4s ease-in-out infinite;}
   @keyframes todayPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(47,111,237,.55);}50%{transform:scale(1.12);box-shadow:0 0 0 6px rgba(47,111,237,0);}}
   table.pst tr.we td{color:#c00;background:#fdecec;}
+  table.pst td.l{text-align:left;}
   table.att tr.tot td{background:#eef7f2;font-weight:800;}
   input.att-time{width:84px;text-align:center;padding:7px 4px;border-radius:10px;border:1.5px solid #b9cdf8;background:#fff;font-family:inherit;font-size:14px;font-weight:700;color:#1c2430;}
   textarea.att-time{resize:none;overflow:hidden;white-space:pre;line-height:24px;padding:5px 4px;display:block;margin:0 auto;box-sizing:content-box;}
@@ -618,6 +629,7 @@
         </div>
       </div>
       <div style="font-size:11.5px;color:var(--sub);margin-bottom:8px;">ម៉ោងចូល/ចេញ បំពេញដោយស្វ័យប្រវត្តិពីការស្កេន QR — ភ្លេចស្កេន? វាយម៉ោងដោយដៃក្នុងប្រអប់បាន (រក្សាទុកភ្លាមៗ)។ ជួរ ហត្ថាលេខា ទុកទំនេរសម្រាប់ចុះហត្ថាលេខាលើក្រដាសព្រីន។</div>
+      <div id="attBanner" class="att-banner"></div>
       <div id="attWrap" style="overflow-x:auto;"></div>
     </div>
 
@@ -3555,7 +3567,8 @@ function attShiftTags(doc, ds, clinic) {
 
 function shiftCell(tags, night, editable) {
   var on = tags.some(function (t) { return t.night === night; });
-  return '<td>' + (on ? '<b style="color:' + (night ? '#3b46b8' : '#a66a00') + ';font-size:15px;">✓</b>' : '') + '</td>';
+  if (!editable) return '<td>' + (on ? '✓' : '') + '</td>';
+  return '<td><div class="sh-pill' + (on ? ' on' : '') + '">' + (on ? '✓' : '') + '</div></td>';
 }
 
 // "7:05", "705", "0705", "7" -> "07:05" ; "" -> "" ; bad -> null
@@ -3617,7 +3630,7 @@ function attRows(doc, editable, clinic) {
   return rows;
 }
 
-var ATT_HEAD = '<thead><tr><th>កាលបរិច្ឆេទ</th><th>☀️ វេនថ្ងៃ</th><th>🌙 វេនយប់</th><th>ម៉ោងចូល</th><th>ម៉ោងចេញ</th><th>ចំនួនម៉ោង</th><th style="min-width:110px;">ហត្ថាលេខា</th><th style="min-width:80px;">ផ្សេងៗ</th></tr></thead>';
+var ATT_HEAD = '<thead><tr><th>ថ្ងៃ</th><th>ព្រឹក</th><th>យប់</th><th>ម៉ោងចូល</th><th>ម៉ោងចេញ</th><th>ចំនួនម៉ោង</th><th style="min-width:110px;">ហត្ថាលេខា</th><th style="min-width:80px;">ផ្សេងៗ</th></tr></thead>';
 
 function activeDoctorList() { return STATE.doctors.filter(function (d) { return d.Active !== false; }); }
 
@@ -3635,6 +3648,11 @@ function renderAttSheet(force) {
   document.getElementById('attMonthLabel').textContent = monthLabelKm(STATE.year, STATE.month);
   watchAtt(STATE.year, STATE.month);
   var doc = list.filter(function (d) { return d.ID === attDocId; })[0];
+  (function banner() {
+    var y = STATE.year, m = STATE.month, nd = daysInMonth(y, m), shifts = 0;
+    for (var i = 1; i <= nd; i++) { var tg = attShiftTags(doc, y + '-' + pad2(m) + '-' + pad2(i)); if (tg.some(function (t) { return !t.night; })) shifts++; if (tg.some(function (t) { return t.night; })) shifts++; }
+    document.getElementById('attBanner').innerHTML = '🩺 គ្រូពេទ្យ · <button type="button" id="attDocPrev">◀</button> <span>' + escapeHtml(docName(doc)) + '</span> <button type="button" id="attDocNext">▶</button> <span class="sp">· សរុប ' + shifts + ' វេន</span>';
+  })();
   var active = document.activeElement, keep = null;
   if (active && active.classList && active.classList.contains('att-time') && wrap.contains(active)) {
     if (!force) return;   // don't redraw while typing (live updates)
@@ -3808,6 +3826,12 @@ async function ciGo(t) {
   $('attDoc').addEventListener('change', function () { attDocId = this.value; renderAttSheet(); });
   $('attPrev').addEventListener('click', function () { shiftMonth(-1); });
   $('attNext').addEventListener('click', function () { shiftMonth(1); });
+  $('attBanner').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null; if (!b) return;
+    var list = activeDoctorList(), i = list.findIndex(function (d) { return d.ID === attDocId; });
+    if (b.id === 'attDocPrev') i = (i - 1 + list.length) % list.length; else if (b.id === 'attDocNext') i = (i + 1) % list.length; else return;
+    attDocId = list[i].ID; renderAttSheet(true);
+  });
   $('attPrintBtn').addEventListener('click', printAttSheet);
   $('attPrintAllBtn').addEventListener('click', printAllAttSheets);
   // typing mask: 07 -> "07:", 0705 -> 07:05, keep typing -> a second time starts after a space
