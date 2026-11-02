@@ -1125,7 +1125,7 @@ document.addEventListener('DOMContentLoaded', function () {
         applySpvMirror();
         if (firstSnapshotHandled) {
           loadSchedule();
-          if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+          loadPayroll();
           if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
         }
       } else {
@@ -1165,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', function () {
     applySpvMirror();
     loadSchedule();
     renderDoctors();
-    if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+    loadPayroll();
     if (document.getElementById('panel-history').classList.contains('active')) renderClinicLedger();
   }, function (err) {
     document.getElementById('scheduleWrap').innerHTML =
@@ -1196,7 +1196,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     incomeFirstSnapshotHandled = true;
     if (document.getElementById('panel-income').classList.contains('active')) renderIncome();
-    if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+    loadPayroll();
   }, function (err) {
     showToast('⚠ មិនអាចភ្ជាប់ Firestore (ចំណូល) បានទេ៖ ' + err.message);
   });
@@ -1300,6 +1300,7 @@ function bindTabs() {
       if (t.dataset.panel === 'panel-payroll') loadPayroll();
       if (t.dataset.panel === 'panel-history') renderClinicLedger();
       if (t.dataset.panel === 'panel-doctors') renderDoctors();
+      if (t.dataset.panel === 'panel-doctors') loadPayroll();
       if (t.dataset.panel === 'panel-income') renderIncome();
       if (t.dataset.panel === 'panel-attendance') { renderAttSheet(true); renderQrCard(); }
       syncMonthUI();
@@ -1820,7 +1821,7 @@ function deleteSlotColumn(field) {
   deleteSlotColumnCore(field);
   persistRemoteState();
   renderSchedule();
-  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+  loadPayroll();
   showToast('បញ្ឈប់ជួរឈររួចរាល់ ✓ (ទិន្នន័យនៅរក្សាទុក)');
 }
 window.deleteSlotColumn = deleteSlotColumn;
@@ -1966,7 +1967,7 @@ function stopSlotColumnFromMonth(field) {
   persistRemoteState();
   renderSchedule();
   renderClinicEditor();
-  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+  loadPayroll();
   showToast('បញ្ឈប់ជួរឈររួចរាល់ ✓ (ទិន្នន័យនៅរក្សាទុក)');
 }
 window.stopSlotColumnFromMonth = stopSlotColumnFromMonth;
@@ -1978,7 +1979,7 @@ function stopClinicFromMonth(clinicName) {
   persistRemoteState();
   renderSchedule();
   renderClinicEditor();
-  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+  loadPayroll();
   showToast('បញ្ឈប់ ' + clinicName + ' ពីខែនេះតទៅរួចរាល់ ✓ (ទិន្នន័យនៅរក្សាទុក)');
 }
 window.stopClinicFromMonth = stopClinicFromMonth;
@@ -1995,7 +1996,7 @@ function renameScheduleClinic(oldName, newNameRaw) {
   cols.forEach(function (c) { c.clinic = newName; });
   persistRemoteState();
   renderSchedule();
-  if (document.getElementById('panel-payroll').classList.contains('active')) loadPayroll();
+  loadPayroll();
   showToast('ប្តូរឈ្មោះគ្លីនិករួចរាល់ ✓ (អនុវត្តលើ ' + cols.length + ' ជួរឈរ)');
 }
 window.renameScheduleClinic = renameScheduleClinic;
