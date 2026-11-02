@@ -1476,6 +1476,10 @@ function detectClashesLocal(rowObj) {
   return clashNames;
 }
 
+function hoursBreakdown(h24, dOnly, nOnly) {
+  return '<span style="color:#a64ca6;font-weight:700;">២៤ម៉ោង ' + h24 + ' ថ្ងៃ</span> · ១២ម៉ោងថ្ងៃ ' + dOnly + ' · ១២ម៉ោងយប់ ' + nOnly;
+}
+
 function renderSchedule() {
   var y = STATE.year, m = STATE.month;
   var nDays = daysInMonth(y, m);
@@ -1486,12 +1490,21 @@ function renderSchedule() {
 
   var allClashDays = [];
   var myDutyDayCount = 0;
-  var dayDutyCount = 0;
+  var dayDutyCount = 0, h24Count = 0, h12DayCount = 0, h12NightCount = 0;
   var nightDutyCount = 0;
   var dutyClinicCounts = {};
   var totalDutyUsd = 0;
   var curMonthKey = monthKey(y, m);
   var visibleCols = STATE.slotColumns.filter(function (c) { return columnActiveInMonth(c, curMonthKey); });
+  // a past month in which a clinic (other than SPV) has nothing filled in: don't show its columns at all
+  if (curMonthKey < monthKey(today.getFullYear(), today.getMonth() + 1)) {
+    var monthRows = STATE.scheduleAll.filter(function (r) { return String(r.Date).indexOf(y + '-' + pad2(m)) === 0; });
+    visibleCols = visibleCols.filter(function (c) {
+      if (c.clinic === 'SPV') return true;
+      var sameClinic = visibleCols.filter(function (x) { return x.clinic === c.clinic; });
+      return monthRows.some(function (r) { return sameClinic.some(function (x) { return r[x.field]; }); });
+    });
+  }
   // group by clinic, and inside each clinic put all ព្រឹក (DAY) columns together, then យប់ (NIGHT)
   function groupByClinicPeriod(cols) {
     var order = [];
@@ -1537,6 +1550,7 @@ function renderSchedule() {
         var hitNight = dutyInfo.periods.some(function (p) { return p.indexOf('NIGHT') !== -1; });
         if (hitDay) dayDutyCount++;
         if (hitNight) nightDutyCount++;
+        if (hitDay && hitNight) h24Count++; else if (hitDay) h12DayCount++; else if (hitNight) h12NightCount++;
         totalDutyUsd += dutyInfo.usd;
 
         // Per-clinic day/night breakdown: figure out, for THIS day, whether
@@ -1549,10 +1563,11 @@ function renderSchedule() {
           else clinicHitToday[e.clinic].day = true;
         });
         Object.keys(clinicHitToday).forEach(function (c) {
-          if (!dutyClinicCounts[c]) dutyClinicCounts[c] = { total: 0, day: 0, night: 0 };
+          if (!dutyClinicCounts[c]) dutyClinicCounts[c] = { total: 0, day: 0, night: 0, h24: 0, dOnly: 0, nOnly: 0 };
           dutyClinicCounts[c].total++;
           if (clinicHitToday[c].day) dutyClinicCounts[c].day++;
           if (clinicHitToday[c].night) dutyClinicCounts[c].night++;
+          if (clinicHitToday[c].day && clinicHitToday[c].night) dutyClinicCounts[c].h24++; else if (clinicHitToday[c].day) dutyClinicCounts[c].dOnly++; else dutyClinicCounts[c].nOnly++;
         });
       }
     }
@@ -1588,11 +1603,11 @@ function renderSchedule() {
   var clinicStatsHtml = Object.keys(dutyClinicCounts).sort().map(function (c) {
     var cc = dutyClinicCounts[c];
     return '<div class="stat"><div class="n">' + cc.total + ' ថ្ងៃ</div><div class="l">' + escapeHtml(c) +
-      ' (ព្រឹក ' + cc.day + ' | យប់ ' + cc.night + ')</div></div>';
+      ' (ព្រឹក ' + cc.day + ' | យប់ ' + cc.night + ')<br>' + hoursBreakdown(cc.h24, cc.dOnly, cc.nOnly) + '</div></div>';
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
-    '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')</div></div>' +
+    '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '</div></div>' +
     clinicStatsHtml;
 
   var banner = document.getElementById('clashBanner');
@@ -2413,8 +2428,9 @@ function computePayrollClient(year, month) {
     capDailyEarningsClient(r).forEach(function (e) {
       if (!byClinic[e.clinic]) byClinic[e.clinic] = {};
       var bucket = byClinic[e.clinic];
-      if (!bucket[e.docKey]) bucket[e.docKey] = { name: e.displayName, shifts: 0, usd: 0 };
+      if (!bucket[e.docKey]) bucket[e.docKey] = { name: e.displayName, shifts: 0, day: 0, night: 0, usd: 0 };
       bucket[e.docKey].shifts++;
+      if (/_NIGHT$/.test(String(e.period))) bucket[e.docKey].night++; else bucket[e.docKey].day++;
       bucket[e.docKey].usd += e.rate;
     });
   });
@@ -2491,10 +2507,10 @@ function renderPayroll(summary, incomeSummary) {
   function table(list) {
     if (!list.length) return '<div class="empty-state" style="padding:14px 0;">មិនមានវេនទេ</div>';
     var rows = list.map(function (c) {
-      return '<tr><td>' + escapeHtml(c.name) + '</td><td class="num">' + c.shifts + '</td>' +
+      return '<tr><td>' + escapeHtml(c.name) + '</td><td class="num">' + c.shifts + '</td><td class="num">' + (c.day || 0) + '</td><td class="num">' + (c.night || 0) + '</td>' +
         '<td class="num">' + fmtUsd(c.usd) + '</td><td class="num">' + fmtKhr(c.khr) + '</td></tr>';
     }).join('');
-    return '<table class="pay"><thead><tr><th>ឈ្មោះ</th><th style="text-align:right;">ចំនួនវេន</th>' +
+    return '<table class="pay"><thead><tr><th>ឈ្មោះ</th><th style="text-align:right;">ចំនួនវេន</th><th style="text-align:right;">☀️ ព្រឹក</th><th style="text-align:right;">🌙 យប់</th>' +
       '<th style="text-align:right;">USD</th><th style="text-align:right;">KHR</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
