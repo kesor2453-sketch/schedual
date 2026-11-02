@@ -1303,6 +1303,7 @@ function bindTabs() {
       if (t.dataset.panel === 'panel-doctors') renderDoctors();
       if (t.dataset.panel === 'panel-income') renderIncome();
       if (t.dataset.panel === 'panel-attendance') { renderAttSheet(true); renderQrCard(); }
+      syncMonthUI();
       try { t.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {}
     });
   });
@@ -1357,6 +1358,7 @@ function getAvailableMonths() {
   });
   var now = new Date();
   set[now.getFullYear() + '-' + pad2(now.getMonth() + 1)] = true;
+  set[STATE.year + '-' + pad2(STATE.month)] = true;   // the month being viewed is always selectable
   return Object.keys(set).sort().reverse();
 }
 
@@ -1380,7 +1382,16 @@ function refreshMonthPickers() {
 // One shared month (STATE.year/STATE.month) now drives the Schedule,
 // Payroll, Income, AND Clinic Total tabs together — changing the month on
 // any one of them moves all four, so they always stay in sync.
+function syncMonthUI() {
+  var t = monthLabelKm(STATE.year, STATE.month);
+  ['monthLabel', 'monthLabelDocPay', 'monthLabelPay', 'monthLabelIncome', 'monthLabelHistory'].forEach(function (id) {
+    var el = document.getElementById(id); if (el) el.textContent = t;
+  });
+  refreshMonthPickers();
+}
+
 function refreshAllMonthViews() {
+  syncMonthUI();
   loadSchedule();
   loadPayroll();
   renderIncome();
