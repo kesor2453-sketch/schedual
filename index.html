@@ -1677,9 +1677,9 @@ function renderSchedule() {
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
-    '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' +
+    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាមក្នុង ១ខែ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' +
     payByClinicBox() +
-    clinicStatsHtml;
+    (Object.keys(dutyClinicCounts).length > 1 ? clinicStatsHtml : '');   // a single clinic just repeats the ★ box
 
   var banner = document.getElementById('clashBanner');
   if (allClashDays.length) {
