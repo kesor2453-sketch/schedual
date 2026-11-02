@@ -93,9 +93,10 @@
   }
   table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
   :root{--row-off:#cdeeee;--row-we:#fde3e3;--row-today:#ffd9a0;}
-  table.sched tbody tr.no-me td{background:var(--row-off);}
   table.sched tbody tr.weekend td{background:var(--row-we);}
-  table.sched tbody tr.today td{background:var(--row-today);}
+  table.sched tbody tr.today td{animation:todayBlink 1.2s ease-in-out infinite;}
+  @keyframes todayBlink{0%,100%{background:var(--row-today);}50%{background:#fff;}}
+  .dayoff-tag{color:#0f8f8f;font-weight:700;}
   .color-row{display:flex;gap:14px;flex-wrap:nowrap;align-items:center;overflow-x:auto;margin-bottom:12px;padding:8px 10px;background:#f6f8fc;border-radius:12px;font-size:12.5px;white-space:nowrap;}
   .color-row label{display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;}
   .color-row input[type=color]{width:30px;height:26px;border:1px solid var(--line);border-radius:7px;padding:0;background:none;cursor:pointer;}
@@ -618,7 +619,6 @@
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;"><div style="font-weight:700;font-size:15px;">បញ្ជីគ្រូពេទ្យ</div><button type="button" class="today-btn btn-edit" onclick="openDoctorEditor()">✏️ កែប្រែ</button></div>
       <div class="color-row">
         <span style="font-weight:700;">🎨 ពណ៌កាលវិភាគ</span>
-        <label>គ្មានឈ្មោះខ្ញុំ <input type="color" id="colOff" data-var="--row-off" value="#cdeeee"></label>
         <label>សៅរ៍-អាទិត្យ <input type="color" id="colWe" data-var="--row-we" value="#fde3e3"></label>
         <label>ថ្ងៃនេះ <input type="color" id="colToday" data-var="--row-today" value="#ffd9a0"></label>
         <button type="button" class="today-btn" id="colReset">ដើម</button>
@@ -1653,7 +1653,7 @@ function renderSchedule() {
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
       (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
       (dateStr === todayStr ? '<span class="today-badge">ថ្ងៃនេះ</span>' : '') +
-      '<span class="dow">' + DOW_KM[dowName] + '</span></td>';
+      '<span class="dow">' + DOW_KM[dowName] + (trClasses.indexOf('no-me') >= 0 ? ' <span class="dayoff-tag">(Dayoff)</span>' : '') + '</span></td>';
 
     spvCols.forEach(function (c) { html += renderSlotCell(dateStr, c.field, row[c.field], clashes); });
     // ឈប់សម្រាក: no need to type anything — on every day I'm not on duty it shows DAY OFF by itself
