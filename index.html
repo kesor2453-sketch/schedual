@@ -617,6 +617,8 @@
         <button class="nav-btn" id="prevMonthDocPay">‹</button>
         <div class="month-label" id="monthLabelDocPay">—</div>
         <button class="nav-btn" id="nextMonthDocPay">›</button>
+        <button class="today-btn" id="todayBtnDoc">ខែនេះ</button>
+        <select class="today-btn" id="monthPickerDoc"></select>
       </div></div>
       <div id="payWrap2"></div>
     </div>
@@ -1314,6 +1316,12 @@ function bindMonthNav() {
     STATE.year = now.getFullYear(); STATE.month = now.getMonth() + 1;
     refreshAllMonthViews();
   });
+  document.getElementById('todayBtnDoc').addEventListener('click', function () { document.getElementById('todayBtn').click(); });
+  document.getElementById('monthPickerDoc').addEventListener('change', function (e) {
+    var parts = e.target.value.split('-');
+    STATE.year = Number(parts[0]); STATE.month = Number(parts[1]);
+    refreshAllMonthViews();
+  });
   document.getElementById('prevMonthPay').addEventListener('click', function () { shiftMonth(-1); });
   document.getElementById('prevMonthDocPay').addEventListener('click', function () { shiftMonth(-1); });
   document.getElementById('nextMonthDocPay').addEventListener('click', function () { shiftMonth(1); });
@@ -1363,7 +1371,7 @@ function refreshMonthPickers() {
   var optionsHtml = months.map(function (ym) {
     return '<option value="' + ym + '"' + (ym === cur ? ' selected' : '') + '>' + monthOptionLabel(ym) + '</option>';
   }).join('');
-  ['monthPicker', 'monthPickerPay', 'monthPickerIncome', 'monthPickerHistory'].forEach(function (id) {
+  ['monthPicker', 'monthPickerDoc', 'monthPickerPay', 'monthPickerIncome', 'monthPickerHistory'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.innerHTML = optionsHtml;
   });
@@ -1389,6 +1397,7 @@ function shiftMonth(delta) {
 /* ---------------- SCHEDULE RENDER (fully from memory) ---------------- */
 function loadSchedule() {
   document.getElementById('monthLabel').textContent = monthLabelKm(STATE.year, STATE.month);
+  document.getElementById('monthLabelDocPay').textContent = monthLabelKm(STATE.year, STATE.month);
   document.getElementById('clashBanner').classList.remove('show');
   renderSchedule();
   refreshMonthPickers();
