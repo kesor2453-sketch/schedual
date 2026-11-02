@@ -1485,12 +1485,11 @@ function payByClinicBox() {
     Object.keys(sm.linda.byClinic).forEach(function (c) { names[c] = true; });
     Object.keys(inc).forEach(function (c) { if (inc[c] && inc[c].usd) names[c] = true; });
     var list = Object.keys(names).sort(); if (!list.length) return '';
-    var total = 0;
-    var lines = list.map(function (c) {
-      var u = ((sm.linda.byClinic[c] && sm.linda.byClinic[c].usd) || 0) + ((inc[c] && inc[c].usd) || 0); total += u;
-      return '<b>' + escapeHtml(c) + '</b>: ' + fmtBoth(u);
-    }).join('<br>');
-    return '<div class="stat"><div class="n">' + fmtUsd(total) + '</div><div class="l">សរុបតាមគ្លីនិក (ប្រាក់ខែ + ចំណូល)<br>' + lines + '</div></div>';
+    return list.map(function (c) {
+      var pay = (sm.linda.byClinic[c] && sm.linda.byClinic[c].usd) || 0, im = (inc[c] && inc[c].usd) || 0;
+      return '<div class="stat"><div class="n">' + escapeHtml(c) + '</div><div class="l">' +
+        '<b>សរុប</b> ' + fmtBoth(pay + im) + '<br>ប្រាក់ខែ ' + fmtBoth(pay) + '<br>ចំណូល ' + fmtBoth(im) + '</div></div>';
+    }).join('');
   } catch (e) { return ''; }
 }
 
