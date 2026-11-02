@@ -1476,6 +1476,24 @@ function detectClashesLocal(rowObj) {
   return clashNames;
 }
 
+// ប្រាក់សរុបតាមគ្លីនិក = duty pay + Consult/IPD income, per clinic, for the viewed month (same as the doctors-tab summary)
+function payByClinicBox() {
+  try {
+    var sm = computePayrollClient(STATE.year, STATE.month), inc = computeIncomeSummary(STATE.year, STATE.month) || {};
+    if (!sm || !sm.linda) return '';
+    var names = {};
+    Object.keys(sm.linda.byClinic).forEach(function (c) { names[c] = true; });
+    Object.keys(inc).forEach(function (c) { if (inc[c] && inc[c].usd) names[c] = true; });
+    var list = Object.keys(names).sort(); if (!list.length) return '';
+    var total = 0;
+    var lines = list.map(function (c) {
+      var u = ((sm.linda.byClinic[c] && sm.linda.byClinic[c].usd) || 0) + ((inc[c] && inc[c].usd) || 0); total += u;
+      return '<b>' + escapeHtml(c) + '</b>: ' + fmtBoth(u);
+    }).join('<br>');
+    return '<div class="stat"><div class="n">' + fmtUsd(total) + '</div><div class="l">សរុបតាមគ្លីនិក (ប្រាក់ខែ + ចំណូល)<br>' + lines + '</div></div>';
+  } catch (e) { return ''; }
+}
+
 function toggleEmptyClinic(cn) {
   window.__showEmptyClinic = window.__showEmptyClinic || {};
   var k = monthKey(STATE.year, STATE.month) + '|' + cn;
@@ -1629,6 +1647,7 @@ function renderSchedule() {
 
   document.getElementById('scheduleStatsWrap').innerHTML =
     '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '</div></div>' +
+    payByClinicBox() +
     clinicStatsHtml;
 
   var banner = document.getElementById('clashBanner');
