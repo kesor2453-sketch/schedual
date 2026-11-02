@@ -92,7 +92,13 @@
     font-size:10px;padding:2px 7px;border-radius:20px;margin-left:6px;
   }
   table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
-  table.sched tbody tr.auto-off{background:#fdf4f4;}
+  :root{--row-off:#cdeeee;--row-we:#fde3e3;--row-today:#ffd9a0;}
+  table.sched tbody tr.no-me td{background:var(--row-off);}
+  table.sched tbody tr.weekend td{background:var(--row-we);}
+  table.sched tbody tr.today td{background:var(--row-today);}
+  .color-row{display:flex;gap:14px;flex-wrap:nowrap;align-items:center;overflow-x:auto;margin-bottom:12px;padding:8px 10px;background:#f6f8fc;border-radius:12px;font-size:12.5px;white-space:nowrap;}
+  .color-row label{display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;}
+  .color-row input[type=color]{width:30px;height:26px;border:1px solid var(--line);border-radius:7px;padding:0;background:none;cursor:pointer;}
   td.date-cell{font-weight:700;white-space:nowrap;text-align:left;padding-left:10px !important;}
   td.date-cell .dow{display:block;font-weight:500;color:var(--sub);font-size:10.8px;}
   td.date-cell .duty-star{color:var(--brand);font-size:11px;margin-left:4px;}
@@ -610,6 +616,13 @@
   <div class="panel" id="panel-doctors">
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;"><div style="font-weight:700;font-size:15px;">បញ្ជីគ្រូពេទ្យ</div><button type="button" class="today-btn btn-edit" onclick="openDoctorEditor()">✏️ កែប្រែ</button></div>
+      <div class="color-row">
+        <span style="font-weight:700;">🎨 ពណ៌កាលវិភាគ</span>
+        <label>គ្មានឈ្មោះខ្ញុំ <input type="color" id="colOff" data-var="--row-off" value="#cdeeee"></label>
+        <label>សៅរ៍-អាទិត្យ <input type="color" id="colWe" data-var="--row-we" value="#fde3e3"></label>
+        <label>ថ្ងៃនេះ <input type="color" id="colToday" data-var="--row-today" value="#ffd9a0"></label>
+        <button type="button" class="today-btn" id="colReset">ដើម</button>
+      </div>
       <div class="doc-grid" id="docGrid"></div>
     </div>
     <div class="card">
@@ -1110,6 +1123,7 @@ document.addEventListener('DOMContentLoaded', function () {
   bindIncomeMonthNav();
   bindClinicGridControls();
   bindSlotColumnControls();
+  initRowColors();
 
   document.getElementById('scheduleWrap').innerHTML =
     '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
@@ -1493,6 +1507,26 @@ function payByClinicBox() {
   } catch (e) { return ''; }
 }
 
+// schedule row colours — editable on the doctors tab, remembered on this device
+var ROW_COLORS_DEFAULT = { '--row-off': '#cdeeee', '--row-we': '#fde3e3', '--row-today': '#ffd9a0' };
+function applyRowColors(map) {
+  Object.keys(ROW_COLORS_DEFAULT).forEach(function (v) { document.documentElement.style.setProperty(v, map[v] || ROW_COLORS_DEFAULT[v]); });
+  document.querySelectorAll('.color-row input[type=color]').forEach(function (i) { i.value = map[i.dataset.v] || map[i.getAttribute('data-var')] || ROW_COLORS_DEFAULT[i.getAttribute('data-var')]; });
+}
+function initRowColors() {
+  var saved = {}; try { saved = JSON.parse(localStorage.getItem('rowColors') || '{}') || {}; } catch (e) {}
+  applyRowColors(saved);
+  document.querySelectorAll('.color-row input[type=color]').forEach(function (i) {
+    i.addEventListener('input', function () {
+      saved[i.getAttribute('data-var')] = i.value; applyRowColors(saved);
+      try { localStorage.setItem('rowColors', JSON.stringify(saved)); } catch (e) {}
+    });
+  });
+  document.getElementById('colReset').addEventListener('click', function () {
+    saved = {}; applyRowColors(saved); try { localStorage.removeItem('rowColors'); } catch (e) {}
+  });
+}
+
 function toggleEmptyClinic(cn) {
   window.__showEmptyClinic = window.__showEmptyClinic || {};
   var k = monthKey(STATE.year, STATE.month) + '|' + cn;
@@ -1565,7 +1599,6 @@ function renderSchedule() {
     '<tr>' +
     '<th style="text-align:left;">កាលបរិច្ឆេទ</th>' +
     spvCols.map(function (c) { return '<th class="group-spv">' + slotHeaderCellHtml(c) + '</th>'; }).join('') +
-    '<th>' + offHeaderCellHtml() + '</th>' +
     otherCols.map(function (c) { return '<th' + (c.clinic === 'HMV' ? ' class="group-hmv"' : '') + '>' + slotHeaderCellHtml(c) + '</th>'; }).join('') +
     '</tr></thead><tbody>';
 
@@ -1614,7 +1647,7 @@ function renderSchedule() {
     if (isWeekend) trClasses.push('weekend');
     if (dateStr === todayStr) trClasses.push('today');
     if (isMyDuty) trClasses.push('my-duty');
-    if (isAutoOff && !(dateStr > todayStr)) trClasses.push('auto-off');
+    if (!isMyDuty && lindaDoctor()) trClasses.push('no-me');   // none of my names on this day
 
     html += '<tr class="' + trClasses.join(' ') + '">';
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
@@ -1629,7 +1662,6 @@ function renderSchedule() {
     var offStored = row['SPV_Off'];
     var futureNoSchedule = dateStr > todayStr && isAutoOff;   // a coming day nobody is scheduled on yet
     var offValue = (offStored && offStored !== AUTO_OFF_TEXT) ? offStored : ((!isMyDuty && lindaDoctor() && !futureNoSchedule) ? AUTO_OFF_TEXT : '');
-    html += renderOffCell(dateStr, offValue, isMyPersonalOff);
     otherCols.forEach(function (c) { html += renderSlotCell(dateStr, c.field, row[c.field], clashes); });
     html += '</tr>';
   }
@@ -1645,7 +1677,7 @@ function renderSchedule() {
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
-    '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '</div></div>' +
+    '<div class="stat"><div class="n">★ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ថ្ងៃយាមខែនេះ (ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + ')<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' +
     payByClinicBox() +
     clinicStatsHtml;
 
@@ -1768,13 +1800,12 @@ function periodHeaderRow(spvCols, otherCols) {
     return '<th colspan="' + r.span + '" class="period-th ' + (night ? 'night' : 'day') + '" style="--pc:' + c.text + ';">' +
       (night ? '🌙 យប់' : '☀️ ព្រឹក') + '</th>';
   }
-  return '<tr class="period-row"><th></th>' + runs(spvCols).map(cell).join('') + '<th></th>' + runs(otherCols).map(cell).join('') + '</tr>';
+  return '<tr class="period-row"><th></th>' + runs(spvCols).map(cell).join('') + runs(otherCols).map(cell).join('') + '</tr>';
 }
 
 function clinicGroupHeaderRow(spvCols, otherCols) {
   var groups = [];
   if (spvCols.length) groups.push({ clinic: 'SPV', span: spvCols.length });
-  groups.push({ clinic: null, span: 1 }); // the ថ្ងៃឈប់ column
   var i = 0;
   while (i < otherCols.length) {
     var clinic = otherCols[i].clinic;
