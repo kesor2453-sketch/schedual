@@ -1476,6 +1476,14 @@ function detectClashesLocal(rowObj) {
   return clashNames;
 }
 
+function toggleEmptyClinic(cn) {
+  window.__showEmptyClinic = window.__showEmptyClinic || {};
+  var k = monthKey(STATE.year, STATE.month) + '|' + cn;
+  window.__showEmptyClinic[k] = !window.__showEmptyClinic[k];
+  renderSchedule();
+}
+window.toggleEmptyClinic = toggleEmptyClinic;
+
 function hoursBreakdown(h24, dOnly, nOnly) {
   return '<span style="color:#a64ca6;font-weight:700;">២៤ម៉ោង ' + h24 + ' ថ្ងៃ</span> · ១២ម៉ោងថ្ងៃ ' + dOnly + ' · ១២ម៉ោងយប់ ' + nOnly;
 }
@@ -1496,15 +1504,21 @@ function renderSchedule() {
   var totalDutyUsd = 0;
   var curMonthKey = monthKey(y, m);
   var visibleCols = STATE.slotColumns.filter(function (c) { return columnActiveInMonth(c, curMonthKey); });
-  // a past month in which a clinic (other than SPV) has nothing filled in: don't show its columns at all
-  if (curMonthKey < monthKey(today.getFullYear(), today.getMonth() + 1)) {
+  // a clinic (other than SPV) with nothing filled in this month is hidden; a button reveals it. Once it has a name in it, it always shows.
+  var hiddenClinics = [], revealedEmpty = [];
+  (function () {
     var monthRows = STATE.scheduleAll.filter(function (r) { return String(r.Date).indexOf(y + '-' + pad2(m)) === 0; });
-    visibleCols = visibleCols.filter(function (c) {
-      if (c.clinic === 'SPV') return true;
-      var sameClinic = visibleCols.filter(function (x) { return x.clinic === c.clinic; });
-      return monthRows.some(function (r) { return sameClinic.some(function (x) { return r[x.field]; }); });
+    var names = [];
+    visibleCols.forEach(function (c) { if (c.clinic !== 'SPV' && names.indexOf(c.clinic) < 0) names.push(c.clinic); });
+    names.forEach(function (cn) {
+      var cols = visibleCols.filter(function (x) { return x.clinic === cn; });
+      var filled = monthRows.some(function (r) { return cols.some(function (x) { return r[x.field]; }); });
+      if (filled) return;
+      if (window.__showEmptyClinic && window.__showEmptyClinic[curMonthKey + '|' + cn]) { revealedEmpty.push(cn); return; }
+      hiddenClinics.push(cn);
     });
-  }
+    visibleCols = visibleCols.filter(function (c) { return hiddenClinics.indexOf(c.clinic) < 0; });
+  })();
   // group by clinic, and inside each clinic put all ព្រឹក (DAY) columns together, then យប់ (NIGHT)
   function groupByClinicPeriod(cols) {
     var order = [];
@@ -1521,7 +1535,14 @@ function renderSchedule() {
 
   updateClinicNameOptions();
 
-  var html = '<div style="overflow-x:auto;"><table class="sched"><thead>' +
+  var html = '';
+  if (hiddenClinics.length || revealedEmpty.length) {
+    html += '<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">' +
+      hiddenClinics.map(function (cn) { return '<button type="button" class="today-btn" onclick="toggleEmptyClinic(\'' + escapeAttr(cn) + '\')">＋ បង្ហាញ ' + escapeHtml(cn) + '</button>'; }).join('') +
+      revealedEmpty.map(function (cn) { return '<button type="button" class="today-btn" onclick="toggleEmptyClinic(\'' + escapeAttr(cn) + '\')">លាក់ ' + escapeHtml(cn) + '</button>'; }).join('') +
+      '</div>';
+  }
+  html += '<div style="overflow-x:auto;"><table class="sched"><thead>' +
     clinicGroupHeaderRow(spvCols, otherCols) +
     periodHeaderRow(spvCols, otherCols) +
     '<tr>' +
