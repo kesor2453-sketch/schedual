@@ -449,6 +449,7 @@
   table.att tr.off td{color:#9aa3b5;}
   table.att tr.we td{background:#fde8e8;color:#d92b2b;}
   table.att tr.we td.d{background:#f27b7b;color:#fff;} table.att tr.we td.d small{color:#fff;}
+  .att-ot{color:#d92b2b;font-size:12px;font-weight:800;}
   .sh-pill{height:30px;min-width:70px;border-radius:9px;border:1.5px dotted #c9d1df;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;}
   .sh-pill.on{background:#8cc63f;border:0;color:#111;}
   .att-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#2f6fed;color:#fff;border-radius:12px 12px 0 0;padding:10px 14px;font-weight:800;}
@@ -471,6 +472,11 @@
   input.att-time.att-multi,textarea.att-time.att-multi{width:92px;}
   input.att-time:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,111,237,.2);}
   input.att-time:disabled{background:#f3f5f9;border-color:#e1e6ef;color:#7a8499;}
+  /* plain text look like the hours column; still editable */
+  table.att textarea.att-time{border:0;background:transparent;box-shadow:none;padding:2px 0;width:70px;font-size:15px;font-weight:800;color:#1565c0;cursor:text;}
+  table.att textarea.att-time::placeholder{color:#b7c0d0;font-weight:600;}
+  table.att textarea.att-time:focus{outline:none;border-bottom:2px solid var(--brand);border-radius:0;}
+  table.att textarea.att-time:disabled{background:transparent;color:#1565c0;opacity:1;-webkit-text-fill-color:#1565c0;}
   .att-stack{margin:3px 0;} .att-stack.att-hr{min-height:24px;line-height:24px;margin:0;display:block;font-weight:700;}
   td .att-hrwrap{padding:6px 0;}
   .att-hrtot{margin-top:2px;padding-top:3px;border-top:1px dashed #b9c4d8;font-weight:800;color:#0b7f58;}
