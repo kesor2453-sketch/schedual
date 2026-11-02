@@ -1677,7 +1677,7 @@ function renderSchedule() {
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
-    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាមក្នុង ១ខែ ' + myDutyDayCount + '/' + nDays + '</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ក្នុង១ខែ ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + ' ម៉ោង</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' +
+    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាម ' + myDutyDayCount + 'ថ្ងៃ នៃ ' + nDays + 'ថ្ងៃ</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + 'ម៉ោង នៃ ' + (nDays * 24) + 'ម៉ោង (' + Math.round((h24Count * 24 + (h12DayCount + h12NightCount) * 12) * 100 / (nDays * 24)) + '%)</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' +
     payByClinicBox() +
     (Object.keys(dutyClinicCounts).length > 1 ? clinicStatsHtml : '');   // a single clinic just repeats the ★ box
 
