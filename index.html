@@ -594,7 +594,6 @@
           <button class="nav-btn" id="prevMonth">‹</button>
           <div class="month-label" id="monthLabel">—</div>
           <button class="nav-btn" id="nextMonth">›</button>
-          <button class="today-btn" id="todayBtn">ខែនេះ</button>
           <select class="today-btn" id="monthPicker" ></select>
         </div>
       </div>
@@ -618,7 +617,6 @@
         <button class="nav-btn" id="prevMonthDocPay">‹</button>
         <div class="month-label" id="monthLabelDocPay">—</div>
         <button class="nav-btn" id="nextMonthDocPay">›</button>
-        <button class="today-btn" id="todayBtnDoc">ខែនេះ</button>
         <select class="today-btn" id="monthPickerDoc"></select>
       </div></div>
       <div id="payWrap2"></div>
@@ -1313,12 +1311,6 @@ function bindTabs() {
 function bindMonthNav() {
   document.getElementById('prevMonth').addEventListener('click', function () { shiftMonth(-1); });
   document.getElementById('nextMonth').addEventListener('click', function () { shiftMonth(1); });
-  document.getElementById('todayBtn').addEventListener('click', function () {
-    var now = new Date();
-    STATE.year = now.getFullYear(); STATE.month = now.getMonth() + 1;
-    refreshAllMonthViews();
-  });
-  document.getElementById('todayBtnDoc').addEventListener('click', function () { document.getElementById('todayBtn').click(); });
   document.getElementById('monthPickerDoc').addEventListener('change', function (e) {
     var parts = e.target.value.split('-');
     STATE.year = Number(parts[0]); STATE.month = Number(parts[1]);
@@ -2524,7 +2516,7 @@ function renderPayroll(summary, incomeSummary) {
   // ---- one grand total for Linda alone, every clinic combined ----
   var incomeBothTotal = 0;
   Object.keys(incomeSummary || {}).forEach(function (c) { incomeBothTotal += incomeSummary[c].usd; });
-  if (summary.linda && (summary.linda.shifts || incomeBothTotal)) {
+  if (summary.linda) {   // always shown, even when the month has no shifts yet
     var lindaGrandTotal = summary.linda.usd + incomeBothTotal;
     var byClinicLine = Object.keys(summary.linda.byClinic).map(function (c) {
       var cc = summary.linda.byClinic[c];
