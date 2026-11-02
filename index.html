@@ -1800,7 +1800,7 @@ function clinicGroupHeaderRow(spvCols, otherCols) {
 // columns the pending delete will take.
 function slotHeaderCellHtml(col) {
   return '<div class="sched-col-head">' +
-    '<input type="text" class="col-name-input" value="' + escapeAttr(col.label) + '" ' + (isMirroredSpv(col.field) ? 'readonly ' : '') +
+    '<input type="text" class="col-name-input" value="' + escapeAttr(String(col.label).replace(/\s*[0-9០-៩]+\s*$/, '') || col.label) + '" ' + (isMirroredSpv(col.field) ? 'readonly ' : '') +
     'onchange="renameSlotColumn(\'' + col.field + '\', this.value)" title="ចុចដើម្បីប្តូរឈ្មោះជួរឈរនេះ">' +
     '</div>';
 }
