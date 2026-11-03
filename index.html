@@ -94,8 +94,9 @@
   table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
   :root{--row-off:#cdeeee;--row-we:#fde3e3;--row-today:#ffd9a0;}
   table.sched tbody tr.weekend td{background:var(--row-we);}
-  table.sched tbody tr.today td{animation:todayBlink 1.2s ease-in-out infinite;}
-  @keyframes todayBlink{0%,100%{background:var(--row-today);}50%{background:#fff;}}
+  table.sched tbody tr.today td{background:var(--row-today);}
+  table.sched .today-badge{animation:badgeBlink 1s ease-in-out infinite;}
+  @keyframes badgeBlink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.35;transform:scale(1.12);}}
   .dayoff-tag{color:#0f8f8f;font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:3px;}
   .home-sleep{vertical-align:middle;flex:none;}
   td.date-cell .dow{display:flex;align-items:center;justify-content:flex-start;gap:4px;flex-wrap:nowrap;white-space:nowrap;}
