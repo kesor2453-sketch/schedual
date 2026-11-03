@@ -92,7 +92,7 @@
     font-size:10px;padding:2px 7px;border-radius:20px;margin-left:6px;
   }
   table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
-  :root{--row-off:#cdeeee;--row-we:#fde3e3;--row-today:#ffd9a0;}
+  :root{--c24:#a64ca6;--c12d:#f08c00;--c12n:#8a8f98;--row-off:#cdeeee;--row-we:#fde3e3;--row-today:#ffd9a0;}
   table.sched tbody tr.weekend td{background:var(--row-we);}
   table.sched tbody tr.today td{background:var(--row-today);}
   table.sched .today-badge{animation:badgeBlink 1s ease-in-out infinite;}
@@ -625,9 +625,12 @@
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;"><div style="font-weight:700;font-size:15px;">បញ្ជីគ្រូពេទ្យ</div><button type="button" class="today-btn btn-edit" onclick="openDoctorEditor()">✏️ កែប្រែ</button></div>
       <div class="color-row">
-        <span style="font-weight:700;">🎨 ពណ៌កាលវិភាគ</span>
+        <span style="font-weight:700;">🎨 ពណ៌</span>
         <label>សៅរ៍-អាទិត្យ <input type="color" id="colWe" data-var="--row-we" value="#fde3e3"></label>
         <label>ថ្ងៃនេះ <input type="color" id="colToday" data-var="--row-today" value="#ffd9a0"></label>
+        <label>២៤ម៉ោង <input type="color" data-var="--c24" value="#a64ca6"></label>
+        <label>១២ម៉ោងថ្ងៃ <input type="color" data-var="--c12d" value="#f08c00"></label>
+        <label>១២ម៉ោងយប់ <input type="color" data-var="--c12n" value="#8a8f98"></label>
         <button type="button" class="today-btn" id="colReset">ដើម</button>
       </div>
       <div class="doc-grid" id="docGrid"></div>
@@ -1504,7 +1507,7 @@ function allClinicsTotalLine() {
     if (!sm || !sm.linda) return '';
     var pay = sm.linda.usd || 0, im = 0;
     Object.keys(inc).forEach(function (c) { im += (inc[c] && inc[c].usd) || 0; });
-    return '<br><b style="color:#5b3fd1;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក ' + fmtBoth(pay + im) + '</b>';
+    return '<div class="stat" style="border-color:#c9bdf5;background:#f6f3ff;"><div class="n" style="color:#5b3fd1;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក</div><div class="l" style="color:#5b3fd1;font-weight:700;">' + fmtBoth(pay + im) + '</div></div>';
   } catch (e) { return ''; }
 }
 
@@ -1528,7 +1531,7 @@ function payByClinicBox(counts) {
 }
 
 // schedule row colours — editable on the doctors tab, remembered on this device
-var ROW_COLORS_DEFAULT = { '--row-off': '#cdeeee', '--row-we': '#fde3e3', '--row-today': '#ffd9a0' };
+var ROW_COLORS_DEFAULT = { '--row-off': '#cdeeee', '--row-we': '#fde3e3', '--row-today': '#ffd9a0', '--c24': '#a64ca6', '--c12d': '#f08c00', '--c12n': '#8a8f98' };
 function applyRowColors(map) {
   Object.keys(ROW_COLORS_DEFAULT).forEach(function (v) { document.documentElement.style.setProperty(v, map[v] || ROW_COLORS_DEFAULT[v]); });
   document.querySelectorAll('.color-row input[type=color]').forEach(function (i) { i.value = map[i.dataset.v] || map[i.getAttribute('data-var')] || ROW_COLORS_DEFAULT[i.getAttribute('data-var')]; });
@@ -1567,7 +1570,7 @@ function toggleEmptyClinic(cn) {
 window.toggleEmptyClinic = toggleEmptyClinic;
 
 function hoursBreakdown(h24, dOnly, nOnly) {
-  return '<span style="color:#a64ca6;font-weight:700;">២៤ម៉ោង ' + h24 + ' ថ្ងៃ</span> · ១២ម៉ោងថ្ងៃ ' + dOnly + ' · ១២ម៉ោងយប់ ' + nOnly;
+  return '<span style="color:var(--c24);font-weight:700;">២៤ម៉ោង ' + h24 + ' ថ្ងៃ</span> · <span style="color:var(--c12d);font-weight:700;">១២ម៉ោងថ្ងៃ ' + dOnly + '</span> · <span style="color:var(--c12n);font-weight:700;">១២ម៉ោងយប់ ' + nOnly + '</span>';
 }
 
 function renderSchedule() {
@@ -1708,7 +1711,7 @@ function renderSchedule() {
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
-    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាម ' + myDutyDayCount + 'ថ្ងៃ នៃ ' + nDays + 'ថ្ងៃ</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + 'ម៉ោង នៃ ' + (nDays * 24) + 'ម៉ោង (' + Math.round((h24Count * 24 + (h12DayCount + h12NightCount) * 12) * 100 / (nDays * 24)) + '%)</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span>' + allClinicsTotalLine() + '</div></div>' +
+    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាម ' + myDutyDayCount + 'ថ្ងៃ នៃ ' + nDays + 'ថ្ងៃ</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + 'ម៉ោង នៃ ' + (nDays * 24) + 'ម៉ោង (' + Math.round((h24Count * 24 + (h12DayCount + h12NightCount) * 12) * 100 / (nDays * 24)) + '%)</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' + allClinicsTotalLine() +
     payByClinicBox(dutyClinicCounts);
 
   var banner = document.getElementById('clashBanner');
