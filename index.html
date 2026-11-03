@@ -99,6 +99,7 @@
   @keyframes badgeBlink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.35;transform:scale(1.12);}}
   .dayoff-tag{color:#0f8f8f;font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:3px;}
   .home-sleep{vertical-align:middle;flex:none;}
+  table.sched td.date-cell .dow{font-size:15px;font-weight:700;color:var(--text,#1c2430);}
   td.date-cell .dow{display:flex;align-items:center;justify-content:flex-start;gap:4px;flex-wrap:nowrap;white-space:nowrap;}
   .color-row{display:flex;gap:14px;flex-wrap:nowrap;align-items:center;overflow-x:auto;margin-bottom:12px;padding:8px 10px;background:#f6f8fc;border-radius:12px;font-size:12.5px;white-space:nowrap;}
   .color-row label{display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;}
@@ -225,6 +226,9 @@
   .stat{background:#fbfcfe;border:1px solid var(--line);border-radius:11px;padding:10px 16px;min-width:120px;}
   .stat .n{font-size:17px;font-weight:700;}
   .stat .l{font-size:11px;color:var(--sub);margin-top:2px;}
+  #scheduleStatsWrap .stat{padding:12px 16px;}
+  #scheduleStatsWrap .stat .n{font-size:22px !important;}
+  #scheduleStatsWrap .stat .l{font-size:14px;line-height:1.55;color:#3a4558;margin-top:4px;}
 
   /* Clinic-total grid (redesigned for easier entry / column editing) */
   #clinicGridTable{font-size:13.3px;}
@@ -1494,7 +1498,17 @@ function detectClashesLocal(rowObj) {
 }
 
 // ប្រាក់សរុបតាមគ្លីនិក = duty pay + Consult/IPD income, per clinic, for the viewed month (same as the doctors-tab summary)
-function payByClinicBox() {
+function allClinicsTotalLine() {
+  try {
+    var sm = computePayrollClient(STATE.year, STATE.month), inc = computeIncomeSummary(STATE.year, STATE.month) || {};
+    if (!sm || !sm.linda) return '';
+    var pay = sm.linda.usd || 0, im = 0;
+    Object.keys(inc).forEach(function (c) { im += (inc[c] && inc[c].usd) || 0; });
+    return '<br><b style="color:#5b3fd1;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក ' + fmtBoth(pay + im) + '</b>';
+  } catch (e) { return ''; }
+}
+
+function payByClinicBox(counts) {
   try {
     var sm = computePayrollClient(STATE.year, STATE.month), inc = computeIncomeSummary(STATE.year, STATE.month) || {};
     if (!sm || !sm.linda) return '';
@@ -1502,10 +1516,13 @@ function payByClinicBox() {
     Object.keys(sm.linda.byClinic).forEach(function (c) { names[c] = true; });
     Object.keys(inc).forEach(function (c) { if (inc[c] && inc[c].usd) names[c] = true; });
     var list = Object.keys(names).sort(); if (!list.length) return '';
+    var multi = Object.keys(counts || {}).length > 1;
     return list.map(function (c) {
       var pay = (sm.linda.byClinic[c] && sm.linda.byClinic[c].usd) || 0, im = (inc[c] && inc[c].usd) || 0;
       return '<div class="stat"><div class="n">' + escapeHtml(c) + '</div><div class="l">' +
-        '<b>សរុប</b> ' + fmtBoth(pay + im) + '<br>ប្រាក់ខែ ' + fmtBoth(pay) + '<br>ចំណូល ' + fmtBoth(im) + '</div></div>';
+        '<b>សរុប</b> ' + fmtBoth(pay + im) + '<br>ប្រាក់ខែ ' + fmtBoth(pay) + '<br>ចំណូល ' + fmtBoth(im) +
+        ((multi && counts[c]) ? '<br><b>' + counts[c].total + ' ថ្ងៃ</b><br>' + escapeHtml(c) + ' (ព្រឹក ' + counts[c].day + ' | យប់ ' + counts[c].night + ')<br>' + hoursBreakdown(counts[c].h24, counts[c].dOnly, counts[c].nOnly) : '') +
+        '</div></div>';
     }).join('');
   } catch (e) { return ''; }
 }
@@ -1691,9 +1708,8 @@ function renderSchedule() {
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
-    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាម ' + myDutyDayCount + 'ថ្ងៃ នៃ ' + nDays + 'ថ្ងៃ</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + 'ម៉ោង នៃ ' + (nDays * 24) + 'ម៉ោង (' + Math.round((h24Count * 24 + (h12DayCount + h12NightCount) * 12) * 100 / (nDays * 24)) + '%)</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' +
-    payByClinicBox() +
-    (Object.keys(dutyClinicCounts).length > 1 ? clinicStatsHtml : '');   // a single clinic just repeats the ★ box
+    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាម ' + myDutyDayCount + 'ថ្ងៃ នៃ ' + nDays + 'ថ្ងៃ</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + 'ម៉ោង នៃ ' + (nDays * 24) + 'ម៉ោង (' + Math.round((h24Count * 24 + (h12DayCount + h12NightCount) * 12) * 100 / (nDays * 24)) + '%)</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span>' + allClinicsTotalLine() + '</div></div>' +
+    payByClinicBox(dutyClinicCounts);
 
   var banner = document.getElementById('clashBanner');
   if (allClashDays.length) {
