@@ -92,6 +92,7 @@
     font-size:10px;padding:2px 7px;border-radius:20px;margin-left:6px;
   }
   table.sched tbody tr.my-duty td.date-cell{box-shadow:inset 3px 0 0 var(--brand);}
+  #spvSyncStatus{display:none !important;}
   :root{--c24:#a64ca6;--c12d:#f08c00;--c12n:#8a8f98;--row-off:#cdeeee;--row-we:#fde3e3;--row-today:#ffd9a0;}
   table.sched tbody tr.weekend td{background:var(--row-we);}
   table.sched tbody tr.today td{background:var(--row-today);}
@@ -227,8 +228,8 @@
   .stat .n{font-size:17px;font-weight:700;}
   .stat .l{font-size:11px;color:var(--sub);margin-top:2px;}
   #scheduleStatsWrap .stat{padding:12px 16px;}
-  #scheduleStatsWrap .stat .n{font-size:19px !important;}
-  #scheduleStatsWrap .stat .l{font-size:13px;line-height:1.55;color:#3a4558;margin-top:4px;}
+  #scheduleStatsWrap .stat .n{font-size:17px !important;}
+  #scheduleStatsWrap .stat .l{font-size:12px;line-height:1.55;color:#3a4558;margin-top:4px;}
 
   /* Clinic-total grid (redesigned for easier entry / column editing) */
   #clinicGridTable{font-size:13.3px;}
@@ -611,9 +612,11 @@
           <select class="today-btn" id="monthPicker" ></select>
         </div>
       </div>
-      <div class="stat-row" id="scheduleStatsWrap" style="margin-bottom:12px;"></div>
-      <div class="sync-chip" id="spvSyncStatus" style="display:none;"></div>
-      <div style="margin-bottom:12px;"><button type="button" class="today-btn btn-edit" onclick="openClinicEditor()">✏️ កែប្រែ</button></div>
+      <div class="top-row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:12px;">
+        <div class="sync-chip" id="spvSyncStatus" style="display:none;flex-basis:100%;"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start;flex:none;"><button type="button" class="today-btn btn-edit" onclick="openClinicEditor()">✏️ កែប្រែ</button><span id="clinicToggleWrap"></span></div>
+        <div class="stat-row" id="scheduleStatsWrap" style="margin:0;flex:1 1 0;min-width:0;"></div>
+      </div>
       <div class="clash-banner" id="clashBanner"></div>
       <div id="scheduleWrap"></div>
       <div style="font-size:11px;color:var(--sub);margin-top:10px;">កែឈ្មោះជួរឈរដោយវាយផ្ទាល់ក្នុងក្បាល — ចុច ✏️ កែប្រែ ក្បែរឈ្មោះគ្លីនិក ដើម្បីប្តូរឈ្មោះ ឬបញ្ឈប់ជួរឈរ (ទិន្នន័យចាស់នៅរក្សាទុក)</div>
@@ -1518,7 +1521,7 @@ function allClinicsTotalLine() {
     if (!sm || !sm.linda) return '';
     var pay = sm.linda.usd || 0, im = 0;
     Object.keys(inc).forEach(function (c) { im += (inc[c] && inc[c].usd) || 0; });
-    return '<div class="stat" style="border-color:#c9bdf5;background:#f6f3ff;"><div class="n" style="color:#5b3fd1;font-size:15px !important;line-height:1.5;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក</div><div class="l" style="color:#5b3fd1;font-weight:700;font-size:15px !important;line-height:1.5;margin-top:0;">' + fmtBoth(pay + im) + '</div></div>';
+    return '<div class="stat" style="border-color:#c9bdf5;background:#f6f3ff;"><div class="n" style="color:#5b3fd1;font-size:13.5px !important;line-height:1.5;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក</div><div class="l" style="color:#5b3fd1;font-weight:700;font-size:13.5px !important;line-height:1.5;margin-top:0;">' + fmtBoth(pay + im) + '</div></div>';
   } catch (e) { return ''; }
 }
 
@@ -1600,6 +1603,7 @@ function toggleEmptyClinic(cn) {
   var k = monthKey(STATE.year, STATE.month) + '|' + cn;
   window.__showEmptyClinic[k] = !window.__showEmptyClinic[k];
   renderSchedule();
+  if (STATE.editingClinic) renderClinicEditor();
 }
 window.toggleEmptyClinic = toggleEmptyClinic;
 
@@ -1655,12 +1659,7 @@ function renderSchedule() {
   updateClinicNameOptions();
 
   var html = '';
-  if (hiddenClinics.length || revealedEmpty.length) {
-    html += '<div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">' +
-      hiddenClinics.map(function (cn) { return '<button type="button" class="today-btn" onclick="toggleEmptyClinic(\'' + escapeAttr(cn) + '\')">＋ បង្ហាញ ' + escapeHtml(cn) + '</button>'; }).join('') +
-      revealedEmpty.map(function (cn) { return '<button type="button" class="today-btn" onclick="toggleEmptyClinic(\'' + escapeAttr(cn) + '\')">លាក់ ' + escapeHtml(cn) + '</button>'; }).join('') +
-      '</div>';
-  }
+  window.__hiddenClinics = hiddenClinics; window.__revealedEmpty = revealedEmpty;
   html += '<div style="overflow-x:auto;"><table class="sched"><thead>' +
     clinicGroupHeaderRow(spvCols, otherCols) +
     periodHeaderRow(spvCols, otherCols) +
@@ -2005,6 +2004,9 @@ function renderClinicEditor() {
 
   var html = '<div class="modal-box" style="max-width:520px;">' +
     '<div class="ce-title" style="background:var(--spv-bg);color:var(--spv);">✏️ កែប្រែគ្លីនិក និងជួរឈរ — ' + escapeHtml(monthLabel) + '</div>';
+  var tg = (window.__hiddenClinics || []).map(function (cn) { return '<button type="button" class="today-btn" onclick="toggleEmptyClinic(\'' + escapeAttr(cn) + '\')">＋ បង្ហាញ ' + escapeHtml(cn) + '</button>'; }).join('') +
+    (window.__revealedEmpty || []).map(function (cn) { return '<button type="button" class="today-btn" onclick="toggleEmptyClinic(\'' + escapeAttr(cn) + '\')">លាក់ ' + escapeHtml(cn) + '</button>'; }).join('');
+  if (tg) html += '<div style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><span style="font-size:12.5px;color:var(--sub);">ជួរគ្លីនិកទទេក្នុងខែនេះ៖</span>' + tg + '</div>';
 
   clinics.forEach(function (clinic) {
     var cc = clinicHeaderColors(clinic);
