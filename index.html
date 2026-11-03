@@ -1521,7 +1521,7 @@ function payByClinicBox(counts) {
       var pay = (sm.linda.byClinic[c] && sm.linda.byClinic[c].usd) || 0, im = (inc[c] && inc[c].usd) || 0;
       return '<div class="stat"><div class="n">' + escapeHtml(c) + '</div><div class="l">' +
         '<b>សរុប</b> ' + fmtBoth(pay + im) + '<br>ប្រាក់ខែ ' + fmtBoth(pay) + '<br>ចំណូល ' + fmtBoth(im) +
-        ((multi && counts[c]) ? '<br><b>' + counts[c].total + ' ថ្ងៃ</b><br>' + escapeHtml(c) + ' (ព្រឹក ' + counts[c].day + ' | យប់ ' + counts[c].night + ')<br>' + hoursBreakdown(counts[c].h24, counts[c].dOnly, counts[c].nOnly) : '') +
+        ((multi && counts[c]) ? '<br><b>' + counts[c].total + ' ថ្ងៃ</b> : ' + escapeHtml(c) + ' (ព្រឹក ' + counts[c].day + ' | យប់ ' + counts[c].night + ')<br>' + hoursBreakdown(counts[c].h24, counts[c].dOnly, counts[c].nOnly) : '') +
         '</div></div>';
     }).join('');
   } catch (e) { return ''; }
