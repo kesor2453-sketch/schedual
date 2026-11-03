@@ -96,7 +96,9 @@
   table.sched tbody tr.weekend td{background:var(--row-we);}
   table.sched tbody tr.today td{animation:todayBlink 1.2s ease-in-out infinite;}
   @keyframes todayBlink{0%,100%{background:var(--row-today);}50%{background:#fff;}}
-  .dayoff-tag{color:#0f8f8f;font-weight:700;}
+  .dayoff-tag{color:#0f8f8f;font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:3px;}
+  .home-sleep{vertical-align:middle;flex:none;}
+  td.date-cell .dow{display:flex;align-items:center;justify-content:flex-start;gap:4px;flex-wrap:nowrap;white-space:nowrap;}
   .color-row{display:flex;gap:14px;flex-wrap:nowrap;align-items:center;overflow-x:auto;margin-bottom:12px;padding:8px 10px;background:#f6f8fc;border-radius:12px;font-size:12.5px;white-space:nowrap;}
   .color-row label{display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer;}
   .color-row input[type=color]{width:30px;height:26px;border:1px solid var(--line);border-radius:7px;padding:0;background:none;cursor:pointer;}
@@ -1527,6 +1529,17 @@ function initRowColors() {
   });
 }
 
+// small "sleeping at home" picture shown beside (Dayoff): a house with a sleeper in bed and Zzz
+var HOME_SLEEP_SVG = '<svg class="home-sleep" viewBox="0 0 48 40" width="30" height="25" aria-hidden="true">' +
+  '<path d="M4 20 24 4l20 16" fill="none" stroke="#0f8f8f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<path d="M9 18v18h30V18" fill="#e3f6f6" stroke="#0f8f8f" stroke-width="2.5" stroke-linejoin="round"/>' +
+  '<rect x="12" y="27" width="24" height="6" rx="2" fill="#7ec8c8"/>' +
+  '<circle cx="17" cy="25" r="3.2" fill="#f4c7a1"/>' +
+  '<path d="M20 25h16v4H20z" fill="#4aa3a3"/>' +
+  '<text x="30" y="19" font-size="8" font-weight="800" fill="#0f8f8f" font-family="Arial,sans-serif">z</text>' +
+  '<text x="35" y="14" font-size="6" font-weight="800" fill="#0f8f8f" font-family="Arial,sans-serif">z</text>' +
+  '</svg>';
+
 function toggleEmptyClinic(cn) {
   window.__showEmptyClinic = window.__showEmptyClinic || {};
   var k = monthKey(STATE.year, STATE.month) + '|' + cn;
@@ -1653,7 +1666,7 @@ function renderSchedule() {
     html += '<td class="date-cell">' + d + '/' + pad2(m) +
       (isMyDuty ? '<span class="duty-star" title="ថ្ងៃយាមរបស់អ្នក">★</span>' : '') +
       (dateStr === todayStr ? '<span class="today-badge">ថ្ងៃនេះ</span>' : '') +
-      '<span class="dow">' + DOW_KM[dowName] + (trClasses.indexOf('no-me') >= 0 ? ' <span class="dayoff-tag">(Dayoff)</span>' : '') + '</span></td>';
+      '<span class="dow">' + DOW_KM[dowName] + (trClasses.indexOf('no-me') >= 0 ? ' <span class="dayoff-tag">🛏️ (Dayoff)</span>' : '') + '</span></td>';
 
     spvCols.forEach(function (c) { html += renderSlotCell(dateStr, c.field, row[c.field], clashes); });
     // ឈប់សម្រាក: no need to type anything — on every day I'm not on duty it shows DAY OFF by itself
