@@ -227,8 +227,8 @@
   .stat .n{font-size:17px;font-weight:700;}
   .stat .l{font-size:11px;color:var(--sub);margin-top:2px;}
   #scheduleStatsWrap .stat{padding:12px 16px;}
-  #scheduleStatsWrap .stat .n{font-size:22px !important;}
-  #scheduleStatsWrap .stat .l{font-size:14px;line-height:1.55;color:#3a4558;margin-top:4px;}
+  #scheduleStatsWrap .stat .n{font-size:19px !important;}
+  #scheduleStatsWrap .stat .l{font-size:13px;line-height:1.55;color:#3a4558;margin-top:4px;}
 
   /* Clinic-total grid (redesigned for easier entry / column editing) */
   #clinicGridTable{font-size:13.3px;}
@@ -1518,7 +1518,7 @@ function allClinicsTotalLine() {
     if (!sm || !sm.linda) return '';
     var pay = sm.linda.usd || 0, im = 0;
     Object.keys(inc).forEach(function (c) { im += (inc[c] && inc[c].usd) || 0; });
-    return '<div class="stat" style="border-color:#c9bdf5;background:#f6f3ff;"><div class="n" style="color:#5b3fd1;font-size:17px !important;line-height:1.5;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក</div><div class="l" style="color:#5b3fd1;font-weight:700;font-size:17px !important;line-height:1.5;margin-top:0;">' + fmtBoth(pay + im) + '</div></div>';
+    return '<div class="stat" style="border-color:#c9bdf5;background:#f6f3ff;"><div class="n" style="color:#5b3fd1;font-size:15px !important;line-height:1.5;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក</div><div class="l" style="color:#5b3fd1;font-weight:700;font-size:15px !important;line-height:1.5;margin-top:0;">' + fmtBoth(pay + im) + '</div></div>';
   } catch (e) { return ''; }
 }
 
