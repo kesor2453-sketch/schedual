@@ -227,7 +227,8 @@
   .stat{background:#fbfcfe;border:1px solid var(--line);border-radius:11px;padding:10px 16px;min-width:120px;}
   .stat .n{font-size:17px;font-weight:700;}
   .stat .l{font-size:11px;color:var(--sub);margin-top:2px;}
-  #scheduleStatsWrap .stat{padding:12px 16px;}
+  #scheduleStatsWrap .stat{padding:12px 16px;width:fit-content;max-width:100%;min-width:0;flex:0 0 auto;}
+  #scheduleStatsWrap .stat .l,#scheduleStatsWrap .stat .n{white-space:nowrap;}
   #scheduleStatsWrap .stat .n{font-size:17px !important;}
   #scheduleStatsWrap .stat .l{font-size:12px;line-height:1.55;color:#3a4558;margin-top:4px;}
 
@@ -615,7 +616,7 @@
       <div class="top-row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:12px;">
         <div class="sync-chip" id="spvSyncStatus" style="display:none;"></div>
         <span id="clinicToggleWrap"></span>
-        <div class="stat-row" id="scheduleStatsWrap" style="margin:0;flex:1 1 0;min-width:0;"></div>
+        <div class="stat-row" id="scheduleStatsWrap" style="margin:0;flex:1 1 100%;min-width:0;align-items:flex-start;"></div>
         <div style="flex:none;"><button type="button" class="today-btn btn-edit" onclick="openClinicEditor()">✏️ កែប្រែ</button></div>
       </div>
       <div class="clash-banner" id="clashBanner"></div>
