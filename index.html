@@ -633,6 +633,16 @@
         <label>១២ម៉ោងយប់ <input type="color" data-var="--c12n" value="#8a8f98"></label>
         <button type="button" class="today-btn" id="colReset">ដើម</button>
       </div>
+      <div class="color-row">
+        <span style="font-weight:700;">🔤 អក្សរ</span>
+        <label>ហ្វុន
+          <select id="fontSel" class="today-btn" style="padding:5px 8px;">
+            <option value="">ដើម</option>
+            <option>Noto Sans Khmer</option><option>Battambang</option><option>Siemreap</option>
+            <option>Hanuman</option><option>Kantumruy Pro</option><option>Content</option><option>Moul</option>
+          </select></label>
+        <label>ទំហំ <input type="range" id="fontSize" min="80" max="150" step="5" value="100" style="width:120px;"> <b id="fontSizeLbl">100%</b></label>
+      </div>
       <div class="doc-grid" id="docGrid"></div>
     </div>
     <div class="card">
@@ -1134,6 +1144,7 @@ document.addEventListener('DOMContentLoaded', function () {
   bindClinicGridControls();
   bindSlotColumnControls();
   initRowColors();
+  initTextPrefs();
 
   document.getElementById('scheduleWrap').innerHTML =
     '<div class="loading"><span class="spinner"></span> កំពុងភ្ជាប់ Firestore...</div>';
@@ -1507,7 +1518,7 @@ function allClinicsTotalLine() {
     if (!sm || !sm.linda) return '';
     var pay = sm.linda.usd || 0, im = 0;
     Object.keys(inc).forEach(function (c) { im += (inc[c] && inc[c].usd) || 0; });
-    return '<div class="stat" style="border-color:#c9bdf5;background:#f6f3ff;"><div class="n" style="color:#5b3fd1;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក</div><div class="l" style="color:#5b3fd1;font-weight:700;">' + fmtBoth(pay + im) + '</div></div>';
+    return '<div class="stat" style="border-color:#c9bdf5;background:#f6f3ff;"><div class="n" style="color:#5b3fd1;font-size:17px !important;line-height:1.5;">សរុបប្រចាំខែ ទាំងអស់គ្លីនិក</div><div class="l" style="color:#5b3fd1;font-weight:700;font-size:17px !important;line-height:1.5;margin-top:0;">' + fmtBoth(pay + im) + '</div></div>';
   } catch (e) { return ''; }
 }
 
@@ -1536,6 +1547,29 @@ function applyRowColors(map) {
   Object.keys(ROW_COLORS_DEFAULT).forEach(function (v) { document.documentElement.style.setProperty(v, map[v] || ROW_COLORS_DEFAULT[v]); });
   document.querySelectorAll('.color-row input[type=color]').forEach(function (i) { i.value = map[i.dataset.v] || map[i.getAttribute('data-var')] || ROW_COLORS_DEFAULT[i.getAttribute('data-var')]; });
 }
+// text font + size, remembered on this device
+function applyTextPrefs(p) {
+  var st = document.getElementById('fontStyle');
+  if (!st) { st = document.createElement('style'); st.id = 'fontStyle'; document.head.appendChild(st); }
+  if (p.font) {
+    if (!document.getElementById('fontLink')) { var l = document.createElement('link'); l.id = 'fontLink'; l.rel = 'stylesheet'; document.head.appendChild(l); }
+    document.getElementById('fontLink').href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(p.font).replace(/%20/g, '+') + ':wght@400;600;700&display=swap';
+    st.textContent = 'html body, html body input, html body select, html body textarea, html body button, html body table {font-family:"' + p.font + '","Noto Sans Khmer",sans-serif !important;}';
+  } else st.textContent = '';
+  var z = (p.size || 100) / 100;
+  document.getElementById('app').style.zoom = z === 1 ? '' : z;
+  var sel = document.getElementById('fontSel'), rg = document.getElementById('fontSize'), lb = document.getElementById('fontSizeLbl');
+  if (sel) sel.value = p.font || ''; if (rg) rg.value = p.size || 100; if (lb) lb.textContent = (p.size || 100) + '%';
+}
+function initTextPrefs() {
+  var p = {}; try { p = JSON.parse(localStorage.getItem('textPrefs') || '{}') || {}; } catch (e) {}
+  applyTextPrefs(p);
+  function save() { try { localStorage.setItem('textPrefs', JSON.stringify(p)); } catch (e) {} applyTextPrefs(p); }
+  document.getElementById('fontSel').addEventListener('change', function () { p.font = this.value; save(); });
+  document.getElementById('fontSize').addEventListener('input', function () { p.size = Number(this.value); save(); });
+  document.getElementById('colReset').addEventListener('click', function () { p = {}; try { localStorage.removeItem('textPrefs'); } catch (e) {} applyTextPrefs(p); });
+}
+
 function initRowColors() {
   var saved = {}; try { saved = JSON.parse(localStorage.getItem('rowColors') || '{}') || {}; } catch (e) {}
   applyRowColors(saved);
@@ -1711,8 +1745,8 @@ function renderSchedule() {
   }).join('');
 
   document.getElementById('scheduleStatsWrap').innerHTML =
-    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាម ' + myDutyDayCount + 'ថ្ងៃ នៃ ' + nDays + 'ថ្ងៃ</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + 'ម៉ោង នៃ ' + (nDays * 24) + 'ម៉ោង (' + Math.round((h24Count * 24 + (h12DayCount + h12NightCount) * 12) * 100 / (nDays * 24)) + '%)</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' + allClinicsTotalLine() +
-    payByClinicBox(dutyClinicCounts);
+    '<div class="stat"><div class="n" style="font-size:17px;">ថ្ងៃយាម ' + myDutyDayCount + 'ថ្ងៃ នៃ ' + nDays + 'ថ្ងៃ</div><div class="l">ព្រឹក ' + dayDutyCount + ' | យប់ ' + nightDutyCount + '<br>' + hoursBreakdown(h24Count, h12DayCount, h12NightCount) + '<br><b>ម៉ោងធ្វើការសរុប ' + (h24Count * 24 + (h12DayCount + h12NightCount) * 12) + 'ម៉ោង នៃ ' + (nDays * 24) + 'ម៉ោង (' + Math.round((h24Count * 24 + (h12DayCount + h12NightCount) * 12) * 100 / (nDays * 24)) + '%)</b><br><span style="color:#0f8f8f;font-weight:700;">ថ្ងៃឈប់ (Day off) ' + (nDays - myDutyDayCount) + ' ថ្ងៃ</span></div></div>' +
+    payByClinicBox(dutyClinicCounts) + allClinicsTotalLine();
 
   var banner = document.getElementById('clashBanner');
   if (allClashDays.length) {
